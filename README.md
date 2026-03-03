@@ -1,1 +1,139 @@
 # trojan-traffic
+
+## Project Name
+
+**Trojan Traffic**
+
+---
+
+## Short Description
+
+A web platform that allows users to place token-based over or under predictions on how many people enter a defined region on the USC live camera feed within a set time window.
+
+---
+
+## High-Level Description
+
+Trojan Traffic is a web app that overlays a defined box on top of the USC live camera feed (Tommy Trojan and/or USC Village) and tracks foot traffic to count how many people enter the box.
+
+Users place predictions on whether the number of people entering the box during a selected time window will be over or under a specified threshold. The system automatically counts entries and resolves outcomes at the end of each timed session.
+
+Correct predictions earn tokens. Incorrect predictions deduct tokens.
+
+Users can:
+- Sign up and create an account
+- Log in to place predictions
+- Earn daily tokens
+- View rankings and achievements
+
+We anticipate most users will be USC students.
+
+**Camera Feed:**  
+https://cs9.pixelcaster.com/live/usc-tommy.stream/playlist.m3u8
+
+---
+
+## Core Features
+
+### User & Profile
+
+#### Authentication
+- Email and password login
+- Optional Google authentication
+- Secure session management
+
+#### Profile Page
+- Name
+- Overall ranking tier (Platinum, Gold, Silver, etc.)
+- Total token balance
+- Current streak
+- Total correct predictions
+- Achievements and badges earned
+- Betting and performance history
+
+---
+
+### Token & Streak System
+
+#### Token System
+- Users receive a set number of daily tokens
+- Tokens are required to place predictions
+- Tokens are awarded or deducted based on results
+
+#### Daily Login Reward
+- Daily token bonus for logging in
+- Bonus increases with login streak length
+
+#### Streak System
+- Consecutive days logged in
+- Consecutive correct predictions
+
+Streaks unlock:
+- Ranking upgrades
+- Special badges
+- Bonus tokens
+
+Examples:
+- 7-day streak
+- 20-day streak
+- 50-day streak
+
+---
+
+### Game Modes
+
+Predetermined game times. Bets must be placed before the session starts.
+
+Available modes:
+- 30 seconds
+- 60 seconds
+
+Each mode:
+- Starts a timed counting session
+- Locks betting once countdown begins
+- Automatically resolves when timer ends
+
+---
+
+### Betting System
+
+#### Betting Screen Includes:
+- Live camera feed
+- Overlayed virtual box
+- Token balance display
+- Over / Under input selection
+- Submit button
+- Visible countdown timer
+
+#### Daily Variation
+- The box location is randomized daily
+- All users bet on the same region for fairness
+
+---
+
+### ML Tracking
+
+- Real-time human detection
+- Tracking across frames
+- Count entries into the defined region
+- Automatic result resolution
+
+---
+
+### Leaderboard
+
+- Daily rankings
+- Weekly rankings
+- All-time rankings
+
+---
+
+### Loading & System Feedback
+
+- Loading screen while ML model initializes
+- Status indicator during live counting
+- Clear result screen showing:
+  - Final count
+  - User prediction
+  - Win or loss
+  - Token change
