@@ -137,3 +137,75 @@ Each mode:
   - User prediction
   - Win or loss
   - Token change
+
+---
+
+## Scaffolded Stack (March 4, 2026)
+
+### `apps/web`
+
+- Next.js 15 + React 19 + TypeScript
+- Supabase JS client bootstrap
+- HLS playback component wired to USC stream URL
+- Starter App Router page and API health endpoint
+
+### `services/vision`
+
+- Python 3.12 FastAPI service scaffold
+- Typed request/response contracts for counting sessions
+- Stub counting pipeline entrypoint with tests
+
+### `supabase`
+
+- Initial SQL migration with:
+  - profiles
+  - token ledger and derived token balance view
+  - sessions
+  - predictions
+  - streak and login tables
+  - achievements
+  - `resolve_session` function for server-authoritative settlement
+  - row-level security policies
+
+---
+
+## Repository Layout
+
+```text
+apps/web                 # Next.js product app
+services/vision          # FastAPI vision service
+supabase/migrations      # Database schema and server-side logic
+```
+
+---
+
+## Quick Start
+
+### 1) Install Node dependencies
+
+```bash
+npm install
+```
+
+### 2) Run web app
+
+```bash
+cp apps/web/.env.example apps/web/.env.local
+npm run dev:web
+```
+
+### 3) Run vision service
+
+```bash
+cd services/vision
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -e ".[dev]"
+uvicorn app.main:app --reload --port 8080
+```
+
+### 4) Apply database migration (Supabase CLI)
+
+```bash
+supabase db push
+```

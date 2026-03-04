@@ -1,0 +1,157 @@
+:root {
+  color-scheme: light;
+  font-family: "DM Sans", "Avenir Next", "Segoe UI", sans-serif;
+  background: radial-gradient(circle at 10% 20%, #fff7ec 0%, #f8f8fb 45%, #eef2f8 100%);
+  color: #161828;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+}
+
+.shell {
+  margin: 0 auto;
+  max-width: 1200px;
+  padding: 2rem 1.25rem 3rem;
+}
+
+.hero {
+  margin-bottom: 1.75rem;
+}
+
+.hero h1 {
+  margin: 0.4rem 0 0.6rem;
+  font-size: clamp(1.7rem, 2.2vw, 2.8rem);
+  line-height: 1.15;
+}
+
+.eyebrow {
+  margin: 0;
+  color: #7a4f1f;
+  font-weight: 650;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.body-copy {
+  margin: 0;
+  max-width: 780px;
+  color: #2f3346;
+}
+
+.layout-grid {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: 2fr 1fr;
+}
+
+.panel {
+  border: 1px solid #d9dfeb;
+  border-radius: 14px;
+  padding: 1rem;
+  background: #ffffffc7;
+  backdrop-filter: blur(6px);
+}
+
+.feed-panel {
+  min-height: 450px;
+}
+
+.panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.85rem;
+}
+
+.panel-header h2 {
+  margin: 0;
+  font-size: 1.1rem;
+}
+
+.status {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  border-radius: 999px;
+  padding: 0.2rem 0.6rem;
+  font-size: 0.78rem;
+  background: #f3f4f8;
+  color: #4b5168;
+}
+
+.status-live {
+  background: #ecfaf0;
+  color: #1f6f41;
+}
+
+.video-shell {
+  position: relative;
+  border-radius: 12px;
+  overflow: hidden;
+  border: 1px solid #d9dfeb;
+  background: #0f1118;
+}
+
+.video-shell video {
+  display: block;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+}
+
+.video-state {
+  margin-top: 0.65rem;
+  font-size: 0.87rem;
+  color: #4b5168;
+}
+
+.hint {
+  margin-top: 0.75rem;
+  color: #4b5168;
+  font-size: 0.87rem;
+}
+
+.session-list {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.session-card {
+  border: 1px solid #d9dfeb;
+  border-radius: 12px;
+  padding: 0.8rem;
+  background: #fefeff;
+}
+
+.session-card h3 {
+  margin: 0 0 0.3rem;
+  font-size: 1rem;
+}
+
+.session-card p {
+  margin: 0 0 0.2rem;
+  color: #40475f;
+  font-size: 0.9rem;
+}
+
+.session-card button {
+  margin-top: 0.5rem;
+  width: 100%;
+  border: 0;
+  border-radius: 9px;
+  padding: 0.5rem 0.75rem;
+  background: #ffd2a7;
+  color: #71441f;
+  font-weight: 650;
+}
+
+@media (max-width: 950px) {
+  .layout-grid {
+    grid-template-columns: 1fr;
+  }
+}

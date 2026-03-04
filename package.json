@@ -1,0 +1,17 @@
+{
+  "name": "trojan-traffic",
+  "private": true,
+  "workspaces": [
+    "apps/*"
+  ],
+  "scripts": {
+    "dev:web": "npm run dev --workspace @trojan-traffic/web",
+    "build:web": "npm run build --workspace @trojan-traffic/web",
+    "lint:web": "npm run lint --workspace @trojan-traffic/web",
+    "typecheck:web": "npm run typecheck --workspace @trojan-traffic/web"
+  },
+  "engines": {
+    "node": ">=20.11.0",
+    "npm": ">=10.0.0"
+  }
+}

@@ -1,0 +1,24 @@
+.DS_Store
+
+# Node / web
+node_modules
+npm-debug.log*
+.next
+out
+dist
+coverage
+*.tsbuildinfo
+
+# Env files
+.env
+.env.local
+.env.*.local
+
+# Python / vision
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+
+# Supabase
+.supabase/
