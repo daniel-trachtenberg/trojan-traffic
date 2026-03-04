@@ -1,6 +1,6 @@
 # Web App
 
-Next.js App Router scaffold for Trojan Traffic.
+Next.js App Router MVP for Trojan Traffic.
 
 ## Local run
 
@@ -12,13 +12,19 @@ npm run dev:web
 
 ## Included
 
-- Typed env parsing (`src/lib/env.ts`)
-- Supabase browser client bootstrap (`src/lib/supabase/client.ts`)
-- HLS live feed component (`src/components/live-feed.tsx`)
+- Supabase email/password auth
+- Daily login reward claim action
+- Prediction placement flow via SQL RPC
+- Leaderboard and prediction history
+- HLS live feed with active betting region overlay
 - `GET /api/health` endpoint
+
+## Required Supabase SQL
+
+Run all migrations in `/supabase/migrations` before using the MVP UI.
 
 ## Next implementation steps
 
-1. Add Supabase auth flows and protected routes.
-2. Build the betting flow for scheduled sessions.
-3. Subscribe to resolved session updates and settle user state in UI.
+1. Replace seeded session generation with admin scheduling tools.
+2. Hook vision worker output to automatic session resolution.
+3. Add achievement awarding jobs and badge display.

@@ -140,31 +140,36 @@ Each mode:
 
 ---
 
-## Scaffolded Stack (March 4, 2026)
+## MVP Stack (March 4, 2026)
 
 ### `apps/web`
 
 - Next.js 15 + React 19 + TypeScript
-- Supabase JS client bootstrap
-- HLS playback component wired to USC stream URL
-- Starter App Router page and API health endpoint
+- Supabase auth + RPC-driven game actions
+- HLS playback with highlighted betting region
+- Dashboard with rounds, leaderboard, history, and token state
+- API health endpoint
 
 ### `services/vision`
 
 - Python 3.12 FastAPI service scaffold
 - Typed request/response contracts for counting sessions
+- Session resolution endpoint that calls Supabase `resolve_session` RPC
 - Stub counting pipeline entrypoint with tests
 
 ### `supabase`
 
-- Initial SQL migration with:
+- SQL migrations with:
   - profiles
   - token ledger and derived token balance view
   - sessions
   - predictions
   - streak and login tables
   - achievements
+  - automatic profile bootstrap trigger from `auth.users`
+  - `claim_daily_login`, `place_prediction`, and `get_leaderboard` RPCs
   - `resolve_session` function for server-authoritative settlement
+  - seeded achievements and scheduled demo sessions
   - row-level security policies
 
 ---
@@ -209,3 +214,9 @@ uvicorn app.main:app --reload --port 8080
 ```bash
 supabase db push
 ```
+
+After migrations are applied, the web app supports:
+- Email/password signup and login
+- Daily token claim
+- Placing predictions on upcoming rounds
+- Leaderboard and prediction history
