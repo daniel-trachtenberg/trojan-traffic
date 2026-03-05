@@ -11,6 +11,7 @@ type RegionPoint = {
 type LiveFeedProps = {
   src: string;
   region?: RegionPoint[] | null;
+  fullScreen?: boolean;
 };
 
 function toNormalizedPoints(points: RegionPoint[]) {
@@ -23,7 +24,7 @@ function toNormalizedPoints(points: RegionPoint[]) {
   }));
 }
 
-export function LiveFeed({ src, region = null }: LiveFeedProps) {
+export function LiveFeed({ src, region = null, fullScreen = false }: LiveFeedProps) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const [state, setState] = useState("Initializing feed...");
   const normalizedRegion = region ? toNormalizedPoints(region) : null;
@@ -93,10 +94,10 @@ export function LiveFeed({ src, region = null }: LiveFeedProps) {
   }, [src]);
 
   return (
-    <div className="video-shell">
+    <div className={fullScreen ? "video-shell video-shell-fullscreen" : "video-shell"}>
       <video ref={videoRef} controls muted playsInline autoPlay />
       {overlayStyle ? <div className="region-overlay" style={overlayStyle} /> : null}
-      <div className="video-state">{state}</div>
+      <div className={fullScreen ? "video-state video-state-overlay" : "video-state"}>{state}</div>
     </div>
   );
 }

@@ -65,6 +65,12 @@ type MvpDashboardProps = {
 };
 
 const DEFAULT_WAGER = "10";
+const CENTER_REGION: RegionPoint[] = [
+  { x: 0.4, y: 0.32 },
+  { x: 0.6, y: 0.32 },
+  { x: 0.6, y: 0.68 },
+  { x: 0.4, y: 0.68 }
+];
 
 function formatCountdown(milliseconds: number) {
   const safeMilliseconds = Math.max(milliseconds, 0);
@@ -97,29 +103,24 @@ function getSessionState(session: SessionRow, nowMs: number): SessionState {
   return "resolving";
 }
 
-function parseRegionPolygon(regionPolygon: unknown): RegionPoint[] | null {
-  if (!Array.isArray(regionPolygon)) {
-    return null;
+function getSessionStateLabel(state: SessionState) {
+  if (state === "open") {
+    return "Open";
   }
 
-  const points = regionPolygon
-    .map((point) => {
-      if (typeof point !== "object" || point === null || !("x" in point) || !("y" in point)) {
-        return null;
-      }
+  if (state === "live") {
+    return "Live";
+  }
 
-      const x = Number((point as { x: unknown }).x);
-      const y = Number((point as { y: unknown }).y);
+  if (state === "resolving") {
+    return "Resolving";
+  }
 
-      if (!Number.isFinite(x) || !Number.isFinite(y)) {
-        return null;
-      }
+  if (state === "resolved") {
+    return "Resolved";
+  }
 
-      return { x, y };
-    })
-    .filter((point): point is RegionPoint => point !== null);
-
-  return points.length >= 3 ? points : null;
+  return "Cancelled";
 }
 
 function createFallbackSessions(): SessionRow[] {
@@ -139,12 +140,7 @@ function createFallbackSessions(): SessionRow[] {
       status: "scheduled",
       final_count: null,
       resolved_at: null,
-      region_polygon: [
-        { x: 0.1 + index * 0.04, y: 0.2 },
-        { x: 0.34 + index * 0.04, y: 0.2 },
-        { x: 0.34 + index * 0.04, y: 0.54 },
-        { x: 0.1 + index * 0.04, y: 0.54 }
-      ]
+      region_polygon: CENTER_REGION
     };
   });
 }
@@ -176,7 +172,19 @@ export function MvpDashboard({ hlsUrl }: MvpDashboardProps) {
     .reduce((sum, prediction) => sum + prediction.wager_tokens, 0);
   const availableTokens = tokenBalance - openRisk;
   const focusedSession = sessions.find((session) => getSessionState(session, nowMs) === "open");
-  const focusedRegion = parseRegionPolygon(focusedSession?.region_polygon ?? null);
+  const selectedSession = focusedSession ?? sessions[0] ?? null;
+  const selectedPrediction = selectedSession
+    ? predictionBySession.get(selectedSession.id) ?? null
+    : null;
+  const selectedState = selectedSession ? getSessionState(selectedSession, nowMs) : null;
+  const selectedCountdown = selectedSession
+    ? formatCountdown(new Date(selectedSession.starts_at).getTime() - nowMs)
+    : "00:00";
+  const selectedWager = selectedSession ? (wagerBySession[selectedSession.id] ?? DEFAULT_WAGER) : DEFAULT_WAGER;
+  const selectedSide = selectedSession ? (sideBySession[selectedSession.id] ?? "over") : "over";
+  const canPlaceSelected = Boolean(
+    user && selectedSession && selectedState === "open" && selectedPrediction === null
+  );
 
   async function refreshData(activeUser: User | null) {
     if (!supabase) {
@@ -480,47 +488,104 @@ export function MvpDashboard({ hlsUrl }: MvpDashboardProps) {
   const sessionLookup = new Map(sessions.map((session) => [session.id, session]));
 
   return (
-    <main className="shell">
-      <section className="hero">
-        <p className="eyebrow">Trojan Traffic MVP</p>
-        <h1>Predict live USC foot traffic before each timed round begins.</h1>
-        <p className="body-copy">
-          Auth, daily token rewards, prediction placement, ranking, and history are wired to
-          Supabase RPCs in this build.
-        </p>
-      </section>
+    <main className="betting-screen">
+      <LiveFeed src={hlsUrl} region={CENTER_REGION} fullScreen />
+      <div className="feed-mask" />
 
-      {!supabase ? (
-        <div className="alert alert-warning">
-          Configure <code>NEXT_PUBLIC_SUPABASE_URL</code> and{" "}
-          <code>NEXT_PUBLIC_SUPABASE_ANON_KEY</code> in{" "}
-          <code>apps/web/.env.local</code> to enable the full MVP flow.
-        </div>
-      ) : null}
-
-      {error ? <div className="alert alert-error">{error}</div> : null}
-      {notice ? <div className="alert alert-success">{notice}</div> : null}
-
-      <section className="layout-grid">
-        <article className="panel feed-panel">
-          <header className="panel-header">
-            <h2>Live Feed</h2>
-            <span className="status status-live">Streaming</span>
-          </header>
-          <LiveFeed src={hlsUrl} region={focusedRegion} />
-          <p className="hint">
-            The highlighted region is the active betting zone for the next open round.
-          </p>
-        </article>
-
-        <article className="panel auth-panel">
-          <header className="panel-header">
-            <h2>{user ? "Account" : "Sign In / Sign Up"}</h2>
+      <div className="floating-widgets">
+        <section className="floating-widget bet-widget">
+          <header className="widget-header">
+            <h2>Betting Screen</h2>
             <span className="status">{isRefreshing ? "Refreshing" : "Live"}</span>
           </header>
 
+          {selectedSession ? (
+            <>
+              <div className="round-chip-row">
+                <span className={`status status-${selectedState ?? "open"}`}>
+                  {selectedState ? getSessionStateLabel(selectedState) : "Open"}
+                </span>
+                <span className="round-chip">
+                  {selectedSession.mode_seconds}s · Threshold {selectedSession.threshold}
+                </span>
+              </div>
+              <p className="countdown-text">
+                {selectedState === "open"
+                  ? `Betting closes in ${selectedCountdown}`
+                  : selectedState === "live"
+                    ? "Round is live. Betting locked."
+                    : selectedState === "resolving"
+                      ? "Round ended. Resolving..."
+                      : `Resolved at ${new Date(selectedSession.ends_at).toLocaleTimeString()}`}
+              </p>
+
+              <div className="bet-controls overlay-bet-controls">
+                <label>
+                  Side
+                  <select
+                    value={selectedSide}
+                    onChange={(event) => {
+                      const nextSide = event.target.value as PredictionSide;
+                      setSideBySession((current) => ({
+                        ...current,
+                        [selectedSession.id]: nextSide
+                      }));
+                    }}
+                    disabled={!canPlaceSelected}
+                  >
+                    <option value="over">Over</option>
+                    <option value="under">Under</option>
+                  </select>
+                </label>
+                <label>
+                  Wager
+                  <input
+                    type="number"
+                    min={1}
+                    value={selectedWager}
+                    onChange={(event) =>
+                      setWagerBySession((current) => ({
+                        ...current,
+                        [selectedSession.id]: event.target.value
+                      }))
+                    }
+                    disabled={!canPlaceSelected}
+                  />
+                </label>
+                <button
+                  type="button"
+                  className="primary-button"
+                  disabled={!canPlaceSelected}
+                  onClick={() => {
+                    void handlePlacePrediction(selectedSession);
+                  }}
+                >
+                  {selectedPrediction
+                    ? "Already Entered"
+                    : user
+                      ? "Place Prediction"
+                      : "Sign In to Bet"}
+                </button>
+              </div>
+
+              {selectedPrediction ? (
+                <p className="session-result compact-result">
+                  Pick: <strong>{selectedPrediction.side.toUpperCase()}</strong> ·{" "}
+                  {selectedPrediction.wager_tokens} tokens
+                  {selectedPrediction.was_correct !== null
+                    ? selectedPrediction.was_correct
+                      ? ` · Win +${selectedPrediction.token_delta ?? 0}`
+                      : ` · Loss ${selectedPrediction.token_delta ?? 0}`
+                    : " · Pending"}
+                </p>
+              ) : null}
+            </>
+          ) : (
+            <p className="hint">No upcoming rounds yet.</p>
+          )}
+
           {!user ? (
-            <form className="auth-form" onSubmit={handleAuthSubmit}>
+            <form className="auth-form inline-auth" onSubmit={handleAuthSubmit}>
               <div className="mode-row">
                 <button
                   type="button"
@@ -537,7 +602,6 @@ export function MvpDashboard({ hlsUrl }: MvpDashboardProps) {
                   Sign Up
                 </button>
               </div>
-
               <label>
                 Email
                 <input
@@ -572,11 +636,20 @@ export function MvpDashboard({ hlsUrl }: MvpDashboardProps) {
                 {authMode === "sign-in" ? "Sign In" : "Create Account"}
               </button>
             </form>
-          ) : (
+          ) : null}
+        </section>
+
+        <section className="floating-widget token-widget">
+          <header className="widget-header">
+            <h2>{user ? "Tokens" : "Account"}</h2>
+            <span className="status status-live">Streaming</span>
+          </header>
+
+          {user ? (
             <div className="account-card">
               <p className="account-name">{profile?.display_name ?? user.email}</p>
               <p className="account-subtitle">{profile?.tier ?? "Bronze"} Tier</p>
-              <div className="stat-grid">
+              <div className="stat-grid compact-stats">
                 <div>
                   <span>Balance</span>
                   <strong>{tokenBalance}</strong>
@@ -593,10 +666,6 @@ export function MvpDashboard({ hlsUrl }: MvpDashboardProps) {
                   <span>Login Streak</span>
                   <strong>{streaks?.login_streak ?? 0}</strong>
                 </div>
-                <div>
-                  <span>Prediction Streak</span>
-                  <strong>{streaks?.prediction_streak ?? 0}</strong>
-                </div>
               </div>
               <div className="account-actions">
                 <button type="button" className="primary-button" onClick={handleClaimDailyLogin}>
@@ -607,167 +676,65 @@ export function MvpDashboard({ hlsUrl }: MvpDashboardProps) {
                 </button>
               </div>
             </div>
+          ) : (
+            <p className="hint">Sign in to track tokens and place bets.</p>
           )}
-        </article>
-      </section>
 
-      <section className="panel sessions-panel">
-        <header className="panel-header">
-          <h2>Rounds</h2>
-          <span className="status">{loading ? "Loading" : "Ready"}</span>
-        </header>
+          <div className="mini-leaderboard">
+            <h3>Top Players</h3>
+            <ol className="leaderboard">
+              {leaderboard.slice(0, 5).map((entry) => (
+                <li key={entry.user_id}>
+                  <span>
+                    #{entry.rank} {entry.display_name}
+                  </span>
+                  <span>{entry.token_balance}</span>
+                </li>
+              ))}
+            </ol>
+          </div>
+        </section>
+      </div>
 
-        <div className="session-list">
-          {sessions.map((session) => {
-            const state = getSessionState(session, nowMs);
-            const startsAtMs = new Date(session.starts_at).getTime();
-            const countdown = formatCountdown(startsAtMs - nowMs);
-            const prediction = predictionBySession.get(session.id);
-            const canPlace = !!user && state === "open" && !prediction;
-            const wager = wagerBySession[session.id] ?? DEFAULT_WAGER;
-            const side = sideBySession[session.id] ?? "over";
+      <div className="bottom-ribbon">
+        {!supabase ? (
+          <div className="alert alert-warning">
+            Configure <code>NEXT_PUBLIC_SUPABASE_URL</code> and{" "}
+            <code>NEXT_PUBLIC_SUPABASE_ANON_KEY</code> in <code>apps/web/.env.local</code>.
+          </div>
+        ) : null}
+        {error ? <div className="alert alert-error">{error}</div> : null}
+        {notice ? <div className="alert alert-success">{notice}</div> : null}
 
-            return (
-              <div className="session-card mvp-session-card" key={session.id}>
-                <div className="session-title-row">
-                  <h3>
-                    {session.mode_seconds}s Round · Threshold {session.threshold}
-                  </h3>
-                  <span className={`status status-${state}`}>
-                    {state === "open" ? "Open" : null}
-                    {state === "live" ? "Live" : null}
-                    {state === "resolving" ? "Resolving" : null}
-                    {state === "resolved" ? "Resolved" : null}
-                    {state === "cancelled" ? "Cancelled" : null}
+        {user ? (
+          <div className="history-strip">
+            {predictions.slice(0, 5).map((prediction) => {
+              const session = sessionLookup.get(prediction.session_id);
+              return (
+                <div className="history-pill" key={prediction.id}>
+                  <span>
+                    {session ? `${session.mode_seconds}s` : "Round"} · {prediction.side.toUpperCase()} ·{" "}
+                    {prediction.wager_tokens}
+                  </span>
+                  <span>
+                    {prediction.was_correct === null
+                      ? "Pending"
+                      : prediction.was_correct
+                        ? `+${prediction.token_delta ?? 0}`
+                        : `${prediction.token_delta ?? 0}`}
                   </span>
                 </div>
-
-                <p className="session-meta">
-                  Starts: {new Date(session.starts_at).toLocaleTimeString()} ·{" "}
-                  {state === "open" ? `Closes in ${countdown}` : "Betting locked"}
-                </p>
-
-                {state === "resolved" ? (
-                  <p className="session-result">Final Count: {session.final_count ?? 0}</p>
-                ) : null}
-
-                {prediction ? (
-                  <p className="session-result">
-                    Your pick: <strong>{prediction.side.toUpperCase()}</strong> for{" "}
-                    {prediction.wager_tokens} tokens
-                    {prediction.was_correct !== null ? (
-                      <>
-                        {" "}
-                        · {prediction.was_correct ? "Win" : "Loss"} ({prediction.token_delta ?? 0})
-                      </>
-                    ) : (
-                      " · Pending"
-                    )}
-                  </p>
-                ) : null}
-
-                <div className="bet-controls">
-                  <label>
-                    Side
-                    <select
-                      value={side}
-                      onChange={(event) => {
-                        const nextSide = event.target.value as PredictionSide;
-                        setSideBySession((current) => ({ ...current, [session.id]: nextSide }));
-                      }}
-                      disabled={!canPlace}
-                    >
-                      <option value="over">Over</option>
-                      <option value="under">Under</option>
-                    </select>
-                  </label>
-                  <label>
-                    Wager
-                    <input
-                      type="number"
-                      min={1}
-                      value={wager}
-                      onChange={(event) =>
-                        setWagerBySession((current) => ({
-                          ...current,
-                          [session.id]: event.target.value
-                        }))
-                      }
-                      disabled={!canPlace}
-                    />
-                  </label>
-                  <button
-                    type="button"
-                    className="primary-button"
-                    disabled={!canPlace}
-                    onClick={() => {
-                      void handlePlacePrediction(session);
-                    }}
-                  >
-                    {prediction ? "Already Entered" : user ? "Place Prediction" : "Sign In to Bet"}
-                  </button>
-                </div>
+              );
+            })}
+            {predictions.length === 0 ? (
+              <div className="history-pill">
+                <span>No predictions yet</span>
+                <span>{loading ? "Loading..." : "Ready"}</span>
               </div>
-            );
-          })}
-        </div>
-      </section>
-
-      <section className="layout-grid lower-grid">
-        <article className="panel">
-          <header className="panel-header">
-            <h2>Leaderboard</h2>
-            <span className="status">All time</span>
-          </header>
-          <ol className="leaderboard">
-            {leaderboard.map((entry) => (
-              <li key={entry.user_id}>
-                <span>
-                  #{entry.rank} {entry.display_name}
-                </span>
-                <span>
-                  {entry.token_balance} tokens · {entry.correct_predictions} correct
-                </span>
-              </li>
-            ))}
-          </ol>
-          {leaderboard.length === 0 ? <p className="hint">No leaderboard entries yet.</p> : null}
-        </article>
-
-        <article className="panel">
-          <header className="panel-header">
-            <h2>Prediction History</h2>
-            <span className="status">{user ? "Your account" : "Sign in required"}</span>
-          </header>
-          {user ? (
-            <div className="history-table">
-              {predictions.slice(0, 8).map((prediction) => {
-                const session = sessionLookup.get(prediction.session_id);
-                return (
-                  <div className="history-row" key={prediction.id}>
-                    <span>
-                      {session ? `${session.mode_seconds}s` : "Round"} ·{" "}
-                      {prediction.side.toUpperCase()} · {prediction.wager_tokens}
-                    </span>
-                    <span>
-                      {prediction.was_correct === null
-                        ? "Pending"
-                        : prediction.was_correct
-                          ? `Win +${prediction.token_delta ?? 0}`
-                          : `Loss ${prediction.token_delta ?? 0}`}
-                    </span>
-                  </div>
-                );
-              })}
-              {predictions.length === 0 ? (
-                <p className="hint">No predictions yet. Place one in an open round.</p>
-              ) : null}
-            </div>
-          ) : (
-            <p className="hint">Sign in to see your prediction history.</p>
-          )}
-        </article>
-      </section>
+            ) : null}
+          </div>
+        ) : null}
+      </div>
     </main>
   );
 }
