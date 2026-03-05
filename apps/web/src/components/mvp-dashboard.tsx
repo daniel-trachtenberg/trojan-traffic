@@ -165,6 +165,7 @@ export function MvpDashboard({ hlsUrl }: MvpDashboardProps) {
   const [displayName, setDisplayName] = useState("");
   const [wagerBySession, setWagerBySession] = useState<Record<string, string>>({});
   const [sideBySession, setSideBySession] = useState<Record<string, PredictionSide>>({});
+  const [openRightPanel, setOpenRightPanel] = useState<"account" | "leaderboard" | null>(null);
 
   const predictionBySession = new Map(predictions.map((prediction) => [prediction.session_id, prediction]));
   const openRisk = predictions
@@ -185,6 +186,9 @@ export function MvpDashboard({ hlsUrl }: MvpDashboardProps) {
   const canPlaceSelected = Boolean(
     user && selectedSession && selectedState === "open" && selectedPrediction === null
   );
+  const accountInitial = user
+    ? (profile?.display_name ?? user.email ?? "A").charAt(0).toUpperCase()
+    : "?";
 
   async function refreshData(activeUser: User | null) {
     if (!supabase) {
@@ -420,6 +424,7 @@ export function MvpDashboard({ hlsUrl }: MvpDashboardProps) {
     }
 
     setUser(null);
+    setOpenRightPanel(null);
     setNotice("Signed out.");
     await load(null);
   }
@@ -483,6 +488,10 @@ export function MvpDashboard({ hlsUrl }: MvpDashboardProps) {
     startTransition(() => {
       void load(user);
     });
+  }
+
+  function toggleRightPanel(panel: "account" | "leaderboard") {
+    setOpenRightPanel((current) => (current === panel ? null : panel));
   }
 
   const sessionLookup = new Map(sessions.map((session) => [session.id, session]));
@@ -639,62 +648,110 @@ export function MvpDashboard({ hlsUrl }: MvpDashboardProps) {
           ) : null}
         </section>
 
-        <section className="floating-widget token-widget">
-          <header className="widget-header">
-            <h2>{user ? "Tokens" : "Account"}</h2>
-            <span className="status status-live">Streaming</span>
-          </header>
-
-          {user ? (
-            <div className="account-card">
-              <p className="account-name">{profile?.display_name ?? user.email}</p>
-              <p className="account-subtitle">{profile?.tier ?? "Bronze"} Tier</p>
-              <div className="stat-grid compact-stats">
-                <div>
-                  <span>Balance</span>
-                  <strong>{tokenBalance}</strong>
-                </div>
-                <div>
-                  <span>Available</span>
-                  <strong>{availableTokens}</strong>
-                </div>
-                <div>
-                  <span>Open Risk</span>
-                  <strong>{openRisk}</strong>
-                </div>
-                <div>
-                  <span>Login Streak</span>
-                  <strong>{streaks?.login_streak ?? 0}</strong>
-                </div>
-              </div>
-              <div className="account-actions">
-                <button type="button" className="primary-button" onClick={handleClaimDailyLogin}>
-                  Claim Daily Tokens
-                </button>
-                <button type="button" className="secondary-button" onClick={handleSignOut}>
-                  Sign Out
-                </button>
-              </div>
-            </div>
-          ) : (
-            <p className="hint">Sign in to track tokens and place bets.</p>
-          )}
-
-          <div className="mini-leaderboard">
-            <h3>Top Players</h3>
-            <ol className="leaderboard">
-              {leaderboard.slice(0, 5).map((entry) => (
-                <li key={entry.user_id}>
-                  <span>
-                    #{entry.rank} {entry.display_name}
-                  </span>
-                  <span>{entry.token_balance}</span>
-                </li>
-              ))}
-            </ol>
+        <div className="right-rail">
+          <div className="quick-actions">
+            <button
+              type="button"
+              className={
+                openRightPanel === "leaderboard"
+                  ? "icon-leaderboard-button active"
+                  : "icon-leaderboard-button"
+              }
+              onClick={() => toggleRightPanel("leaderboard")}
+              aria-label="Open leaderboard panel"
+            >
+              <svg viewBox="0 0 24 24" role="img" aria-hidden="true">
+                <path d="M7 4h10v3a5 5 0 0 1-4 4.9V14h3v2H8v-2h3v-2.1A5 5 0 0 1 7 7V4Zm2 2v1a3 3 0 0 0 6 0V6H9Zm-3 1h1a4.9 4.9 0 0 0 .6 2.3A3 3 0 0 1 6 7Zm12 0a3 3 0 0 1-1.6 2.3A4.9 4.9 0 0 0 17 7h1Z" />
+              </svg>
+            </button>
+            <button
+              type="button"
+              className={
+                openRightPanel === "account" ? "icon-account-button active" : "icon-account-button"
+              }
+              onClick={() => toggleRightPanel("account")}
+              aria-label="Open account panel"
+            >
+              <span className="icon-avatar">{accountInitial}</span>
+            </button>
           </div>
-        </section>
+        </div>
       </div>
+
+      {openRightPanel ? (
+        <div className="center-modal-backdrop" onClick={() => setOpenRightPanel(null)} role="presentation">
+          <section
+            className="center-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-label={openRightPanel === "account" ? "Account panel" : "Leaderboard panel"}
+            onClick={(event) => event.stopPropagation()}
+          >
+            <header className="widget-header center-modal-header">
+              <h2>{openRightPanel === "account" ? "Account" : "Leaderboard"}</h2>
+              <button
+                type="button"
+                className="panel-close-button"
+                onClick={() => setOpenRightPanel(null)}
+                aria-label="Close panel"
+              >
+                ×
+              </button>
+            </header>
+
+            {openRightPanel === "account" ? (
+              user ? (
+                <div className="account-card">
+                  <p className="account-name">{profile?.display_name ?? user.email}</p>
+                  <p className="account-subtitle">{profile?.tier ?? "Bronze"} Tier</p>
+                  <div className="stat-grid compact-stats">
+                    <div>
+                      <span>Balance</span>
+                      <strong>{tokenBalance}</strong>
+                    </div>
+                    <div>
+                      <span>Available</span>
+                      <strong>{availableTokens}</strong>
+                    </div>
+                    <div>
+                      <span>Open Risk</span>
+                      <strong>{openRisk}</strong>
+                    </div>
+                    <div>
+                      <span>Login Streak</span>
+                      <strong>{streaks?.login_streak ?? 0}</strong>
+                    </div>
+                  </div>
+                  <div className="account-actions">
+                    <button type="button" className="primary-button" onClick={handleClaimDailyLogin}>
+                      Claim Daily Tokens
+                    </button>
+                    <button type="button" className="secondary-button" onClick={handleSignOut}>
+                      Sign Out
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <p className="hint">Sign in to track tokens and place bets.</p>
+              )
+            ) : (
+              <>
+                <ol className="leaderboard modal-leaderboard">
+                  {leaderboard.slice(0, 15).map((entry) => (
+                    <li key={entry.user_id}>
+                      <span>
+                        #{entry.rank} {entry.display_name}
+                      </span>
+                      <span>{entry.token_balance}</span>
+                    </li>
+                  ))}
+                </ol>
+                {leaderboard.length === 0 ? <p className="hint">No leaderboard entries yet.</p> : null}
+              </>
+            )}
+          </section>
+        </div>
+      ) : null}
 
       <div className="bottom-ribbon">
         {!supabase ? (
