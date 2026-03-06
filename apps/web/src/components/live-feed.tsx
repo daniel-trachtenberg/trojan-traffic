@@ -8,10 +8,20 @@ type RegionPoint = {
   y: number;
 };
 
+type PersonDetectionBox = {
+  id: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  confidence: number;
+};
+
 type LiveFeedProps = {
   src: string;
   region?: RegionPoint[] | null;
   fullScreen?: boolean;
+  personBoxes?: PersonDetectionBox[];
 };
 
 function toNormalizedPoints(points: RegionPoint[]) {
@@ -24,7 +34,12 @@ function toNormalizedPoints(points: RegionPoint[]) {
   }));
 }
 
-export function LiveFeed({ src, region = null, fullScreen = false }: LiveFeedProps) {
+export function LiveFeed({
+  src,
+  region = null,
+  fullScreen = false,
+  personBoxes = []
+}: LiveFeedProps) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const [state, setState] = useState("Initializing feed...");
   const normalizedRegion = region ? toNormalizedPoints(region) : null;
@@ -97,6 +112,20 @@ export function LiveFeed({ src, region = null, fullScreen = false }: LiveFeedPro
     <div className={fullScreen ? "video-shell video-shell-fullscreen" : "video-shell"}>
       <video ref={videoRef} controls muted playsInline autoPlay />
       {overlayStyle ? <div className="region-overlay" style={overlayStyle} /> : null}
+      {personBoxes.map((box) => (
+        <div
+          key={box.id}
+          className="person-detection-box"
+          style={{
+            left: `${box.x * 100}%`,
+            top: `${box.y * 100}%`,
+            width: `${box.width * 100}%`,
+            height: `${box.height * 100}%`
+          }}
+        >
+          <span className="person-detection-label">person {Math.round(box.confidence * 100)}%</span>
+        </div>
+      ))}
       <div className={fullScreen ? "video-state video-state-overlay" : "video-state"}>{state}</div>
     </div>
   );

@@ -10,6 +10,13 @@ class Settings(BaseSettings):
     camera_playlist_url: HttpUrl = HttpUrl(
         "https://cs9.pixelcaster.com/live/usc-tommy.stream/playlist.m3u8"
     )
+    enable_live_detections: bool = True
+    detection_model_name: str = "yolov8n.pt"
+    detection_confidence: float = 0.35
+    detection_interval_ms: int = 1500
+    detection_max_boxes: int = 24
+    detection_reconnect_delay_ms: int = 1200
+    cors_origins: str = "*"
     supabase_url: HttpUrl | None = None
     supabase_service_role_key: str | None = None
 

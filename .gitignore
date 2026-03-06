@@ -19,6 +19,8 @@ __pycache__/
 *.py[cod]
 .pytest_cache/
 .venv/
+*.egg-info/
+services/vision/*.pt
 
 # Supabase
 .supabase/

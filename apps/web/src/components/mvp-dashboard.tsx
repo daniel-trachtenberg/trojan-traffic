@@ -62,6 +62,7 @@ type BalanceRow = {
 
 type MvpDashboardProps = {
   hlsUrl: string;
+  visionApiUrl?: string;
 };
 
 const DEFAULT_WAGER = "10";
@@ -145,7 +146,21 @@ function createFallbackSessions(): SessionRow[] {
   });
 }
 
-export function MvpDashboard({ hlsUrl }: MvpDashboardProps) {
+type LiveDetectionBox = {
+  id: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  confidence: number;
+};
+
+type LiveDetectionsResponse = {
+  status: string;
+  boxes: LiveDetectionBox[];
+};
+
+export function MvpDashboard({ hlsUrl, visionApiUrl }: MvpDashboardProps) {
   const supabase = getBrowserSupabaseClient();
   const [user, setUser] = useState<User | null>(null);
   const [sessions, setSessions] = useState<SessionRow[]>([]);
@@ -166,6 +181,8 @@ export function MvpDashboard({ hlsUrl }: MvpDashboardProps) {
   const [wagerBySession, setWagerBySession] = useState<Record<string, string>>({});
   const [sideBySession, setSideBySession] = useState<Record<string, PredictionSide>>({});
   const [openRightPanel, setOpenRightPanel] = useState<"account" | "leaderboard" | null>(null);
+  const [livePersonBoxes, setLivePersonBoxes] = useState<LiveDetectionBox[]>([]);
+  const [detectorStatus, setDetectorStatus] = useState("idle");
 
   const predictionBySession = new Map(predictions.map((prediction) => [prediction.session_id, prediction]));
   const openRisk = predictions
@@ -359,6 +376,57 @@ export function MvpDashboard({ hlsUrl }: MvpDashboardProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [supabase, user]);
 
+  useEffect(() => {
+    if (!visionApiUrl) {
+      setLivePersonBoxes([]);
+      setDetectorStatus("disabled");
+      return;
+    }
+
+    const endpoint = `${visionApiUrl.replace(/\/+$/, "")}/detections/live`;
+    let isMounted = true;
+
+    async function fetchDetections() {
+      try {
+        const response = await fetch(endpoint, { cache: "no-store" });
+        if (!response.ok) {
+          if (!isMounted) {
+            return;
+          }
+
+          setDetectorStatus("offline");
+          setLivePersonBoxes([]);
+          return;
+        }
+
+        const payload = (await response.json()) as LiveDetectionsResponse;
+        if (!isMounted) {
+          return;
+        }
+
+        setDetectorStatus(payload.status ?? "online");
+        setLivePersonBoxes(Array.isArray(payload.boxes) ? payload.boxes : []);
+      } catch {
+        if (!isMounted) {
+          return;
+        }
+
+        setDetectorStatus("offline");
+        setLivePersonBoxes([]);
+      }
+    }
+
+    void fetchDetections();
+    const pollingInterval = setInterval(() => {
+      void fetchDetections();
+    }, 1400);
+
+    return () => {
+      isMounted = false;
+      clearInterval(pollingInterval);
+    };
+  }, [visionApiUrl]);
+
   async function handleAuthSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!supabase) {
@@ -498,7 +566,7 @@ export function MvpDashboard({ hlsUrl }: MvpDashboardProps) {
 
   return (
     <main className="betting-screen">
-      <LiveFeed src={hlsUrl} region={CENTER_REGION} fullScreen />
+      <LiveFeed src={hlsUrl} region={CENTER_REGION} fullScreen personBoxes={livePersonBoxes} />
       <div className="feed-mask" />
 
       <div className="floating-widgets">
@@ -526,6 +594,9 @@ export function MvpDashboard({ hlsUrl }: MvpDashboardProps) {
                     : selectedState === "resolving"
                       ? "Round ended. Resolving..."
                       : `Resolved at ${new Date(selectedSession.ends_at).toLocaleTimeString()}`}
+              </p>
+              <p className="hint">
+                ML tracking: {detectorStatus} · {livePersonBoxes.length} people detected
               </p>
 
               <div className="bet-controls overlay-bet-controls">

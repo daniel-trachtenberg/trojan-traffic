@@ -10,6 +10,9 @@ cp apps/web/.env.example apps/web/.env.local
 npm run dev:web
 ```
 
+Set `NEXT_PUBLIC_VISION_API_URL` in `.env.local` to enable live person box overlays from the
+vision service.
+
 ## Included
 
 - Supabase email/password auth
