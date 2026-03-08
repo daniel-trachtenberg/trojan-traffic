@@ -205,6 +205,33 @@ body {
   border-color: rgb(153 0 0 / 72%);
 }
 
+.icon-account-badge {
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  background:
+    linear-gradient(180deg, rgb(153 0 0 / 42%) 0%, rgb(102 0 0 / 72%) 100%);
+  border: 1px solid rgb(255 204 0 / 20%);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 12%);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.icon-account-button.active .icon-account-badge {
+  border-color: rgb(255 204 0 / 34%);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 14%),
+    0 0 0 1px rgb(153 0 0 / 18%);
+}
+
+.icon-account-glyph {
+  width: 16px;
+  height: 16px;
+  fill: #fff5da;
+  opacity: 0.9;
+}
+
 .icon-leaderboard-button {
   width: 42px;
   height: 42px;
@@ -226,20 +253,6 @@ body {
   height: 20px;
   fill: var(--usc-gold);
   opacity: 0.9;
-}
-
-.icon-avatar {
-  width: 30px;
-  height: 30px;
-  border-radius: 999px;
-  background: rgb(153 0 0 / 26%);
-  border: 1px solid rgb(153 0 0 / 54%);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 0.8rem;
-  font-weight: 700;
-  color: #fff5da;
 }
 
 .panel-close-button {

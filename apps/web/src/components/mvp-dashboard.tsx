@@ -234,9 +234,6 @@ export function MvpDashboard({ hlsUrl, visionApiUrl }: MvpDashboardProps) {
         : selectedSession
           ? `${selectedSession.mode_seconds}s round`
           : "";
-  const accountInitial = user
-    ? (profile?.display_name ?? user.email ?? "A").charAt(0).toUpperCase()
-    : "?";
 
   async function refreshData(activeUser: User | null) {
     if (!supabase) {
@@ -847,7 +844,11 @@ export function MvpDashboard({ hlsUrl, visionApiUrl }: MvpDashboardProps) {
               onClick={() => toggleRightPanel("account")}
               aria-label="Open account panel"
             >
-              <span className="icon-avatar">{accountInitial}</span>
+              <span className="icon-account-badge" aria-hidden="true">
+                <svg viewBox="0 0 24 24" role="img" aria-hidden="true" className="icon-account-glyph">
+                  <path d="M12 12a4 4 0 1 0-4-4 4 4 0 0 0 4 4Zm0 2c-3.33 0-6 2.01-6 4.5V20h12v-1.5c0-2.49-2.67-4.5-6-4.5Z" />
+                </svg>
+              </span>
             </button>
           </div>
         </div>
