@@ -56,12 +56,40 @@ body {
   aspect-ratio: auto;
 }
 
-.region-overlay {
+.region-overlay-svg {
   position: absolute;
-  border: 2px solid var(--usc-gold);
-  background: rgb(255 204 0 / 14%);
-  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 28%);
+  inset: 0;
+  width: 100%;
+  height: 100%;
   pointer-events: none;
+}
+
+.region-overlay-svg-editable {
+  pointer-events: none;
+}
+
+.region-overlay-fill {
+  fill: rgb(255 204 0 / 14%);
+}
+
+.region-overlay-stroke {
+  fill: none;
+  stroke: var(--usc-gold);
+  stroke-width: 0.32;
+  vector-effect: non-scaling-stroke;
+}
+
+.region-overlay-handle {
+  fill: var(--usc-gold);
+  stroke: rgb(9 11 16 / 88%);
+  stroke-width: 0.32;
+  vector-effect: non-scaling-stroke;
+  cursor: grab;
+  pointer-events: all;
+}
+
+.region-overlay-handle:active {
+  cursor: grabbing;
 }
 
 .person-detection-box {
@@ -162,6 +190,38 @@ body {
   align-items: center;
   justify-content: flex-end;
   gap: 0.45rem;
+}
+
+.region-editor-panel {
+  pointer-events: auto;
+  width: min(280px, 100%);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 0.72rem;
+  background: var(--surface-strong);
+  backdrop-filter: blur(10px);
+  display: grid;
+  gap: 0.56rem;
+}
+
+.region-editor-title {
+  margin: 0;
+  font-size: 0.88rem;
+  font-weight: 650;
+  color: var(--text);
+}
+
+.region-editor-hint {
+  margin: 0;
+  font-size: 0.76rem;
+  line-height: 1.45;
+  color: var(--muted);
+}
+
+.region-editor-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.44rem;
 }
 
 .quick-balance-chip {

@@ -14,7 +14,7 @@ A web platform that allows users to place token-based over or under predictions 
 
 ## High-Level Description
 
-Trojan Traffic is a web app that overlays a defined box on top of the USC live camera feed (Tommy Trojan and/or USC Village) and tracks foot traffic to count how many people enter the box.
+Trojan Traffic is a web app that overlays a defined betting region on top of the USC live camera feed (Tommy Trojan and/or USC Village) and tracks foot traffic to count how many people enter that region.
 
 Users place predictions on whether the number of people entering the box during a selected time window will be over or under a specified threshold. The system automatically counts entries and resolves outcomes at the end of each timed session.
 
@@ -99,15 +99,16 @@ Each mode:
 
 #### Betting Screen Includes:
 - Live camera feed
-- Overlayed virtual box
+- Overlayed betting region
 - Token balance display
 - Over / Under input selection
 - Submit button
 - Visible countdown timer
 
-#### Daily Variation
-- The box location is randomized daily
-- All users bet on the same region for fairness
+#### Region Placement
+- The active betting region can be repositioned by an admin
+- Admins can use a disabled-by-default editor to drag the four region corners on top of the live feed
+- The saved region is shared across all users for fairness
 
 ---
 
@@ -199,6 +200,16 @@ cp apps/web/.env.example apps/web/.env.local
 npm run dev:web
 ```
 
+Optional one-off admin region editor:
+
+```bash
+echo 'REGION_EDITOR_ENABLED=true' >> apps/web/.env.local
+```
+
+When enabled, the web app exposes draggable region handles and a save panel. The editor should
+normally remain disabled and only be turned on temporarily when an admin needs to reposition the
+betting region.
+
 ### 3) Run vision service
 
 ```bash
@@ -218,5 +229,6 @@ supabase db push
 After migrations are applied, the web app supports:
 - Email/password signup and login
 - Daily token claim
+- Admin-only region placement editor, disabled by default
 - Placing predictions on upcoming rounds
 - Leaderboard and prediction history

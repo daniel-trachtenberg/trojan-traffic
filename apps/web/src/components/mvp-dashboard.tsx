@@ -3,14 +3,14 @@
 import type { User } from "@supabase/supabase-js";
 import { useEffect, useState, useTransition, type FormEvent } from "react";
 import { LiveFeed } from "@/components/live-feed";
+import {
+  bettingRegionsEqual,
+  normalizeBettingRegion,
+  type RegionPoint
+} from "@/lib/betting-region";
 import { getBrowserSupabaseClient } from "@/lib/supabase/client";
 
 type PredictionSide = "over" | "under";
-
-type RegionPoint = {
-  x: number;
-  y: number;
-};
 
 type SessionState = "open" | "live" | "resolving" | "resolved" | "cancelled";
 
@@ -62,17 +62,13 @@ type BalanceRow = {
 
 type MvpDashboardProps = {
   hlsUrl: string;
+  initialRegion: RegionPoint[];
+  regionEditorEnabled?: boolean;
   visionApiUrl?: string;
 };
 
 const DEFAULT_WAGER = "10";
 const WAGER_STEPS = [1, 5, 10, 20];
-const CENTER_REGION: RegionPoint[] = [
-  { x: 0.78, y: 0.45 },
-  { x: 0.9, y: 0.45 },
-  { x: 0.9, y: 0.55 },
-  { x: 0.78, y: 0.55 }
-];
 
 function formatCountdown(milliseconds: number) {
   const safeMilliseconds = Math.max(milliseconds, 0);
@@ -125,7 +121,7 @@ function getSessionStateLabel(state: SessionState) {
   return "Cancelled";
 }
 
-function createFallbackSessions(): SessionRow[] {
+function createFallbackSessions(region: RegionPoint[]): SessionRow[] {
   const now = Date.now();
   return [0, 1, 2, 3].map((index) => {
     const startsAt = new Date(now + (index + 1) * 120_000);
@@ -142,7 +138,7 @@ function createFallbackSessions(): SessionRow[] {
       status: "scheduled",
       final_count: null,
       resolved_at: null,
-      region_polygon: CENTER_REGION
+      region_polygon: region
     };
   });
 }
@@ -162,7 +158,12 @@ type LiveDetectionsResponse = {
   boxes: LiveDetectionBox[];
 };
 
-export function MvpDashboard({ hlsUrl, visionApiUrl }: MvpDashboardProps) {
+export function MvpDashboard({
+  hlsUrl,
+  initialRegion,
+  regionEditorEnabled = false,
+  visionApiUrl
+}: MvpDashboardProps) {
   const supabase = getBrowserSupabaseClient();
   const [user, setUser] = useState<User | null>(null);
   const [sessions, setSessions] = useState<SessionRow[]>([]);
@@ -187,6 +188,11 @@ export function MvpDashboard({ hlsUrl, visionApiUrl }: MvpDashboardProps) {
   const [authIntentSessionId, setAuthIntentSessionId] = useState<string | null>(null);
   const [livePersonBoxes, setLivePersonBoxes] = useState<LiveDetectionBox[]>([]);
   const [, setDetectorStatus] = useState("idle");
+  const [regionPoints, setRegionPoints] = useState(() => normalizeBettingRegion(initialRegion));
+  const [savedRegionPoints, setSavedRegionPoints] = useState(() =>
+    normalizeBettingRegion(initialRegion)
+  );
+  const [isSavingRegion, setIsSavingRegion] = useState(false);
 
   const predictionBySession = new Map(predictions.map((prediction) => [prediction.session_id, prediction]));
   const openRisk = predictions
@@ -234,10 +240,11 @@ export function MvpDashboard({ hlsUrl, visionApiUrl }: MvpDashboardProps) {
         : selectedSession
           ? `${selectedSession.mode_seconds}s round`
           : "";
+  const hasUnsavedRegionChanges = !bettingRegionsEqual(regionPoints, savedRegionPoints);
 
   async function refreshData(activeUser: User | null) {
     if (!supabase) {
-      setSessions(createFallbackSessions());
+      setSessions(createFallbackSessions(regionPoints));
       setPredictions([]);
       setLeaderboard([]);
       setProfile(null);
@@ -339,6 +346,12 @@ export function MvpDashboard({ hlsUrl, visionApiUrl }: MvpDashboardProps) {
       setLoading(false);
     }
   }
+
+  useEffect(() => {
+    const normalizedRegion = normalizeBettingRegion(initialRegion);
+    setRegionPoints(normalizedRegion);
+    setSavedRegionPoints(normalizedRegion);
+  }, [initialRegion]);
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -667,11 +680,58 @@ export function MvpDashboard({ hlsUrl, visionApiUrl }: MvpDashboardProps) {
     setOpenRightPanel((current) => (current === panel ? null : panel));
   }
 
+  async function handleSaveRegion() {
+    if (!regionEditorEnabled) {
+      return;
+    }
+
+    setError(null);
+    setNotice(null);
+    setIsSavingRegion(true);
+
+    try {
+      const response = await fetch("/api/admin/region", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          points: regionPoints
+        })
+      });
+      const payload = (await response.json()) as
+        | { points?: RegionPoint[]; error?: string }
+        | undefined;
+
+      if (!response.ok || !payload?.points) {
+        throw new Error(payload?.error ?? "Failed to save betting region.");
+      }
+
+      const normalizedRegion = normalizeBettingRegion(payload.points);
+      setRegionPoints(normalizedRegion);
+      setSavedRegionPoints(normalizedRegion);
+      setNotice("Betting region saved. Disable REGION_EDITOR_ENABLED when you are done.");
+    } catch (saveError) {
+      const message =
+        saveError instanceof Error ? saveError.message : "Failed to save betting region.";
+      setError(message);
+    } finally {
+      setIsSavingRegion(false);
+    }
+  }
+
   const sessionLookup = new Map(sessions.map((session) => [session.id, session]));
 
   return (
     <main className="betting-screen">
-      <LiveFeed src={hlsUrl} region={CENTER_REGION} fullScreen personBoxes={livePersonBoxes} />
+      <LiveFeed
+        src={hlsUrl}
+        region={regionPoints}
+        fullScreen
+        personBoxes={livePersonBoxes}
+        regionEditorEnabled={regionEditorEnabled}
+        onRegionChange={regionEditorEnabled ? setRegionPoints : null}
+      />
       <div className="feed-mask" />
 
       <div className="floating-widgets">
@@ -851,6 +911,33 @@ export function MvpDashboard({ hlsUrl, visionApiUrl }: MvpDashboardProps) {
               </span>
             </button>
           </div>
+          {regionEditorEnabled ? (
+            <div className="region-editor-panel">
+              <p className="region-editor-title">Region Editor</p>
+              <p className="region-editor-hint">
+                Drag the four handles on the video to fit the walkway, save the shape, then turn
+                <code> REGION_EDITOR_ENABLED</code> back off.
+              </p>
+              <div className="region-editor-actions">
+                <button
+                  type="button"
+                  className="secondary-button"
+                  onClick={() => setRegionPoints(savedRegionPoints)}
+                  disabled={!hasUnsavedRegionChanges || isSavingRegion}
+                >
+                  Reset
+                </button>
+                <button
+                  type="button"
+                  className="primary-button"
+                  onClick={() => void handleSaveRegion()}
+                  disabled={!hasUnsavedRegionChanges || isSavingRegion}
+                >
+                  {isSavingRegion ? "Saving..." : "Save"}
+                </button>
+              </div>
+            </div>
+          ) : null}
         </div>
       </div>
 

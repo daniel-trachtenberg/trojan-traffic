@@ -1,12 +1,13 @@
 "use client";
 
 import Hls from "hls.js";
-import { useEffect, useRef, useState, type CSSProperties } from "react";
-
-type RegionPoint = {
-  x: number;
-  y: number;
-};
+import {
+  useEffect,
+  useRef,
+  useState,
+  type PointerEvent as ReactPointerEvent
+} from "react";
+import { normalizeBettingRegion, type RegionPoint } from "@/lib/betting-region";
 
 type PersonDetectionBox = {
   id: string;
@@ -22,43 +23,70 @@ type LiveFeedProps = {
   region?: RegionPoint[] | null;
   fullScreen?: boolean;
   personBoxes?: PersonDetectionBox[];
+  regionEditorEnabled?: boolean;
+  onRegionChange?: ((points: RegionPoint[]) => void) | null;
 };
 
 function toNormalizedPoints(points: RegionPoint[]) {
   const xScale = points.some((point) => point.x > 1) ? 1920 : 1;
   const yScale = points.some((point) => point.y > 1) ? 1080 : 1;
 
-  return points.map((point) => ({
-    x: Math.min(Math.max(point.x / xScale, 0), 1),
-    y: Math.min(Math.max(point.y / yScale, 0), 1)
-  }));
+  return normalizeBettingRegion(
+    points.map((point) => ({
+      x: point.x / xScale,
+      y: point.y / yScale
+    }))
+  );
 }
 
 export function LiveFeed({
   src,
   region = null,
   fullScreen = false,
-  personBoxes = []
+  personBoxes = [],
+  regionEditorEnabled = false,
+  onRegionChange = null
 }: LiveFeedProps) {
+  const shellRef = useRef<HTMLDivElement | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
+  const dragPointIndexRef = useRef<number | null>(null);
   const [state, setState] = useState("Initializing feed...");
   const normalizedRegion = region ? toNormalizedPoints(region) : null;
+  const polygonPoints = normalizedRegion
+    ? normalizedRegion.map((point) => `${point.x * 100},${point.y * 100}`).join(" ")
+    : "";
 
-  let overlayStyle: CSSProperties | undefined;
-  if (normalizedRegion && normalizedRegion.length >= 3) {
-    const xs = normalizedRegion.map((point) => point.x);
-    const ys = normalizedRegion.map((point) => point.y);
-    const minX = Math.min(...xs);
-    const maxX = Math.max(...xs);
-    const minY = Math.min(...ys);
-    const maxY = Math.max(...ys);
+  function updateRegionPoint(clientX: number, clientY: number) {
+    if (
+      dragPointIndexRef.current === null ||
+      !shellRef.current ||
+      !normalizedRegion ||
+      !onRegionChange
+    ) {
+      return;
+    }
 
-    overlayStyle = {
-      left: `${minX * 100}%`,
-      top: `${minY * 100}%`,
-      width: `${(maxX - minX) * 100}%`,
-      height: `${(maxY - minY) * 100}%`
+    const bounds = shellRef.current.getBoundingClientRect();
+    const nextRegion = normalizedRegion.map((point) => ({ ...point }));
+
+    nextRegion[dragPointIndexRef.current] = {
+      x: Math.min(Math.max((clientX - bounds.left) / bounds.width, 0), 1),
+      y: Math.min(Math.max((clientY - bounds.top) / bounds.height, 0), 1)
     };
+
+    onRegionChange(normalizeBettingRegion(nextRegion));
+  }
+
+  function handleEditorPointerMove(event: ReactPointerEvent<HTMLDivElement>) {
+    if (!regionEditorEnabled || dragPointIndexRef.current === null) {
+      return;
+    }
+
+    updateRegionPoint(event.clientX, event.clientY);
+  }
+
+  function finishDragging() {
+    dragPointIndexRef.current = null;
   }
 
   useEffect(() => {
@@ -109,9 +137,45 @@ export function LiveFeed({
   }, [src]);
 
   return (
-    <div className={fullScreen ? "video-shell video-shell-fullscreen" : "video-shell"}>
+    <div
+      ref={shellRef}
+      className={fullScreen ? "video-shell video-shell-fullscreen" : "video-shell"}
+      onPointerMove={handleEditorPointerMove}
+      onPointerUp={finishDragging}
+      onPointerCancel={finishDragging}
+    >
       <video ref={videoRef} controls muted playsInline autoPlay />
-      {overlayStyle ? <div className="region-overlay" style={overlayStyle} /> : null}
+      {normalizedRegion && normalizedRegion.length >= 3 ? (
+        <svg
+          className={
+            regionEditorEnabled
+              ? "region-overlay-svg region-overlay-svg-editable"
+              : "region-overlay-svg"
+          }
+          viewBox="0 0 100 100"
+          preserveAspectRatio="none"
+          aria-hidden="true"
+        >
+          <polygon className="region-overlay-fill" points={polygonPoints} />
+          <polygon className="region-overlay-stroke" points={polygonPoints} />
+          {regionEditorEnabled
+            ? normalizedRegion.map((point, index) => (
+                <circle
+                  key={`${index}-${point.x}-${point.y}`}
+                  className="region-overlay-handle"
+                  cx={point.x * 100}
+                  cy={point.y * 100}
+                  r="1.5"
+                  onPointerDown={(event) => {
+                    dragPointIndexRef.current = index;
+                    event.currentTarget.setPointerCapture(event.pointerId);
+                    updateRegionPoint(event.clientX, event.clientY);
+                  }}
+                />
+              ))
+            : null}
+        </svg>
+      ) : null}
       {personBoxes.map((box) => (
         <div
           key={box.id}
