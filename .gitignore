@@ -28,3 +28,4 @@ services/vision/*.pt
 
 # Supabase
 .supabase/
+supabase/.temp/
