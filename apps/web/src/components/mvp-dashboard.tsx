@@ -67,10 +67,10 @@ type MvpDashboardProps = {
 
 const DEFAULT_WAGER = "10";
 const CENTER_REGION: RegionPoint[] = [
-  { x: 0.4, y: 0.32 },
-  { x: 0.6, y: 0.32 },
-  { x: 0.6, y: 0.68 },
-  { x: 0.4, y: 0.68 }
+  { x: 0.78, y: 0.45 },
+  { x: 0.9, y: 0.45 },
+  { x: 0.9, y: 0.55 },
+  { x: 0.78, y: 0.55 }
 ];
 
 function formatCountdown(milliseconds: number) {

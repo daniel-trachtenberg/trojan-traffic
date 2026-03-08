@@ -51,10 +51,10 @@ aggressively. The defaults now favor recall:
 - `DETECTION_MODEL_NAME=yolov8s.pt`
 - `DETECTION_CONFIDENCE=0.15`
 - `DETECTION_STREAM_MAX_WIDTH=1920`
-- `DETECTION_REGION_LEFT=0.02`
-- `DETECTION_REGION_TOP=0.08`
-- `DETECTION_REGION_RIGHT=0.98`
-- `DETECTION_REGION_BOTTOM=0.98`
+- `DETECTION_REGION_LEFT=0.78`
+- `DETECTION_REGION_TOP=0.45`
+- `DETECTION_REGION_RIGHT=0.90`
+- `DETECTION_REGION_BOTTOM=0.55`
 - `DETECTION_MIN_BOX_AREA_RATIO=0.0002`
 - `DETECTION_MIN_BOX_HEIGHT_RATIO=0.04`
 - `DETECTION_MIN_BOX_ASPECT_RATIO=1.4`
@@ -64,6 +64,5 @@ aggressively. The defaults now favor recall:
 If tracking is too slow on your machine, reduce `DETECTION_STREAM_MAX_WIDTH` first before swapping
 back to a smaller model.
 
-The region values are normalized coordinates on the full frame. The detector now looks across almost
-the entire paved plaza and filters candidates by size and person-like aspect ratio so distant walkers
-are not dropped by an overly strict center crop.
+The region values are normalized coordinates on the full frame. The detector now focuses on the
+right-side walkway section and filters candidates by size and person-like aspect ratio.

@@ -15,10 +15,10 @@ class Settings(BaseSettings):
     detection_confidence: float = 0.15
     detection_interval_ms: int = 600
     detection_stream_max_width: int = 1920
-    detection_region_left: float = 0.02
-    detection_region_top: float = 0.08
-    detection_region_right: float = 0.98
-    detection_region_bottom: float = 0.98
+    detection_region_left: float = 0.78
+    detection_region_top: float = 0.45
+    detection_region_right: float = 0.9
+    detection_region_bottom: float = 0.55
     detection_min_box_area_ratio: float = 0.0002
     detection_min_box_height_ratio: float = 0.04
     detection_min_box_aspect_ratio: float = 1.4
