@@ -157,6 +157,7 @@ type LiveDetectionBox = {
 
 type LiveDetectionsResponse = {
   status: string;
+  updated_at?: string | null;
   boxes: LiveDetectionBox[];
 };
 
@@ -385,10 +386,18 @@ export function MvpDashboard({ hlsUrl, visionApiUrl }: MvpDashboardProps) {
 
     const endpoint = `${visionApiUrl.replace(/\/+$/, "")}/detections/live`;
     let isMounted = true;
+    let timeoutId: ReturnType<typeof setTimeout> | null = null;
+    let activeController: AbortController | null = null;
 
     async function fetchDetections() {
+      activeController?.abort();
+      activeController = new AbortController();
+
       try {
-        const response = await fetch(endpoint, { cache: "no-store" });
+        const response = await fetch(endpoint, {
+          cache: "no-store",
+          signal: activeController.signal
+        });
         if (!response.ok) {
           if (!isMounted) {
             return;
@@ -406,24 +415,34 @@ export function MvpDashboard({ hlsUrl, visionApiUrl }: MvpDashboardProps) {
 
         setDetectorStatus(payload.status ?? "online");
         setLivePersonBoxes(Array.isArray(payload.boxes) ? payload.boxes : []);
-      } catch {
+      } catch (fetchError) {
         if (!isMounted) {
+          return;
+        }
+
+        if (fetchError instanceof DOMException && fetchError.name === "AbortError") {
           return;
         }
 
         setDetectorStatus("offline");
         setLivePersonBoxes([]);
+      } finally {
+        if (isMounted) {
+          timeoutId = setTimeout(() => {
+            void fetchDetections();
+          }, 300);
+        }
       }
     }
 
     void fetchDetections();
-    const pollingInterval = setInterval(() => {
-      void fetchDetections();
-    }, 1400);
 
     return () => {
       isMounted = false;
-      clearInterval(pollingInterval);
+      activeController?.abort();
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
     };
   }, [visionApiUrl]);
 

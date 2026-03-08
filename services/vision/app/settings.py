@@ -13,7 +13,7 @@ class Settings(BaseSettings):
     enable_live_detections: bool = True
     detection_model_name: str = "yolov8n.pt"
     detection_confidence: float = 0.35
-    detection_interval_ms: int = 1500
+    detection_interval_ms: int = 400
     detection_max_boxes: int = 24
     detection_reconnect_delay_ms: int = 1200
     cors_origins: str = "*"

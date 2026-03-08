@@ -13,7 +13,8 @@ pip install -e ".[dev]"
 uvicorn app.main:app --reload --port 8080
 ```
 
-`ffmpeg` is required for live detections because the service snapshots frames from HLS.
+`ffmpeg` and `ffprobe` are required for live detections because the service reads the HLS stream
+continuously and tracks people across successive frames.
 
 ## Current endpoints
 

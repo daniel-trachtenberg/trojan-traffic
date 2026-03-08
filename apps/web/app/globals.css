@@ -69,6 +69,12 @@ body {
   border: 2px solid rgb(153 0 0 / 92%);
   box-shadow: inset 0 0 0 1px rgb(255 255 255 / 22%);
   pointer-events: none;
+  transition:
+    left 160ms linear,
+    top 160ms linear,
+    width 160ms linear,
+    height 160ms linear;
+  will-change: left, top, width, height;
 }
 
 .person-detection-label {
