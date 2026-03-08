@@ -32,6 +32,21 @@ class StreamGeometry:
         return self.width * self.height * 3
 
 
+@dataclass(frozen=True)
+class DetectionRegion:
+    left: float
+    top: float
+    right: float
+    bottom: float
+
+    def to_frame_bounds(self, *, frame_width: int, frame_height: int) -> tuple[int, int, int, int]:
+        left = max(0, min(int(frame_width * self.left), frame_width - 2))
+        top = max(0, min(int(frame_height * self.top), frame_height - 2))
+        right = max(left + 2, min(int(frame_width * self.right), frame_width))
+        bottom = max(top + 2, min(int(frame_height * self.bottom), frame_height))
+        return left, top, right, bottom
+
+
 class LivePersonDetector:
     def __init__(
         self,
@@ -39,6 +54,16 @@ class LivePersonDetector:
         model_name: str,
         confidence: float,
         interval_ms: int,
+        stream_max_width: int,
+        region_left: float,
+        region_top: float,
+        region_right: float,
+        region_bottom: float,
+        min_box_area_ratio: float,
+        min_box_height_ratio: float,
+        min_box_aspect_ratio: float,
+        max_box_aspect_ratio: float,
+        min_track_hits: int,
         reconnect_delay_ms: int,
         max_boxes: int,
     ) -> None:
@@ -46,9 +71,24 @@ class LivePersonDetector:
         self._model = YOLO(model_name)
         self._confidence = confidence
         self._target_fps = min(max(1000 / max(interval_ms, 1), 1.0), 5.0)
+        self._stream_max_width = max(stream_max_width, 0)
+        self._detection_region = DetectionRegion(
+            left=max(0.0, min(region_left, 0.98)),
+            top=max(0.0, min(region_top, 0.98)),
+            right=max(region_left + 0.01, min(region_right, 1.0)),
+            bottom=max(region_top + 0.01, min(region_bottom, 1.0)),
+        )
+        self._min_box_area_ratio = max(min_box_area_ratio, 0.0)
+        self._min_box_height_ratio = max(min_box_height_ratio, 0.0)
+        self._min_box_aspect_ratio = max(min_box_aspect_ratio, 0.0)
+        self._max_box_aspect_ratio = max(max_box_aspect_ratio, self._min_box_aspect_ratio)
+        self._min_track_hits = max(min_track_hits, 1)
         self._reconnect_delay_seconds = max(reconnect_delay_ms / 1000, 0.3)
         self._max_boxes = max(max_boxes, 1)
         self._logger = logging.getLogger("app.detector")
+        self._track_hits: dict[str, int] = {}
+        self._track_last_seen: dict[str, int] = {}
+        self._frame_index = 0
 
         self._state_lock = Lock()
         self._process_lock = Lock()
@@ -192,7 +232,10 @@ class LivePersonDetector:
         return None
 
     def _scale_geometry(self, *, width: int, height: int) -> StreamGeometry:
-        max_width = 960
+        max_width = self._stream_max_width
+        if max_width <= 0:
+            return StreamGeometry(width=width - (width % 2), height=height - (height % 2))
+
         if width <= max_width:
             return StreamGeometry(width=width - (width % 2), height=height - (height % 2))
 
@@ -312,8 +355,16 @@ class LivePersonDetector:
         return bytes(buffer)
 
     def _track_people(self, frame: np.ndarray) -> list[dict[str, Any]]:
+        frame_height, frame_width = frame.shape[:2]
+        self._frame_index += 1
+        roi_left, roi_top, roi_right, roi_bottom = self._detection_region.to_frame_bounds(
+            frame_width=frame_width,
+            frame_height=frame_height,
+        )
+        roi_frame = frame[roi_top:roi_bottom, roi_left:roi_right]
+
         results = self._model.track(
-            source=frame,
+            source=roi_frame,
             conf=self._confidence,
             classes=[0],
             persist=True,
@@ -325,10 +376,12 @@ class LivePersonDetector:
         prediction = results[0]
         boxes = prediction.boxes
         if boxes is None or len(boxes) == 0:
+            self._prune_tracks()
             return []
 
-        frame_height, frame_width = prediction.orig_shape
-        if frame_height <= 0 or frame_width <= 0:
+        roi_height, roi_width = prediction.orig_shape
+        if roi_height <= 0 or roi_width <= 0:
+            self._prune_tracks()
             return []
 
         xyxy_values = boxes.xyxy.cpu().tolist()
@@ -337,21 +390,40 @@ class LivePersonDetector:
 
         detections: list[dict[str, Any]] = []
         for index, (x1, y1, x2, y2) in enumerate(xyxy_values[: self._max_boxes]):
-            x1 = max(0.0, min(float(x1), float(frame_width)))
-            y1 = max(0.0, min(float(y1), float(frame_height)))
-            x2 = max(0.0, min(float(x2), float(frame_width)))
-            y2 = max(0.0, min(float(y2), float(frame_height)))
+            x1 = max(0.0, min(float(x1), float(roi_width))) + roi_left
+            y1 = max(0.0, min(float(y1), float(roi_height))) + roi_top
+            x2 = max(0.0, min(float(x2), float(roi_width))) + roi_left
+            y2 = max(0.0, min(float(y2), float(roi_height))) + roi_top
 
             width = max(0.0, x2 - x1)
             height = max(0.0, y2 - y1)
             if width < 2 or height < 2:
                 continue
 
+            area_ratio = (width * height) / max(frame_width * frame_height, 1)
+            if area_ratio < self._min_box_area_ratio:
+                continue
+
+            height_ratio = height / max(frame_height, 1)
+            if height_ratio < self._min_box_height_ratio:
+                continue
+
+            aspect_ratio = height / max(width, 1e-6)
+            if aspect_ratio < self._min_box_aspect_ratio or aspect_ratio > self._max_box_aspect_ratio:
+                continue
+
             track_id = track_ids[index]
             confidence = float(confidences[index]) if index < len(confidences) else 0.0
+            track_key = f"track-{track_id}" if track_id is not None else str(uuid4())
+            if track_id is not None:
+                self._track_hits[track_key] = self._track_hits.get(track_key, 0) + 1
+                self._track_last_seen[track_key] = self._frame_index
+                if self._track_hits[track_key] < self._min_track_hits:
+                    continue
+
             detections.append(
                 {
-                    "id": f"track-{track_id}" if track_id is not None else str(uuid4()),
+                    "id": track_key,
                     "x": round(x1 / frame_width, 4),
                     "y": round(y1 / frame_height, 4),
                     "width": round(width / frame_width, 4),
@@ -360,4 +432,14 @@ class LivePersonDetector:
                 }
             )
 
+        self._prune_tracks()
         return detections
+
+    def _prune_tracks(self) -> None:
+        stale_before = self._frame_index - 12
+        stale_ids = [
+            track_id for track_id, last_seen in self._track_last_seen.items() if last_seen < stale_before
+        ]
+        for track_id in stale_ids:
+            self._track_last_seen.pop(track_id, None)
+            self._track_hits.pop(track_id, None)
