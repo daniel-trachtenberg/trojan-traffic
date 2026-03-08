@@ -66,6 +66,7 @@ type MvpDashboardProps = {
 };
 
 const DEFAULT_WAGER = "10";
+const WAGER_STEPS = [1, 5, 10, 20];
 const CENTER_REGION: RegionPoint[] = [
   { x: 0.78, y: 0.45 },
   { x: 0.9, y: 0.45 },
@@ -182,8 +183,10 @@ export function MvpDashboard({ hlsUrl, visionApiUrl }: MvpDashboardProps) {
   const [wagerBySession, setWagerBySession] = useState<Record<string, string>>({});
   const [sideBySession, setSideBySession] = useState<Record<string, PredictionSide>>({});
   const [openRightPanel, setOpenRightPanel] = useState<"account" | "leaderboard" | null>(null);
+  const [showAuthModal, setShowAuthModal] = useState(false);
+  const [authIntentSessionId, setAuthIntentSessionId] = useState<string | null>(null);
   const [livePersonBoxes, setLivePersonBoxes] = useState<LiveDetectionBox[]>([]);
-  const [detectorStatus, setDetectorStatus] = useState("idle");
+  const [, setDetectorStatus] = useState("idle");
 
   const predictionBySession = new Map(predictions.map((prediction) => [prediction.session_id, prediction]));
   const openRisk = predictions
@@ -201,9 +204,36 @@ export function MvpDashboard({ hlsUrl, visionApiUrl }: MvpDashboardProps) {
     : "00:00";
   const selectedWager = selectedSession ? (wagerBySession[selectedSession.id] ?? DEFAULT_WAGER) : DEFAULT_WAGER;
   const selectedSide = selectedSession ? (sideBySession[selectedSession.id] ?? "over") : "over";
-  const canPlaceSelected = Boolean(
-    user && selectedSession && selectedState === "open" && selectedPrediction === null
-  );
+  const canConfigureSelected = Boolean(selectedSession && selectedState === "open" && selectedPrediction === null);
+  const sessionMetricLabel =
+    selectedState === "open"
+      ? "Closes In"
+      : selectedState === "live"
+        ? "Betting"
+        : selectedState === "resolving"
+          ? "Round"
+          : "Status";
+  const sessionMetricValue =
+    selectedState === "open"
+      ? selectedCountdown
+      : selectedState === "live"
+        ? "Locked"
+        : selectedState === "resolving"
+          ? "Resolving"
+          : selectedState
+            ? getSessionStateLabel(selectedState)
+            : "Open";
+  const sessionMetricNote =
+    selectedState === "open"
+      ? `${selectedSession?.mode_seconds ?? 0}s window`
+      : selectedState === "resolved" && selectedSession
+        ? new Date(selectedSession.ends_at).toLocaleTimeString([], {
+            hour: "numeric",
+            minute: "2-digit"
+          })
+        : selectedSession
+          ? `${selectedSession.mode_seconds}s round`
+          : "";
   const accountInitial = user
     ? (profile?.display_name ?? user.email ?? "A").charAt(0).toUpperCase()
     : "?";
@@ -477,8 +507,15 @@ export function MvpDashboard({ hlsUrl, visionApiUrl }: MvpDashboardProps) {
       }
 
       setNotice("Account created. You are signed in.");
-      setUser(signUpResponse.data.session.user);
-      await load(signUpResponse.data.session.user);
+      const nextUser = signUpResponse.data.session.user;
+      setUser(nextUser);
+      await load(nextUser);
+      closeAuthModal();
+
+      const intendedSession = sessions.find((session) => session.id === authIntentSessionId);
+      if (intendedSession) {
+        await handlePlacePrediction(intendedSession, nextUser);
+      }
       return;
     }
 
@@ -493,8 +530,15 @@ export function MvpDashboard({ hlsUrl, visionApiUrl }: MvpDashboardProps) {
     }
 
     setNotice("Signed in.");
-    setUser(signInResponse.data.user);
-    await load(signInResponse.data.user);
+    const nextUser = signInResponse.data.user;
+    setUser(nextUser);
+    await load(nextUser);
+    closeAuthModal();
+
+    const intendedSession = sessions.find((session) => session.id === authIntentSessionId);
+    if (intendedSession) {
+      await handlePlacePrediction(intendedSession, nextUser);
+    }
   }
 
   async function handleSignOut() {
@@ -543,8 +587,8 @@ export function MvpDashboard({ hlsUrl, visionApiUrl }: MvpDashboardProps) {
     });
   }
 
-  async function handlePlacePrediction(session: SessionRow) {
-    if (!supabase || !user) {
+  async function handlePlacePrediction(session: SessionRow, activeUser: User | null = user) {
+    if (!supabase || !activeUser) {
       return;
     }
 
@@ -573,8 +617,53 @@ export function MvpDashboard({ hlsUrl, visionApiUrl }: MvpDashboardProps) {
 
     setNotice(`Prediction submitted: ${side.toUpperCase()} ${session.threshold}.`);
     startTransition(() => {
-      void load(user);
+      void load(activeUser);
     });
+  }
+
+  function closeAuthModal() {
+    setShowAuthModal(false);
+    setAuthIntentSessionId(null);
+  }
+
+  function updateSelectedSide(sessionId: string, nextSide: PredictionSide) {
+    setSideBySession((current) => ({
+      ...current,
+      [sessionId]: nextSide
+    }));
+  }
+
+  function updateSelectedWager(sessionId: string, nextWager: string) {
+    setWagerBySession((current) => ({
+      ...current,
+      [sessionId]: nextWager
+    }));
+  }
+
+  function adjustSelectedWager(sessionId: string, delta: number) {
+    const currentWager = Number.parseInt(wagerBySession[sessionId] ?? DEFAULT_WAGER, 10);
+    const safeWager = Number.isFinite(currentWager) ? currentWager : Number.parseInt(DEFAULT_WAGER, 10);
+    updateSelectedWager(sessionId, String(Math.max(1, safeWager + delta)));
+  }
+
+  function handleBetAction(session: SessionRow) {
+    if (!canConfigureSelected) {
+      return;
+    }
+
+    if (!supabase && !user) {
+      setError("Configure Supabase before signing in and placing bets.");
+      return;
+    }
+
+    if (!user) {
+      setAuthMode("sign-in");
+      setAuthIntentSessionId(session.id);
+      setShowAuthModal(true);
+      return;
+    }
+
+    void handlePlacePrediction(session, user);
   }
 
   function toggleRightPanel(panel: "account" | "leaderboard") {
@@ -590,86 +679,119 @@ export function MvpDashboard({ hlsUrl, visionApiUrl }: MvpDashboardProps) {
 
       <div className="floating-widgets">
         <section className="floating-widget bet-widget">
-          <header className="widget-header">
-            <h2>Betting Screen</h2>
+          <header className="widget-header bet-widget-header">
+            <div className="widget-title-block">
+              <p className="widget-kicker">Tommy Walkway</p>
+              <h2>Betting</h2>
+            </div>
             <span className="status">{isRefreshing ? "Refreshing" : "Live"}</span>
           </header>
 
           {selectedSession ? (
             <>
-              <div className="round-chip-row">
+              <div className="market-meta-row">
                 <span className={`status status-${selectedState ?? "open"}`}>
                   {selectedState ? getSessionStateLabel(selectedState) : "Open"}
                 </span>
-                <span className="round-chip">
-                  {selectedSession.mode_seconds}s · Threshold {selectedSession.threshold}
-                </span>
+                <span className="round-chip">{selectedSession.mode_seconds}s round</span>
+                <span className="round-chip">Threshold {selectedSession.threshold}</span>
               </div>
-              <p className="countdown-text">
-                {selectedState === "open"
-                  ? `Betting closes in ${selectedCountdown}`
-                  : selectedState === "live"
-                    ? "Round is live. Betting locked."
-                    : selectedState === "resolving"
-                      ? "Round ended. Resolving..."
-                      : `Resolved at ${new Date(selectedSession.ends_at).toLocaleTimeString()}`}
-              </p>
-              <p className="hint">
-                ML tracking: {detectorStatus} · {livePersonBoxes.length} people detected
-              </p>
 
-              <div className="bet-controls overlay-bet-controls">
-                <label>
-                  Side
-                  <select
-                    value={selectedSide}
-                    onChange={(event) => {
-                      const nextSide = event.target.value as PredictionSide;
-                      setSideBySession((current) => ({
-                        ...current,
-                        [selectedSession.id]: nextSide
-                      }));
-                    }}
-                    disabled={!canPlaceSelected}
-                  >
-                    <option value="over">Over</option>
-                    <option value="under">Under</option>
-                  </select>
-                </label>
-                <label>
-                  Wager
-                  <input
-                    type="number"
-                    min={1}
-                    value={selectedWager}
-                    onChange={(event) =>
-                      setWagerBySession((current) => ({
-                        ...current,
-                        [selectedSession.id]: event.target.value
-                      }))
+              <div className="market-board">
+                <div className="market-choice-grid">
+                  <button
+                    type="button"
+                    className={
+                      selectedSide === "under"
+                        ? "market-choice-card market-choice-under active"
+                        : "market-choice-card market-choice-under"
                     }
-                    disabled={!canPlaceSelected}
-                  />
-                </label>
-                <button
-                  type="button"
-                  className="primary-button"
-                  disabled={!canPlaceSelected}
-                  onClick={() => {
-                    void handlePlacePrediction(selectedSession);
-                  }}
-                >
-                  {selectedPrediction
-                    ? "Already Entered"
-                    : user
-                      ? "Place Prediction"
-                      : "Sign In to Bet"}
-                </button>
+                    onClick={() => updateSelectedSide(selectedSession.id, "under")}
+                    disabled={!canConfigureSelected}
+                  >
+                    <span className="market-choice-icon" aria-hidden="true">
+                      ↓
+                    </span>
+                    <span className="market-choice-title">Under</span>
+                    <span className="market-choice-subtitle">Below {selectedSession.threshold}</span>
+                  </button>
+
+                  <div className="market-center-card">
+                    <span className="market-center-label">Threshold</span>
+                    <strong>{selectedSession.threshold}</strong>
+                    <span>{selectedSession.mode_seconds}s window</span>
+                  </div>
+
+                  <button
+                    type="button"
+                    className={
+                      selectedSide === "over"
+                        ? "market-choice-card market-choice-over active"
+                        : "market-choice-card market-choice-over"
+                    }
+                    onClick={() => updateSelectedSide(selectedSession.id, "over")}
+                    disabled={!canConfigureSelected}
+                  >
+                    <span className="market-choice-icon" aria-hidden="true">
+                      ↑
+                    </span>
+                    <span className="market-choice-title">Over</span>
+                    <span className="market-choice-subtitle">{selectedSession.threshold} or more</span>
+                  </button>
+                </div>
+
+                <div className="market-metrics-row">
+                  <div className="market-metric">
+                    <span className="market-metric-label">{sessionMetricLabel}</span>
+                    <strong>{sessionMetricValue}</strong>
+                    <span className="market-metric-note">{sessionMetricNote}</span>
+                  </div>
+                </div>
+
+                <div className="stake-toolbar">
+                  <div className="stake-step-row">
+                    <span className="stake-label">Stake</span>
+                    <div className="stake-step-buttons">
+                      {WAGER_STEPS.map((step) => (
+                        <button
+                          key={step}
+                          type="button"
+                          className="stake-step-button"
+                          disabled={!canConfigureSelected}
+                          onClick={() => adjustSelectedWager(selectedSession.id, step)}
+                        >
+                          +{step}
+                        </button>
+                      ))}
+                      <button
+                        type="button"
+                        className="stake-step-button"
+                        disabled={!canConfigureSelected}
+                        onClick={() => updateSelectedWager(selectedSession.id, DEFAULT_WAGER)}
+                      >
+                        Reset
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="stake-summary-row compact-stake-summary-row">
+                    <label className="stake-input-card">
+                      <span>Stake</span>
+                      <input
+                        type="number"
+                        min={1}
+                        value={selectedWager}
+                        onChange={(event) => updateSelectedWager(selectedSession.id, event.target.value)}
+                        disabled={!canConfigureSelected}
+                      />
+                    </label>
+                  </div>
+                </div>
               </div>
 
               {selectedPrediction ? (
-                <p className="session-result compact-result">
-                  Pick: <strong>{selectedPrediction.side.toUpperCase()}</strong> ·{" "}
+                <p className="session-result compact-result selection-summary">
+                  Locked in: <strong>{selectedPrediction.side.toUpperCase()}</strong> ·{" "}
                   {selectedPrediction.wager_tokens} tokens
                   {selectedPrediction.was_correct !== null
                     ? selectedPrediction.was_correct
@@ -678,68 +800,31 @@ export function MvpDashboard({ hlsUrl, visionApiUrl }: MvpDashboardProps) {
                     : " · Pending"}
                 </p>
               ) : null}
+
+              <div className="bet-card-footer">
+                <button
+                  type="button"
+                  className="bet-submit-button"
+                  disabled={!canConfigureSelected}
+                  onClick={() => handleBetAction(selectedSession)}
+                >
+                  {selectedPrediction
+                    ? "Entered"
+                    : "Bet"}
+                </button>
+              </div>
             </>
           ) : (
             <p className="hint">No upcoming rounds yet.</p>
           )}
-
-          {!user ? (
-            <form className="auth-form inline-auth" onSubmit={handleAuthSubmit}>
-              <div className="mode-row">
-                <button
-                  type="button"
-                  className={authMode === "sign-in" ? "mode-button active" : "mode-button"}
-                  onClick={() => setAuthMode("sign-in")}
-                >
-                  Sign In
-                </button>
-                <button
-                  type="button"
-                  className={authMode === "sign-up" ? "mode-button active" : "mode-button"}
-                  onClick={() => setAuthMode("sign-up")}
-                >
-                  Sign Up
-                </button>
-              </div>
-              <label>
-                Email
-                <input
-                  required
-                  type="email"
-                  value={email}
-                  onChange={(event) => setEmail(event.target.value)}
-                />
-              </label>
-              <label>
-                Password
-                <input
-                  required
-                  minLength={6}
-                  type="password"
-                  value={password}
-                  onChange={(event) => setPassword(event.target.value)}
-                />
-              </label>
-              {authMode === "sign-up" ? (
-                <label>
-                  Display Name
-                  <input
-                    required
-                    minLength={2}
-                    value={displayName}
-                    onChange={(event) => setDisplayName(event.target.value)}
-                  />
-                </label>
-              ) : null}
-              <button type="submit" className="primary-button">
-                {authMode === "sign-in" ? "Sign In" : "Create Account"}
-              </button>
-            </form>
-          ) : null}
         </section>
 
         <div className="right-rail">
           <div className="quick-actions">
+            <div className="quick-balance-chip" aria-label={`Token balance ${tokenBalance}`}>
+              <span className="quick-balance-label">Tokens</span>
+              <strong>{tokenBalance}</strong>
+            </div>
             <button
               type="button"
               className={
@@ -839,6 +924,86 @@ export function MvpDashboard({ hlsUrl, visionApiUrl }: MvpDashboardProps) {
                 {leaderboard.length === 0 ? <p className="hint">No leaderboard entries yet.</p> : null}
               </>
             )}
+          </section>
+        </div>
+      ) : null}
+
+      {showAuthModal ? (
+        <div className="center-modal-backdrop" onClick={closeAuthModal} role="presentation">
+          <section
+            className="center-modal auth-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Sign in to place your bet"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <header className="widget-header center-modal-header">
+              <h2>{authMode === "sign-in" ? "Sign In to Bet" : "Create Your Account"}</h2>
+              <button
+                type="button"
+                className="panel-close-button"
+                onClick={closeAuthModal}
+                aria-label="Close sign-in modal"
+              >
+                ×
+              </button>
+            </header>
+
+            <p className="hint auth-modal-hint">
+              {authIntentSessionId ? "Sign in first, then your bet will be submitted automatically." : "Sign in to place bets and track tokens."}
+            </p>
+
+            <form className="auth-form auth-modal-form" onSubmit={handleAuthSubmit}>
+              <div className="mode-row">
+                <button
+                  type="button"
+                  className={authMode === "sign-in" ? "mode-button active" : "mode-button"}
+                  onClick={() => setAuthMode("sign-in")}
+                >
+                  Sign In
+                </button>
+                <button
+                  type="button"
+                  className={authMode === "sign-up" ? "mode-button active" : "mode-button"}
+                  onClick={() => setAuthMode("sign-up")}
+                >
+                  Sign Up
+                </button>
+              </div>
+              <label>
+                Email
+                <input
+                  required
+                  type="email"
+                  value={email}
+                  onChange={(event) => setEmail(event.target.value)}
+                />
+              </label>
+              <label>
+                Password
+                <input
+                  required
+                  minLength={6}
+                  type="password"
+                  value={password}
+                  onChange={(event) => setPassword(event.target.value)}
+                />
+              </label>
+              {authMode === "sign-up" ? (
+                <label>
+                  Display Name
+                  <input
+                    required
+                    minLength={2}
+                    value={displayName}
+                    onChange={(event) => setDisplayName(event.target.value)}
+                  />
+                </label>
+              ) : null}
+              <button type="submit" className="primary-button">
+                {authMode === "sign-in" ? "Sign In" : "Create Account"}
+              </button>
+            </form>
           </section>
         </div>
       ) : null}

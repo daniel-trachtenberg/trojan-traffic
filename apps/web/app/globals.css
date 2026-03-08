@@ -132,6 +132,7 @@ body {
   grid-template-columns: minmax(280px, 420px) auto;
   justify-content: space-between;
   align-content: start;
+  align-items: start;
   gap: 1rem;
   pointer-events: none;
 }
@@ -148,15 +149,44 @@ body {
 .right-rail {
   pointer-events: auto;
   justify-self: end;
+  align-self: start;
   width: max-content;
-  display: grid;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
   gap: 0.55rem;
 }
 
 .quick-actions {
   display: flex;
+  align-items: center;
   justify-content: flex-end;
   gap: 0.45rem;
+}
+
+.quick-balance-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.42rem;
+  height: 42px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  padding: 0 0.78rem;
+  background: var(--surface-strong);
+}
+
+.quick-balance-label {
+  font-size: 0.6rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.quick-balance-chip strong {
+  font-size: 0.96rem;
+  line-height: 1;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
 }
 
 .icon-account-button {
@@ -249,6 +279,10 @@ body {
   box-shadow: 0 25px 65px rgb(0 0 0 / 48%);
 }
 
+.auth-modal {
+  width: min(520px, 100%);
+}
+
 .center-modal-header {
   margin-bottom: 0.82rem;
 }
@@ -259,6 +293,14 @@ body {
   padding-right: 0.2rem;
 }
 
+.bet-widget {
+  width: min(440px, 100%);
+  padding: 0.9rem;
+  background:
+    linear-gradient(180deg, rgb(10 12 18 / 90%) 0%, rgb(12 14 20 / 86%) 100%);
+  box-shadow: 0 16px 40px rgb(0 0 0 / 20%);
+}
+
 .widget-header {
   display: flex;
   justify-content: space-between;
@@ -266,11 +308,30 @@ body {
   margin-bottom: 0.62rem;
 }
 
+.bet-widget-header {
+  align-items: flex-start;
+  margin-bottom: 0.68rem;
+}
+
 .widget-header h2 {
   margin: 0;
-  font-size: 1.02rem;
-  font-weight: 650;
+  font-size: 1.14rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
   color: var(--text);
+}
+
+.widget-title-block {
+  display: grid;
+  gap: 0.1rem;
+}
+
+.widget-kicker {
+  margin: 0;
+  font-size: 0.72rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: rgb(200 207 222 / 76%);
 }
 
 .status {
@@ -280,7 +341,7 @@ body {
   border: 1px solid var(--line);
   padding: 0.18rem 0.62rem;
   font-size: 0.72rem;
-  background: rgb(255 255 255 / 8%);
+  background: rgb(255 255 255 / 4%);
   color: var(--muted);
 }
 
@@ -311,18 +372,174 @@ body {
   gap: 0.4rem;
 }
 
+.market-meta-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+}
+
 .round-chip {
-  font-size: 0.78rem;
+  font-size: 0.76rem;
   border-radius: 999px;
   border: 1px solid var(--line);
-  padding: 0.16rem 0.55rem;
+  padding: 0.22rem 0.62rem;
   color: var(--muted);
-  background: rgb(255 255 255 / 5%);
+  background: rgb(255 255 255 / 4%);
 }
 
 .countdown-text {
   margin: 0.5rem 0 0.62rem;
   font-size: 0.9rem;
+  color: var(--muted);
+}
+
+.market-board {
+  margin-top: 0.68rem;
+  display: grid;
+  gap: 0.62rem;
+}
+
+.market-choice-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(108px, 0.82fr) minmax(0, 1fr);
+  gap: 0.46rem;
+}
+
+.market-choice-card,
+.market-center-card,
+.stake-toolbar {
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: rgb(255 255 255 / 2.5%);
+}
+
+.market-choice-card {
+  min-height: 7.75rem;
+  padding: 0.72rem 0.62rem;
+  display: grid;
+  justify-items: center;
+  align-content: center;
+  gap: 0.3rem;
+  font: inherit;
+  color: var(--text);
+  text-align: center;
+  transition: border-color 140ms ease, background 140ms ease;
+}
+
+.market-choice-card.active {
+  background: rgb(255 255 255 / 5%);
+}
+
+.market-choice-under.active {
+  border-color: rgb(153 0 0 / 42%);
+  background: rgb(153 0 0 / 7%);
+}
+
+.market-choice-over.active {
+  border-color: rgb(255 204 0 / 34%);
+  background: rgb(255 204 0 / 7%);
+}
+
+.market-choice-icon {
+  width: 2.05rem;
+  height: 2.05rem;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #eef2fb;
+  background: rgb(255 255 255 / 4%);
+  border: 1px solid var(--line);
+}
+
+.market-choice-under .market-choice-icon {
+  color: #f3dcdc;
+}
+
+.market-choice-over .market-choice-icon {
+  color: #f6ecbd;
+}
+
+.market-choice-title {
+  font-size: 0.92rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.market-choice-subtitle {
+  font-size: 0.68rem;
+  line-height: 1.3;
+  color: var(--muted);
+}
+
+.market-center-card {
+  min-height: 7.75rem;
+  padding: 0.72rem 0.62rem;
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  gap: 0.22rem;
+  text-align: center;
+}
+
+.market-center-card strong {
+  font-size: 1.6rem;
+  line-height: 1;
+  color: var(--text);
+  letter-spacing: -0.04em;
+  font-variant-numeric: tabular-nums;
+}
+
+.market-center-label {
+  font-size: 0.65rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.market-center-card span:last-child {
+  font-size: 0.69rem;
+  color: var(--muted);
+}
+
+.market-metrics-row {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.42rem;
+}
+
+.market-metric {
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 0.62rem 0.76rem 0.66rem;
+  background: rgb(255 255 255 / 2%);
+  display: grid;
+  justify-items: center;
+  text-align: center;
+  gap: 0.12rem;
+}
+
+.market-metric-label {
+  font-size: 0.64rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.market-metric strong {
+  font-size: 1.7rem;
+  line-height: 1;
+  color: var(--text);
+  font-weight: 650;
+  letter-spacing: -0.05em;
+  font-variant-numeric: tabular-nums;
+}
+
+.market-metric-note {
+  font-size: 0.7rem;
   color: var(--muted);
 }
 
@@ -341,6 +558,20 @@ body {
   margin-top: 0.68rem;
   border-top: 1px solid var(--line);
   padding-top: 0.68rem;
+}
+
+.auth-modal-form {
+  margin-top: 0.9rem;
+}
+
+.auth-modal-hint {
+  margin: 0;
+}
+
+.sign-in-hint {
+  margin-top: 0.75rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--line);
 }
 
 .auth-form label,
@@ -392,6 +623,124 @@ body {
   align-items: end;
 }
 
+.stake-toolbar {
+  padding: 0.68rem;
+  display: grid;
+  gap: 0.56rem;
+  background: rgb(255 255 255 / 2.5%);
+}
+
+.stake-step-row {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.stake-label {
+  font-size: 0.66rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.stake-step-buttons {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 0.32rem;
+}
+
+.stake-step-button {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  min-height: 2.2rem;
+  padding: 0.32rem 0.24rem;
+  background: transparent;
+  color: #e7edf9;
+  font: inherit;
+  font-size: 0.69rem;
+  font-weight: 600;
+}
+
+.stake-step-button:hover:enabled {
+  border-color: rgb(255 255 255 / 22%);
+  background: rgb(255 255 255 / 4%);
+}
+
+.stake-summary-row {
+  display: grid;
+  grid-template-columns: minmax(132px, 1.15fr) minmax(0, 0.85fr) minmax(0, 0.85fr);
+  gap: 0.52rem;
+}
+
+.compact-stake-summary-row {
+  grid-template-columns: 1fr;
+  gap: 0;
+}
+
+.stake-input-card,
+.stake-display-card {
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  min-height: 4.35rem;
+  padding: 0.56rem 0.68rem;
+  background: rgb(9 11 16 / 40%);
+}
+
+.stake-input-card {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.stake-input-card span,
+.stake-display-card span,
+.stake-total-label {
+  font-size: 0.68rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.stake-input-card input {
+  width: 100%;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  text-align: right;
+  font-size: 1.55rem;
+  line-height: 1;
+  font-weight: 700;
+  background: transparent;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+
+.stake-input-card input::-webkit-outer-spin-button,
+.stake-input-card input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.stake-input-card input[type="number"] {
+  -moz-appearance: textfield;
+}
+
+.stake-display-card {
+  display: grid;
+  align-content: center;
+  gap: 0.36rem;
+}
+
+.stake-display-card strong {
+  font-size: 1.2rem;
+  color: var(--text);
+  letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums;
+}
+
 .overlay-bet-controls {
   margin-top: 0.1rem;
 }
@@ -410,12 +759,32 @@ body {
   color: #fff5da;
 }
 
+.bet-submit-button {
+  width: 100%;
+  border: 1px solid rgb(153 0 0 / 48%);
+  border-radius: 14px;
+  padding: 0.92rem 1rem;
+  font: inherit;
+  font-size: 1rem;
+  font-weight: 650;
+  color: #fff5da;
+  background: var(--usc-cardinal);
+  letter-spacing: -0.01em;
+}
+
+.bet-submit-button:hover:enabled {
+  filter: brightness(1.03);
+}
+
 .secondary-button {
   border: 1px solid var(--line);
   background: rgb(255 255 255 / 7%);
   color: var(--muted);
 }
 
+.market-choice-card:disabled,
+.stake-step-button:disabled,
+.bet-submit-button:disabled,
 .primary-button:disabled,
 .secondary-button:disabled {
   opacity: 0.56;
@@ -429,6 +798,18 @@ body {
 
 .compact-result {
   font-size: 0.83rem;
+}
+
+.selection-summary {
+  margin-top: 0.68rem;
+  padding: 0.62rem 0.72rem;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: rgb(255 255 255 / 3%);
+}
+
+.bet-card-footer {
+  margin-top: 0.68rem;
 }
 
 .account-card {
@@ -574,6 +955,21 @@ body {
 
   .bet-controls {
     grid-template-columns: 1fr;
+  }
+
+  .market-choice-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .market-metrics-row,
+  .stake-summary-row,
+  .stake-step-buttons {
+    grid-template-columns: 1fr;
+  }
+
+  .stake-step-row {
+    grid-template-columns: 1fr;
+    gap: 0.44rem;
   }
 
   .bottom-ribbon {
