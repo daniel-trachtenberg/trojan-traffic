@@ -69,20 +69,22 @@ body {
 }
 
 .region-overlay-fill {
-  fill: rgb(255 204 0 / 14%);
+  fill: rgb(255 204 0 / 24%);
 }
 
 .region-overlay-stroke {
   fill: none;
-  stroke: var(--usc-gold);
-  stroke-width: 0.32;
+  stroke: rgb(255 204 0 / 96%);
+  stroke-width: 0.9;
+  stroke-linejoin: round;
   vector-effect: non-scaling-stroke;
+  filter: drop-shadow(0 0 10px rgb(255 204 0 / 38%));
 }
 
 .region-overlay-handle {
   fill: var(--usc-gold);
   stroke: rgb(9 11 16 / 88%);
-  stroke-width: 0.32;
+  stroke-width: 0.55;
   vector-effect: non-scaling-stroke;
   cursor: grab;
   pointer-events: all;
