@@ -43,26 +43,37 @@ The resolve endpoint requires `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` in 
 
 The live detections endpoint requires `ENABLE_LIVE_DETECTIONS=true` and uses `CAMERA_PLAYLIST_URL`.
 
+## Model choice
+
+For this repo's current CPU-based live service, the higher-recall default is now `RT-DETR-L` with a
+simple IoU tracker.
+
+- `RT-DETR-L` detected more pedestrians on the full frame than the YOLO variants tested in this
+  repo.
+- Ultralytics' built-in `track()` path dropped valid full-frame detections for this camera, so the
+  service now uses `predict()` plus a lightweight IoU-based tracker to preserve recall.
+
 ## Tuning detection quality
 
-For the USC traffic camera, small distant pedestrians were missed when the stream was downscaled too
-aggressively. The defaults now favor recall:
+For the USC traffic camera, small distant pedestrians were missed when the service used a narrower
+ROI and a lighter detector. The defaults now favor full-frame recall:
 
-- `DETECTION_MODEL_NAME=yolov8s.pt`
-- `DETECTION_CONFIDENCE=0.15`
+- `DETECTION_MODEL_NAME=rtdetr-l.pt`
+- `DETECTION_CONFIDENCE=0.18`
+- `DETECTION_INTERVAL_MS=1800`
 - `DETECTION_STREAM_MAX_WIDTH=1920`
-- `DETECTION_REGION_LEFT=0.78`
-- `DETECTION_REGION_TOP=0.45`
-- `DETECTION_REGION_RIGHT=0.90`
-- `DETECTION_REGION_BOTTOM=0.55`
-- `DETECTION_MIN_BOX_AREA_RATIO=0.0002`
-- `DETECTION_MIN_BOX_HEIGHT_RATIO=0.04`
-- `DETECTION_MIN_BOX_ASPECT_RATIO=1.4`
-- `DETECTION_MAX_BOX_ASPECT_RATIO=5.5`
+- `DETECTION_REGION_LEFT=0.00`
+- `DETECTION_REGION_TOP=0.00`
+- `DETECTION_REGION_RIGHT=1.00`
+- `DETECTION_REGION_BOTTOM=1.00`
+- `DETECTION_MIN_BOX_AREA_RATIO=0.00015`
+- `DETECTION_MIN_BOX_HEIGHT_RATIO=0.025`
+- `DETECTION_MIN_BOX_ASPECT_RATIO=1.2`
+- `DETECTION_MAX_BOX_ASPECT_RATIO=6.0`
 - `DETECTION_MIN_TRACK_HITS=1`
 
-If tracking is too slow on your machine, reduce `DETECTION_STREAM_MAX_WIDTH` first before swapping
-back to a smaller model.
+This is the higher-recall path. It is slower on CPU than the earlier YOLO setup, but it is the
+better choice if missing pedestrians is a worse failure than slower updates.
 
-The region values are normalized coordinates on the full frame. The detector now focuses on the
-right-side walkway section and filters candidates by size and person-like aspect ratio.
+The region values are normalized coordinates on the full frame. The detector now looks across the
+entire frame and filters candidates by size and person-like aspect ratio before assigning stable IDs.

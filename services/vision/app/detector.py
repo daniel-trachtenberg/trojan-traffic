@@ -47,6 +47,27 @@ class DetectionRegion:
         return left, top, right, bottom
 
 
+@dataclass(frozen=True)
+class RawDetection:
+    x1: float
+    y1: float
+    x2: float
+    y2: float
+    confidence: float
+
+
+@dataclass
+class TrackState:
+    id: str
+    x1: float
+    y1: float
+    x2: float
+    y2: float
+    confidence: float
+    hits: int
+    last_seen_frame: int
+
+
 class LivePersonDetector:
     def __init__(
         self,
@@ -70,11 +91,11 @@ class LivePersonDetector:
         self._source_url = source_url
         self._model = YOLO(model_name)
         self._confidence = confidence
-        self._target_fps = min(max(1000 / max(interval_ms, 1), 1.0), 5.0)
+        self._target_fps = min(max(1000 / max(interval_ms, 1), 0.2), 5.0)
         self._stream_max_width = max(stream_max_width, 0)
         self._detection_region = DetectionRegion(
-            left=max(0.0, min(region_left, 0.98)),
-            top=max(0.0, min(region_top, 0.98)),
+            left=max(0.0, min(region_left, 0.99)),
+            top=max(0.0, min(region_top, 0.99)),
             right=max(region_left + 0.01, min(region_right, 1.0)),
             bottom=max(region_top + 0.01, min(region_bottom, 1.0)),
         )
@@ -86,9 +107,8 @@ class LivePersonDetector:
         self._reconnect_delay_seconds = max(reconnect_delay_ms / 1000, 0.3)
         self._max_boxes = max(max_boxes, 1)
         self._logger = logging.getLogger("app.detector")
-        self._track_hits: dict[str, int] = {}
-        self._track_last_seen: dict[str, int] = {}
         self._frame_index = 0
+        self._tracks: dict[str, TrackState] = {}
 
         self._state_lock = Lock()
         self._process_lock = Lock()
@@ -170,7 +190,7 @@ class LivePersonDetector:
                         break
 
                     started_at = perf_counter()
-                    boxes = self._track_people(frame)
+                    boxes = self._detect_people(frame)
                     processing_ms = round((perf_counter() - started_at) * 1000, 2)
                     self._set_snapshot(
                         status="online",
@@ -233,10 +253,7 @@ class LivePersonDetector:
 
     def _scale_geometry(self, *, width: int, height: int) -> StreamGeometry:
         max_width = self._stream_max_width
-        if max_width <= 0:
-            return StreamGeometry(width=width - (width % 2), height=height - (height % 2))
-
-        if width <= max_width:
+        if max_width <= 0 or width <= max_width:
             return StreamGeometry(width=width - (width % 2), height=height - (height % 2))
 
         scale = max_width / width
@@ -354,7 +371,7 @@ class LivePersonDetector:
 
         return bytes(buffer)
 
-    def _track_people(self, frame: np.ndarray) -> list[dict[str, Any]]:
+    def _detect_people(self, frame: np.ndarray) -> list[dict[str, Any]]:
         frame_height, frame_width = frame.shape[:2]
         self._frame_index += 1
         roi_left, roi_top, roi_right, roi_bottom = self._detection_region.to_frame_bounds(
@@ -363,14 +380,14 @@ class LivePersonDetector:
         )
         roi_frame = frame[roi_top:roi_bottom, roi_left:roi_right]
 
-        results = self._model.track(
+        results = self._model.predict(
             source=roi_frame,
             conf=self._confidence,
             classes=[0],
-            persist=True,
             verbose=False,
         )
         if not results:
+            self._prune_tracks()
             return []
 
         prediction = results[0]
@@ -384,12 +401,9 @@ class LivePersonDetector:
             self._prune_tracks()
             return []
 
-        xyxy_values = boxes.xyxy.cpu().tolist()
-        confidences = boxes.conf.cpu().tolist() if boxes.conf is not None else [0.0] * len(xyxy_values)
-        track_ids = boxes.id.int().cpu().tolist() if boxes.id is not None else [None] * len(xyxy_values)
-
-        detections: list[dict[str, Any]] = []
-        for index, (x1, y1, x2, y2) in enumerate(xyxy_values[: self._max_boxes]):
+        raw_detections: list[RawDetection] = []
+        confidences = boxes.conf.cpu().tolist() if boxes.conf is not None else [0.0] * len(boxes)
+        for index, (x1, y1, x2, y2) in enumerate(boxes.xyxy.cpu().tolist()):
             x1 = max(0.0, min(float(x1), float(roi_width))) + roi_left
             y1 = max(0.0, min(float(y1), float(roi_height))) + roi_top
             x2 = max(0.0, min(float(x2), float(roi_width))) + roi_left
@@ -412,34 +426,137 @@ class LivePersonDetector:
             if aspect_ratio < self._min_box_aspect_ratio or aspect_ratio > self._max_box_aspect_ratio:
                 continue
 
-            track_id = track_ids[index]
             confidence = float(confidences[index]) if index < len(confidences) else 0.0
-            track_key = f"track-{track_id}" if track_id is not None else str(uuid4())
-            if track_id is not None:
-                self._track_hits[track_key] = self._track_hits.get(track_key, 0) + 1
-                self._track_last_seen[track_key] = self._frame_index
-                if self._track_hits[track_key] < self._min_track_hits:
-                    continue
-
-            detections.append(
-                {
-                    "id": track_key,
-                    "x": round(x1 / frame_width, 4),
-                    "y": round(y1 / frame_height, 4),
-                    "width": round(width / frame_width, 4),
-                    "height": round(height / frame_height, 4),
-                    "confidence": round(confidence, 3),
-                }
+            raw_detections.append(
+                RawDetection(
+                    x1=x1,
+                    y1=y1,
+                    x2=x2,
+                    y2=y2,
+                    confidence=confidence,
+                )
             )
 
+        merged_detections = self._non_max_suppress(raw_detections, iou_threshold=0.45)
+        tracks = self._assign_tracks(merged_detections)
+
+        visible_tracks = [track for track in tracks if track.hits >= self._min_track_hits][: self._max_boxes]
+        return [
+            {
+                "id": track.id,
+                "x": round(track.x1 / frame_width, 4),
+                "y": round(track.y1 / frame_height, 4),
+                "width": round((track.x2 - track.x1) / frame_width, 4),
+                "height": round((track.y2 - track.y1) / frame_height, 4),
+                "confidence": round(track.confidence, 3),
+            }
+            for track in visible_tracks
+        ]
+
+    def _assign_tracks(self, detections: list[RawDetection]) -> list[TrackState]:
+        active_tracks = [
+            track
+            for track in self._tracks.values()
+            if self._frame_index - track.last_seen_frame <= 8
+        ]
+
+        detection_by_index = {index: detection for index, detection in enumerate(detections)}
+        unmatched_detection_indices = set(detection_by_index)
+        unmatched_track_ids = {track.id for track in active_tracks}
+        scored_matches: list[tuple[float, str, int]] = []
+        for track in active_tracks:
+            for detection_index, detection in detection_by_index.items():
+                iou = self._box_iou(
+                    (track.x1, track.y1, track.x2, track.y2),
+                    (detection.x1, detection.y1, detection.x2, detection.y2),
+                )
+                if iou >= 0.18:
+                    scored_matches.append((iou, track.id, detection_index))
+
+        scored_matches.sort(reverse=True)
+        current_tracks: list[TrackState] = []
+        for _, track_id, detection_index in scored_matches:
+            if track_id not in unmatched_track_ids or detection_index not in unmatched_detection_indices:
+                continue
+
+            detection = detection_by_index[detection_index]
+            track = self._tracks[track_id]
+            track.x1 = detection.x1
+            track.y1 = detection.y1
+            track.x2 = detection.x2
+            track.y2 = detection.y2
+            track.confidence = detection.confidence
+            track.hits += 1
+            track.last_seen_frame = self._frame_index
+            current_tracks.append(track)
+            unmatched_track_ids.remove(track_id)
+            unmatched_detection_indices.remove(detection_index)
+
+        for detection_index in sorted(unmatched_detection_indices):
+            detection = detection_by_index[detection_index]
+            track = TrackState(
+                id=f"track-{uuid4().hex[:8]}",
+                x1=detection.x1,
+                y1=detection.y1,
+                x2=detection.x2,
+                y2=detection.y2,
+                confidence=detection.confidence,
+                hits=1,
+                last_seen_frame=self._frame_index,
+            )
+            self._tracks[track.id] = track
+            current_tracks.append(track)
+
         self._prune_tracks()
-        return detections
+        return current_tracks
 
     def _prune_tracks(self) -> None:
-        stale_before = self._frame_index - 12
+        stale_before = self._frame_index - 10
         stale_ids = [
-            track_id for track_id, last_seen in self._track_last_seen.items() if last_seen < stale_before
+            track_id
+            for track_id, track in self._tracks.items()
+            if track.last_seen_frame < stale_before
         ]
         for track_id in stale_ids:
-            self._track_last_seen.pop(track_id, None)
-            self._track_hits.pop(track_id, None)
+            self._tracks.pop(track_id, None)
+
+    def _non_max_suppress(
+        self, detections: list[RawDetection], iou_threshold: float
+    ) -> list[RawDetection]:
+        sorted_detections = sorted(detections, key=lambda item: item.confidence, reverse=True)
+        kept: list[RawDetection] = []
+        for detection in sorted_detections:
+            if all(
+                self._box_iou(
+                    (detection.x1, detection.y1, detection.x2, detection.y2),
+                    (kept_detection.x1, kept_detection.y1, kept_detection.x2, kept_detection.y2),
+                )
+                < iou_threshold
+                for kept_detection in kept
+            ):
+                kept.append(detection)
+        return kept
+
+    def _box_iou(
+        self, box_a: tuple[float, float, float, float], box_b: tuple[float, float, float, float]
+    ) -> float:
+        ax1, ay1, ax2, ay2 = box_a
+        bx1, by1, bx2, by2 = box_b
+        intersection_x1 = max(ax1, bx1)
+        intersection_y1 = max(ay1, by1)
+        intersection_x2 = min(ax2, bx2)
+        intersection_y2 = min(ay2, by2)
+
+        intersection_width = max(0.0, intersection_x2 - intersection_x1)
+        intersection_height = max(0.0, intersection_y2 - intersection_y1)
+        intersection_area = intersection_width * intersection_height
+        if intersection_area <= 0:
+            return 0.0
+
+        area_a = max(0.0, ax2 - ax1) * max(0.0, ay2 - ay1)
+        area_b = max(0.0, bx2 - bx1) * max(0.0, by2 - by1)
+        union_area = area_a + area_b - intersection_area
+        if union_area <= 0:
+            return 0.0
+
+        return intersection_area / union_area

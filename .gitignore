@@ -21,6 +21,8 @@ __pycache__/
 .venv/
 .venv-fixed/
 *.egg-info/
+yolo*.pt
+rtdetr*.pt
 yolov*.pt
 services/vision/*.pt
 

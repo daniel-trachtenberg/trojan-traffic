@@ -11,18 +11,18 @@ class Settings(BaseSettings):
         "https://cs9.pixelcaster.com/live/usc-tommy.stream/playlist.m3u8"
     )
     enable_live_detections: bool = True
-    detection_model_name: str = "yolov8s.pt"
-    detection_confidence: float = 0.15
-    detection_interval_ms: int = 600
+    detection_model_name: str = "rtdetr-l.pt"
+    detection_confidence: float = 0.18
+    detection_interval_ms: int = 1800
     detection_stream_max_width: int = 1920
-    detection_region_left: float = 0.78
-    detection_region_top: float = 0.45
-    detection_region_right: float = 0.9
-    detection_region_bottom: float = 0.55
-    detection_min_box_area_ratio: float = 0.0002
-    detection_min_box_height_ratio: float = 0.04
-    detection_min_box_aspect_ratio: float = 1.4
-    detection_max_box_aspect_ratio: float = 5.5
+    detection_region_left: float = 0.0
+    detection_region_top: float = 0.0
+    detection_region_right: float = 1.0
+    detection_region_bottom: float = 1.0
+    detection_min_box_area_ratio: float = 0.00015
+    detection_min_box_height_ratio: float = 0.025
+    detection_min_box_aspect_ratio: float = 1.2
+    detection_max_box_aspect_ratio: float = 6.0
     detection_min_track_hits: int = 1
     detection_max_boxes: int = 24
     detection_reconnect_delay_ms: int = 1200
