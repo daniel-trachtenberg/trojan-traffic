@@ -325,6 +325,29 @@ body {
   opacity: 0.9;
 }
 
+.icon-admin-button {
+  width: 42px;
+  height: 42px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--surface-strong);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+}
+
+.icon-admin-button.active {
+  border-color: rgb(255 204 0 / 40%);
+}
+
+.icon-admin-button svg {
+  width: 20px;
+  height: 20px;
+  fill: #fff3cf;
+  opacity: 0.94;
+}
+
 .panel-close-button {
   width: 28px;
   height: 28px;
@@ -364,6 +387,10 @@ body {
 
 .auth-modal {
   width: min(520px, 100%);
+}
+
+.admin-modal {
+  width: min(960px, 100%);
 }
 
 .center-modal-header {
@@ -1041,6 +1068,192 @@ body {
   gap: 0.42rem;
 }
 
+.admin-console {
+  display: grid;
+  gap: 0.9rem;
+}
+
+.admin-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.55rem;
+}
+
+.admin-summary-card,
+.admin-section-card {
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: rgb(255 255 255 / 4%);
+}
+
+.admin-summary-card {
+  padding: 0.78rem 0.88rem;
+  display: grid;
+  gap: 0.22rem;
+}
+
+.admin-summary-card span,
+.admin-section-kicker,
+.admin-form-note,
+.admin-section-copy,
+.admin-session-time,
+.admin-session-url,
+.admin-resolve-input span {
+  color: var(--muted);
+}
+
+.admin-summary-card span,
+.admin-section-kicker,
+.admin-resolve-input span {
+  font-size: 0.7rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.admin-summary-card strong {
+  font-size: 1.35rem;
+  line-height: 1;
+  color: var(--text);
+}
+
+.admin-section-card {
+  padding: 0.9rem;
+  display: grid;
+  gap: 0.78rem;
+}
+
+.admin-section-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.admin-section-header h3 {
+  margin: 0.12rem 0 0;
+  font-size: 1.05rem;
+}
+
+.admin-section-kicker {
+  margin: 0;
+}
+
+.admin-inline-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
+.admin-form-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.65rem;
+}
+
+.admin-form-grid label,
+.admin-resolve-input {
+  display: grid;
+  gap: 0.18rem;
+  font-size: 0.79rem;
+  color: #dbe2f2;
+}
+
+.admin-form-grid input,
+.admin-form-grid select,
+.admin-resolve-input input {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  padding: 0.48rem 0.58rem;
+  font: inherit;
+  background: rgb(9 11 16 / 80%);
+  color: var(--text);
+}
+
+.admin-form-wide {
+  grid-column: 1 / -1;
+}
+
+.admin-form-note,
+.admin-section-copy,
+.admin-session-url {
+  font-size: 0.8rem;
+  line-height: 1.45;
+}
+
+.admin-form-note strong {
+  color: var(--text);
+}
+
+.admin-form-actions {
+  display: flex;
+  justify-content: flex-start;
+}
+
+.admin-session-list {
+  display: grid;
+  gap: 0.7rem;
+}
+
+.admin-session-card {
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 0.8rem;
+  background: rgb(9 11 16 / 36%);
+  display: grid;
+  gap: 0.62rem;
+}
+
+.admin-session-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.8rem;
+}
+
+.admin-session-title {
+  margin: 0;
+  font-size: 0.92rem;
+  font-weight: 650;
+}
+
+.admin-session-time,
+.admin-session-url {
+  margin: 0.18rem 0 0;
+}
+
+.admin-session-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  font-size: 0.78rem;
+  color: #dce4f4;
+}
+
+.admin-session-stats span {
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 0.24rem 0.55rem;
+  background: rgb(255 255 255 / 4%);
+}
+
+.admin-session-actions {
+  display: grid;
+  grid-template-columns: auto auto minmax(130px, 1fr) auto;
+  gap: 0.5rem;
+  align-items: end;
+}
+
+.admin-resolve-input input::-webkit-outer-spin-button,
+.admin-resolve-input input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.admin-resolve-input input[type="number"] {
+  -moz-appearance: textfield;
+}
+
 .leaderboard {
   margin: 0;
   padding: 0 0 0 1rem;
@@ -1194,6 +1407,10 @@ body {
     width: min(680px, 100%);
   }
 
+  .admin-modal {
+    width: min(760px, 100%);
+  }
+
   .bet-controls {
     grid-template-columns: 1fr;
   }
@@ -1211,6 +1428,18 @@ body {
   .stake-step-row {
     grid-template-columns: 1fr;
     gap: 0.44rem;
+  }
+
+  .admin-summary-grid,
+  .admin-form-grid,
+  .admin-session-actions {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-session-head,
+  .admin-section-header {
+    flex-direction: column;
+    align-items: stretch;
   }
 
   .bottom-ribbon {

@@ -2,6 +2,7 @@
 
 import type { User } from "@supabase/supabase-js";
 import { useEffect, useRef, useState, useTransition, type FormEvent } from "react";
+import { AdminConsole } from "@/components/admin-console";
 import { LiveFeed } from "@/components/live-feed";
 import {
   bettingRegionsEqual,
@@ -58,6 +59,10 @@ type StreakRow = {
 
 type BalanceRow = {
   token_balance: number;
+};
+
+type AdminRow = {
+  user_id: string;
 };
 
 type MvpDashboardProps = {
@@ -213,6 +218,7 @@ export function MvpDashboard({
   const [profile, setProfile] = useState<ProfileRow | null>(null);
   const [streaks, setStreaks] = useState<StreakRow | null>(null);
   const [tokenBalance, setTokenBalance] = useState(0);
+  const [isAdmin, setIsAdmin] = useState(false);
   const [loading, setLoading] = useState(true);
   const [nowMs, setNowMs] = useState(() => Date.now());
   const [toasts, setToasts] = useState<ToastRecord[]>([]);
@@ -223,7 +229,9 @@ export function MvpDashboard({
   const [displayName, setDisplayName] = useState("");
   const [wagerBySession, setWagerBySession] = useState<Record<string, string>>({});
   const [sideBySession, setSideBySession] = useState<Record<string, PredictionSide>>({});
-  const [openRightPanel, setOpenRightPanel] = useState<"account" | "leaderboard" | null>(null);
+  const [openRightPanel, setOpenRightPanel] = useState<"account" | "leaderboard" | "admin" | null>(
+    null
+  );
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [authIntentSessionId, setAuthIntentSessionId] = useState<string | null>(null);
   const [liveDetections, setLiveDetections] = useState<LiveDetectionsResponse | null>(null);
@@ -351,6 +359,7 @@ export function MvpDashboard({
           ? `Last window ended at ${selectedEndsAtLabel}. We will post the next one here when it is ready.`
           : "We will surface the next playable window here as soon as it is available.";
   const hasUnsavedRegionChanges = !bettingRegionsEqual(regionPoints, savedRegionPoints);
+  const canEditRegion = regionEditorEnabled && isAdmin;
   const visionApiBaseUrl = visionApiUrl ? visionApiUrl.replace(/\/+$/, "") : null;
   const liveFrameUrl =
     visionApiBaseUrl && liveDetections?.frame_id
@@ -482,6 +491,7 @@ export function MvpDashboard({
       setProfile(null);
       setStreaks(null);
       setTokenBalance(0);
+      setIsAdmin(false);
       return;
     }
 
@@ -516,6 +526,7 @@ export function MvpDashboard({
       setProfile(null);
       setStreaks(null);
       setTokenBalance(0);
+      setIsAdmin(false);
       return;
     }
 
@@ -558,12 +569,22 @@ export function MvpDashboard({
       throw new Error(predictionResponse.error.message);
     }
 
+    const adminResponse = await supabase
+      .from("admin_users")
+      .select("user_id")
+      .eq("user_id", activeUser.id)
+      .maybeSingle();
+    if (adminResponse.error) {
+      throw new Error(adminResponse.error.message);
+    }
+
     setSessions(sessionRows);
     setLeaderboard(leaderboardRows);
     setProfile((profileResponse.data as ProfileRow | null) ?? null);
     setStreaks((streakResponse.data as StreakRow | null) ?? null);
     setTokenBalance((balanceResponse.data as BalanceRow | null)?.token_balance ?? 0);
     setPredictions((predictionResponse.data as PredictionRow[]) ?? []);
+    setIsAdmin(Boolean((adminResponse.data as AdminRow | null)?.user_id));
   }
 
   async function load(activeUser: User | null) {
@@ -769,6 +790,12 @@ export function MvpDashboard({
     };
   }, [visionApiUrl]);
 
+  useEffect(() => {
+    if (!isAdmin && openRightPanel === "admin") {
+      setOpenRightPanel(null);
+    }
+  }, [isAdmin, openRightPanel]);
+
   async function handleAuthSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!supabase) {
@@ -848,6 +875,7 @@ export function MvpDashboard({
     }
 
     setUser(null);
+    setIsAdmin(false);
     setOpenRightPanel(null);
     setNotice("Signed out.");
     await load(null);
@@ -993,12 +1021,12 @@ export function MvpDashboard({
     toggleRightPanel("account");
   }
 
-  function toggleRightPanel(panel: "account" | "leaderboard") {
+  function toggleRightPanel(panel: "account" | "leaderboard" | "admin") {
     setOpenRightPanel((current) => (current === panel ? null : panel));
   }
 
   async function handleSaveRegion() {
-    if (!regionEditorEnabled) {
+    if (!canEditRegion || !supabase || !user) {
       return;
     }
 
@@ -1007,10 +1035,17 @@ export function MvpDashboard({
     setIsSavingRegion(true);
 
     try {
+      const sessionResponse = await supabase.auth.getSession();
+      const accessToken = sessionResponse.data.session?.access_token;
+      if (!accessToken) {
+        throw new Error("Admin session expired. Sign in again to save the region.");
+      }
+
       const response = await fetch("/api/admin/region", {
         method: "POST",
         headers: {
-          "Content-Type": "application/json"
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${accessToken}`
         },
         body: JSON.stringify({
           points: regionPoints
@@ -1049,8 +1084,8 @@ export function MvpDashboard({
         fullScreen
         personBoxes={livePersonBoxes}
         statusMessage={visionApiUrl ? liveFeedStatusMessage : null}
-        regionEditorEnabled={regionEditorEnabled}
-        onRegionChange={regionEditorEnabled ? setRegionPoints : null}
+        regionEditorEnabled={canEditRegion}
+        onRegionChange={canEditRegion ? setRegionPoints : null}
       />
       <div className="feed-mask" />
 
@@ -1246,6 +1281,18 @@ export function MvpDashboard({
               <span className="quick-balance-label">Tokens</span>
               <strong>{tokenBalance}</strong>
             </div>
+            {isAdmin ? (
+              <button
+                type="button"
+                className={openRightPanel === "admin" ? "icon-admin-button active" : "icon-admin-button"}
+                onClick={() => toggleRightPanel("admin")}
+                aria-label="Open admin panel"
+              >
+                <svg viewBox="0 0 24 24" role="img" aria-hidden="true">
+                  <path d="M12 2.5 4.5 5.3v5.5c0 4.9 3 9.4 7.5 10.7 4.5-1.3 7.5-5.8 7.5-10.7V5.3L12 2.5Zm0 2.1 5.3 2v4.2c0 3.9-2.2 7.3-5.3 8.5-3.1-1.2-5.3-4.6-5.3-8.5V6.6l5.3-2Zm-2 4.1h4v1.4H10V8.7Zm0 3.1h4v1.4H10v-1.4Zm0 3.1h4v1.4H10v-1.4Z" />
+                </svg>
+              </button>
+            ) : null}
             <button
               type="button"
               className={
@@ -1275,47 +1322,32 @@ export function MvpDashboard({
               </span>
             </button>
           </div>
-          {regionEditorEnabled ? (
-            <div className="region-editor-panel">
-              <p className="region-editor-title">Region Editor</p>
-              <p className="region-editor-hint">
-                Drag the four handles on the video to fit the walkway, save the shape, then turn
-                <code> REGION_EDITOR_ENABLED</code> back off.
-              </p>
-              <div className="region-editor-actions">
-                <button
-                  type="button"
-                  className="secondary-button"
-                  onClick={() => setRegionPoints(savedRegionPoints)}
-                  disabled={!hasUnsavedRegionChanges || isSavingRegion}
-                >
-                  Reset
-                </button>
-                <button
-                  type="button"
-                  className="primary-button"
-                  onClick={() => void handleSaveRegion()}
-                  disabled={!hasUnsavedRegionChanges || isSavingRegion}
-                >
-                  {isSavingRegion ? "Saving..." : "Save"}
-                </button>
-              </div>
-            </div>
-          ) : null}
         </div>
       </div>
 
       {openRightPanel ? (
         <div className="center-modal-backdrop" onClick={() => setOpenRightPanel(null)} role="presentation">
           <section
-            className="center-modal"
+            className={openRightPanel === "admin" ? "center-modal admin-modal" : "center-modal"}
             role="dialog"
             aria-modal="true"
-            aria-label={openRightPanel === "account" ? "Account panel" : "Leaderboard panel"}
+            aria-label={
+              openRightPanel === "account"
+                ? "Account panel"
+                : openRightPanel === "admin"
+                  ? "Admin panel"
+                  : "Leaderboard panel"
+            }
             onClick={(event) => event.stopPropagation()}
           >
             <header className="widget-header center-modal-header">
-              <h2>{openRightPanel === "account" ? "Account" : "Leaderboard"}</h2>
+              <h2>
+                {openRightPanel === "account"
+                  ? "Account"
+                  : openRightPanel === "admin"
+                    ? "Admin Console"
+                    : "Leaderboard"}
+              </h2>
               <button
                 type="button"
                 className="panel-close-button"
@@ -1360,6 +1392,24 @@ export function MvpDashboard({
                 </div>
               ) : (
                 <p className="hint">Sign in to track tokens and place bets.</p>
+              )
+            ) : openRightPanel === "admin" ? (
+              user && isAdmin && supabase ? (
+                <AdminConsole
+                  supabase={supabase}
+                  defaultCameraFeedUrl={hlsUrl}
+                  regionEditorEnabled={canEditRegion}
+                  regionPoints={regionPoints}
+                  hasUnsavedRegionChanges={hasUnsavedRegionChanges}
+                  isSavingRegion={isSavingRegion}
+                  onResetRegion={() => setRegionPoints(savedRegionPoints)}
+                  onSaveRegion={handleSaveRegion}
+                  onError={setError}
+                  onNotice={setNotice}
+                  onPublicDataRefresh={() => load(user)}
+                />
+              ) : (
+                <p className="hint">Admin access is required for this panel.</p>
               )
             ) : (
               <>

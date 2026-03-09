@@ -4,6 +4,7 @@ import {
   regionPayloadSchema,
   writeStoredBettingRegion
 } from "@/lib/betting-region-store";
+import { AdminRequestError, requireAdminRequest } from "@/lib/admin-auth";
 
 export async function GET() {
   return Response.json(
@@ -30,6 +31,7 @@ export async function POST(request: Request) {
   }
 
   try {
+    await requireAdminRequest(request);
     const payload = regionPayloadSchema.parse(await request.json());
     const points = await writeStoredBettingRegion(payload.points);
 
@@ -42,6 +44,17 @@ export async function POST(request: Request) {
       }
     );
   } catch (error) {
+    if (error instanceof AdminRequestError) {
+      return Response.json(
+        {
+          error: error.message
+        },
+        {
+          status: error.status
+        }
+      );
+    }
+
     const message = error instanceof Error ? error.message : "Invalid region payload.";
 
     return Response.json(

@@ -22,8 +22,8 @@ adjust the polygon on the live feed.
 REGION_EDITOR_ENABLED=true
 ```
 
-When enabled, the web app shows draggable corner handles on the feed and a small save panel in the
-top-right rail. Saving writes the polygon to `apps/web/src/config/betting-region.json`. Turn
+When enabled, admin users get draggable corner handles on the feed plus region save controls inside
+the admin console. Saving writes the polygon to `apps/web/src/config/betting-region.json`. Turn
 `REGION_EDITOR_ENABLED` back to `false` after saving.
 
 This currently updates the web overlay region only. The vision backend ROI is still configured
@@ -35,6 +35,7 @@ separately.
 - Daily login reward claim action
 - Prediction placement flow via SQL RPC
 - Leaderboard and prediction history
+- Admin-only session scheduling, editing, cancellation, and manual resolution console
 - HLS live feed with active betting region overlay
 - `GET /api/health` endpoint
 
@@ -42,8 +43,19 @@ separately.
 
 Run all migrations in `/supabase/migrations` before using the MVP UI.
 
+## Admin access
+
+Grant admin access by inserting the user into `public.admin_users` after they sign up:
+
+```sql
+insert into public.admin_users (user_id)
+select id
+from auth.users
+where email = '<admin-email>';
+```
+
 ## Next implementation steps
 
-1. Replace seeded session generation with admin scheduling tools.
-2. Hook vision worker output to automatic session resolution.
-3. Add achievement awarding jobs and badge display.
+1. Hook vision worker output to automatic session resolution.
+2. Add achievement awarding jobs and badge display.
+3. Add admin audit logs for session and region changes.
