@@ -228,16 +228,28 @@ export function MvpDashboard({
   const availableTokens = tokenBalance - openRisk;
   const focusedSession = sessions.find((session) => getSessionState(session, nowMs) === "open");
   const selectedSession = focusedSession ?? sessions[0] ?? null;
+  const hasSelectedSession = Boolean(selectedSession);
   const selectedPrediction = selectedSession
     ? predictionBySession.get(selectedSession.id) ?? null
     : null;
   const selectedState = selectedSession ? getSessionState(selectedSession, nowMs) : null;
+  const displayedModeSeconds = selectedSession?.mode_seconds ?? 30;
+  const displayedThreshold = selectedSession?.threshold ?? 5;
   const selectedCountdown = selectedSession
     ? formatCountdown(new Date(selectedSession.starts_at).getTime() - nowMs)
     : "00:00";
   const selectedWager = selectedSession ? (wagerBySession[selectedSession.id] ?? DEFAULT_WAGER) : DEFAULT_WAGER;
   const selectedSide = selectedSession ? (sideBySession[selectedSession.id] ?? "over") : "over";
   const canConfigureSelected = Boolean(selectedSession && selectedState === "open" && selectedPrediction === null);
+  const emptyStateSignupEnabled = !hasSelectedSession && !user;
+  const betButtonDisabled = hasSelectedSession ? !canConfigureSelected : !emptyStateSignupEnabled;
+  const betButtonLabel = hasSelectedSession
+    ? selectedPrediction
+      ? "Entered"
+      : "Bet"
+    : user
+      ? "Waiting"
+      : "Sign Up";
   const sessionMetricLabel =
     selectedState === "open"
       ? "Closes In"
@@ -255,18 +267,18 @@ export function MvpDashboard({
           ? "Resolving"
           : selectedState
             ? getSessionStateLabel(selectedState)
-            : "Open";
+            : "Waiting";
   const sessionMetricNote =
     selectedState === "open"
-      ? `${selectedSession?.mode_seconds ?? 0}s window`
+      ? `${displayedModeSeconds}s window`
       : selectedState === "resolved" && selectedSession
         ? new Date(selectedSession.ends_at).toLocaleTimeString([], {
             hour: "numeric",
             minute: "2-digit"
           })
         : selectedSession
-          ? `${selectedSession.mode_seconds}s round`
-          : "";
+          ? `${displayedModeSeconds}s round`
+          : "Next round not scheduled yet";
   const hasUnsavedRegionChanges = !bettingRegionsEqual(regionPoints, savedRegionPoints);
   const visionApiBaseUrl = visionApiUrl ? visionApiUrl.replace(/\/+$/, "") : null;
   const liveFrameUrl =
@@ -739,6 +751,23 @@ export function MvpDashboard({
     void handlePlacePrediction(session, user);
   }
 
+  function handleEmptyStateSignupAction() {
+    if (!emptyStateSignupEnabled) {
+      return;
+    }
+
+    if (!supabase) {
+      setError("Configure Supabase before signing up.");
+      return;
+    }
+
+    setError(null);
+    setNotice(null);
+    setAuthIntentSessionId(null);
+    setAuthMode("sign-up");
+    setShowAuthModal(true);
+  }
+
   function toggleRightPanel(panel: "account" | "leaderboard") {
     setOpenRightPanel((current) => (current === panel ? null : panel));
   }
@@ -810,136 +839,159 @@ export function MvpDashboard({
             <span className="status">{isRefreshing ? "Refreshing" : "Live"}</span>
           </header>
 
-          {selectedSession ? (
-            <>
-              <div className="market-meta-row">
-                <span className={`status status-${selectedState ?? "open"}`}>
-                  {selectedState ? getSessionStateLabel(selectedState) : "Open"}
+          <div className="market-meta-row">
+            <span className={selectedState ? `status status-${selectedState}` : "status"}>
+              {selectedState ? getSessionStateLabel(selectedState) : "No rounds"}
+            </span>
+            <span className="round-chip">{displayedModeSeconds}s round</span>
+            <span className="round-chip">Threshold {displayedThreshold}</span>
+          </div>
+
+          <div className="market-board">
+            <div className="market-choice-grid">
+              <button
+                type="button"
+                className={
+                  hasSelectedSession && selectedSide === "under"
+                    ? "market-choice-card market-choice-under active"
+                    : "market-choice-card market-choice-under"
+                }
+                onClick={() => {
+                  if (selectedSession) {
+                    updateSelectedSide(selectedSession.id, "under");
+                  }
+                }}
+                disabled={!canConfigureSelected}
+              >
+                <span className="market-choice-icon" aria-hidden="true">
+                  ↓
                 </span>
-                <span className="round-chip">{selectedSession.mode_seconds}s round</span>
-                <span className="round-chip">Threshold {selectedSession.threshold}</span>
+                <span className="market-choice-title">Under</span>
+                <span className="market-choice-subtitle">Below {displayedThreshold}</span>
+              </button>
+
+              <div className="market-center-card">
+                <span className="market-center-label">Threshold</span>
+                <strong>{displayedThreshold}</strong>
+                <span>{displayedModeSeconds}s window</span>
               </div>
 
-              <div className="market-board">
-                <div className="market-choice-grid">
+              <button
+                type="button"
+                className={
+                  hasSelectedSession && selectedSide === "over"
+                    ? "market-choice-card market-choice-over active"
+                    : "market-choice-card market-choice-over"
+                }
+                onClick={() => {
+                  if (selectedSession) {
+                    updateSelectedSide(selectedSession.id, "over");
+                  }
+                }}
+                disabled={!canConfigureSelected}
+              >
+                <span className="market-choice-icon" aria-hidden="true">
+                  ↑
+                </span>
+                <span className="market-choice-title">Over</span>
+                <span className="market-choice-subtitle">{displayedThreshold} or more</span>
+              </button>
+            </div>
+
+            <div className="market-metrics-row">
+              <div className="market-metric">
+                <span className="market-metric-label">{sessionMetricLabel}</span>
+                <strong>{sessionMetricValue}</strong>
+                <span className="market-metric-note">{sessionMetricNote}</span>
+              </div>
+            </div>
+
+            <div className="stake-toolbar">
+              <div className="stake-step-row">
+                <span className="stake-label">Stake</span>
+                <div className="stake-step-buttons">
+                  {WAGER_STEPS.map((step) => (
+                    <button
+                      key={step}
+                      type="button"
+                      className="stake-step-button"
+                      disabled={!canConfigureSelected}
+                      onClick={() => {
+                        if (selectedSession) {
+                          adjustSelectedWager(selectedSession.id, step);
+                        }
+                      }}
+                    >
+                      +{step}
+                    </button>
+                  ))}
                   <button
                     type="button"
-                    className={
-                      selectedSide === "under"
-                        ? "market-choice-card market-choice-under active"
-                        : "market-choice-card market-choice-under"
-                    }
-                    onClick={() => updateSelectedSide(selectedSession.id, "under")}
+                    className="stake-step-button"
                     disabled={!canConfigureSelected}
+                    onClick={() => {
+                      if (selectedSession) {
+                        updateSelectedWager(selectedSession.id, DEFAULT_WAGER);
+                      }
+                    }}
                   >
-                    <span className="market-choice-icon" aria-hidden="true">
-                      ↓
-                    </span>
-                    <span className="market-choice-title">Under</span>
-                    <span className="market-choice-subtitle">Below {selectedSession.threshold}</span>
+                    Reset
                   </button>
-
-                  <div className="market-center-card">
-                    <span className="market-center-label">Threshold</span>
-                    <strong>{selectedSession.threshold}</strong>
-                    <span>{selectedSession.mode_seconds}s window</span>
-                  </div>
-
-                  <button
-                    type="button"
-                    className={
-                      selectedSide === "over"
-                        ? "market-choice-card market-choice-over active"
-                        : "market-choice-card market-choice-over"
-                    }
-                    onClick={() => updateSelectedSide(selectedSession.id, "over")}
-                    disabled={!canConfigureSelected}
-                  >
-                    <span className="market-choice-icon" aria-hidden="true">
-                      ↑
-                    </span>
-                    <span className="market-choice-title">Over</span>
-                    <span className="market-choice-subtitle">{selectedSession.threshold} or more</span>
-                  </button>
-                </div>
-
-                <div className="market-metrics-row">
-                  <div className="market-metric">
-                    <span className="market-metric-label">{sessionMetricLabel}</span>
-                    <strong>{sessionMetricValue}</strong>
-                    <span className="market-metric-note">{sessionMetricNote}</span>
-                  </div>
-                </div>
-
-                <div className="stake-toolbar">
-                  <div className="stake-step-row">
-                    <span className="stake-label">Stake</span>
-                    <div className="stake-step-buttons">
-                      {WAGER_STEPS.map((step) => (
-                        <button
-                          key={step}
-                          type="button"
-                          className="stake-step-button"
-                          disabled={!canConfigureSelected}
-                          onClick={() => adjustSelectedWager(selectedSession.id, step)}
-                        >
-                          +{step}
-                        </button>
-                      ))}
-                      <button
-                        type="button"
-                        className="stake-step-button"
-                        disabled={!canConfigureSelected}
-                        onClick={() => updateSelectedWager(selectedSession.id, DEFAULT_WAGER)}
-                      >
-                        Reset
-                      </button>
-                    </div>
-                  </div>
-
-                  <div className="stake-summary-row compact-stake-summary-row">
-                    <label className="stake-input-card">
-                      <span>Stake</span>
-                      <input
-                        type="number"
-                        min={1}
-                        value={selectedWager}
-                        onChange={(event) => updateSelectedWager(selectedSession.id, event.target.value)}
-                        disabled={!canConfigureSelected}
-                      />
-                    </label>
-                  </div>
                 </div>
               </div>
 
-              {selectedPrediction ? (
-                <p className="session-result compact-result selection-summary">
-                  Locked in: <strong>{selectedPrediction.side.toUpperCase()}</strong> ·{" "}
-                  {selectedPrediction.wager_tokens} tokens
-                  {selectedPrediction.was_correct !== null
-                    ? selectedPrediction.was_correct
-                      ? ` · Win +${selectedPrediction.token_delta ?? 0}`
-                      : ` · Loss ${selectedPrediction.token_delta ?? 0}`
-                    : " · Pending"}
-                </p>
-              ) : null}
-
-              <div className="bet-card-footer">
-                <button
-                  type="button"
-                  className="bet-submit-button"
-                  disabled={!canConfigureSelected}
-                  onClick={() => handleBetAction(selectedSession)}
-                >
-                  {selectedPrediction
-                    ? "Entered"
-                    : "Bet"}
-                </button>
+              <div className="stake-summary-row compact-stake-summary-row">
+                <label className="stake-input-card">
+                  <span>Stake</span>
+                  <input
+                    type="number"
+                    min={1}
+                    value={selectedWager}
+                    onChange={(event) => {
+                      if (selectedSession) {
+                        updateSelectedWager(selectedSession.id, event.target.value);
+                      }
+                    }}
+                    disabled={!canConfigureSelected}
+                  />
+                </label>
               </div>
-            </>
-          ) : (
-            <p className="hint">No upcoming rounds yet.</p>
-          )}
+            </div>
+          </div>
+
+          {selectedPrediction ? (
+            <p className="session-result compact-result selection-summary">
+              Locked in: <strong>{selectedPrediction.side.toUpperCase()}</strong> ·{" "}
+              {selectedPrediction.wager_tokens} tokens
+              {selectedPrediction.was_correct !== null
+                ? selectedPrediction.was_correct
+                  ? ` · Win +${selectedPrediction.token_delta ?? 0}`
+                  : ` · Loss ${selectedPrediction.token_delta ?? 0}`
+                : " · Pending"}
+            </p>
+          ) : !hasSelectedSession ? (
+            <p className="session-result compact-result selection-summary empty-session-note">
+              Next round coming soon. You can still create an account now and be ready to bet.
+            </p>
+          ) : null}
+
+          <div className="bet-card-footer">
+            <button
+              type="button"
+              className="bet-submit-button"
+              disabled={betButtonDisabled}
+              onClick={() => {
+                if (selectedSession) {
+                  handleBetAction(selectedSession);
+                  return;
+                }
+
+                handleEmptyStateSignupAction();
+              }}
+            >
+              {betButtonLabel}
+            </button>
+          </div>
         </section>
 
         <div className="right-rail">

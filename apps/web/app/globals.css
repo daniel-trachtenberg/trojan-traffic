@@ -891,6 +891,11 @@ body {
   background: rgb(255 255 255 / 3%);
 }
 
+.empty-session-note {
+  color: var(--muted);
+  background: rgb(255 255 255 / 2%);
+}
+
 .bet-card-footer {
   margin-top: 0.68rem;
 }
