@@ -313,9 +313,7 @@ export function LiveFeed({
               width: `${box.width * 100}%`,
               height: `${box.height * 100}%`
             }}
-          >
-            <span className="person-detection-label">person {Math.round(box.confidence * 100)}%</span>
-          </div>
+          />
         ))}
         {overlayState ? (
           <div className={fullScreen ? "video-state video-state-overlay" : "video-state"}>

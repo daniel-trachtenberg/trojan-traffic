@@ -129,20 +129,6 @@ body {
   will-change: left, top, width, height;
 }
 
-.person-detection-label {
-  position: absolute;
-  top: -1.2rem;
-  left: 0;
-  border-radius: 6px;
-  padding: 0.1rem 0.3rem;
-  background: rgb(153 0 0 / 84%);
-  border: 1px solid rgb(255 204 0 / 34%);
-  color: #ffeec1;
-  font-size: 0.65rem;
-  line-height: 1.2;
-  white-space: nowrap;
-}
-
 .video-state {
   margin-top: 0.5rem;
   font-size: 0.83rem;
