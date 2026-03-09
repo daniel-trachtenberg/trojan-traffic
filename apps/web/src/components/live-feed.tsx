@@ -144,7 +144,18 @@ export function LiveFeed({
       onPointerUp={finishDragging}
       onPointerCancel={finishDragging}
     >
-      <video ref={videoRef} controls muted playsInline autoPlay />
+      <video
+        ref={videoRef}
+        muted
+        playsInline
+        autoPlay
+        preload="auto"
+        controls={false}
+        disablePictureInPicture
+        disableRemotePlayback
+        controlsList="nodownload nofullscreen noplaybackrate noremoteplayback"
+        tabIndex={-1}
+      />
       {normalizedRegion && normalizedRegion.length >= 3 ? (
         <svg
           className={

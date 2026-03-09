@@ -44,6 +44,11 @@ body {
   object-fit: cover;
 }
 
+.video-shell video {
+  pointer-events: none;
+  user-select: none;
+}
+
 .video-shell-fullscreen {
   position: absolute;
   inset: 0;
