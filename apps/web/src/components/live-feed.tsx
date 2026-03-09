@@ -20,12 +20,22 @@ type PersonDetectionBox = {
 
 type LiveFeedProps = {
   src: string;
+  imageSrc?: string | null;
+  mediaAspectRatio?: number | null;
   region?: RegionPoint[] | null;
   fullScreen?: boolean;
   personBoxes?: PersonDetectionBox[];
+  statusMessage?: string | null;
   regionEditorEnabled?: boolean;
   onRegionChange?: ((points: RegionPoint[]) => void) | null;
 };
+
+type StageSize = {
+  width: number;
+  height: number;
+};
+
+const DEFAULT_MEDIA_ASPECT_RATIO = 16 / 9;
 
 function toNormalizedPoints(points: RegionPoint[]) {
   const xScale = points.some((point) => point.x > 1) ? 1920 : 1;
@@ -41,32 +51,42 @@ function toNormalizedPoints(points: RegionPoint[]) {
 
 export function LiveFeed({
   src,
+  imageSrc = null,
+  mediaAspectRatio = DEFAULT_MEDIA_ASPECT_RATIO,
   region = null,
   fullScreen = false,
   personBoxes = [],
+  statusMessage = null,
   regionEditorEnabled = false,
   onRegionChange = null
 }: LiveFeedProps) {
   const shellRef = useRef<HTMLDivElement | null>(null);
+  const stageRef = useRef<HTMLDivElement | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const dragPointIndexRef = useRef<number | null>(null);
-  const [state, setState] = useState("Initializing feed...");
+  const [playbackState, setPlaybackState] = useState<string | null>(null);
+  const [stageSize, setStageSize] = useState<StageSize | null>(null);
   const normalizedRegion = region ? toNormalizedPoints(region) : null;
   const polygonPoints = normalizedRegion
     ? normalizedRegion.map((point) => `${point.x * 100},${point.y * 100}`).join(" ")
     : "";
+  const resolvedAspectRatio =
+    mediaAspectRatio && Number.isFinite(mediaAspectRatio) && mediaAspectRatio > 0
+      ? mediaAspectRatio
+      : DEFAULT_MEDIA_ASPECT_RATIO;
+  const overlayState = statusMessage ?? playbackState;
 
   function updateRegionPoint(clientX: number, clientY: number) {
     if (
       dragPointIndexRef.current === null ||
-      !shellRef.current ||
+      !stageRef.current ||
       !normalizedRegion ||
       !onRegionChange
     ) {
       return;
     }
 
-    const bounds = shellRef.current.getBoundingClientRect();
+    const bounds = stageRef.current.getBoundingClientRect();
     const nextRegion = normalizedRegion.map((point) => ({ ...point }));
 
     nextRegion[dragPointIndexRef.current] = {
@@ -90,118 +110,210 @@ export function LiveFeed({
   }
 
   useEffect(() => {
-    const video = videoRef.current;
-    if (!video) {
+    const shell = shellRef.current;
+    if (!shell) {
       return;
     }
+
+    const updateStageSize = () => {
+      const bounds = shell.getBoundingClientRect();
+      if (bounds.width <= 0 || bounds.height <= 0) {
+        return;
+      }
+
+      const shellAspectRatio = bounds.width / bounds.height;
+      const nextSize =
+        shellAspectRatio > resolvedAspectRatio
+          ? {
+              width: Math.round(bounds.height * resolvedAspectRatio),
+              height: Math.round(bounds.height)
+            }
+          : {
+              width: Math.round(bounds.width),
+              height: Math.round(bounds.width / resolvedAspectRatio)
+            };
+
+      setStageSize((current) => {
+        if (
+          current &&
+          current.width === nextSize.width &&
+          current.height === nextSize.height
+        ) {
+          return current;
+        }
+
+        return nextSize;
+      });
+    };
+
+    updateStageSize();
+    const observer = new ResizeObserver(updateStageSize);
+    observer.observe(shell);
+
+    return () => {
+      observer.disconnect();
+    };
+  }, [resolvedAspectRatio]);
+
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video || imageSrc) {
+      setPlaybackState(null);
+      return;
+    }
+
+    let hls: Hls | null = null;
+    setPlaybackState(null);
+
+    const handlePlayable = () => {
+      setPlaybackState(null);
+    };
 
     if (video.canPlayType("application/vnd.apple.mpegurl")) {
       video.src = src;
-      setState("Native HLS stream ready.");
+      video.addEventListener("playing", handlePlayable);
       void video.play().catch(() => {
-        setState("Feed ready. Press play to begin.");
+        setPlaybackState("Press play to start the feed.");
       });
-      return;
+
+      return () => {
+        video.removeEventListener("playing", handlePlayable);
+      };
     }
 
     if (!Hls.isSupported()) {
-      setState("HLS is not supported in this browser.");
+      setPlaybackState("HLS is not supported in this browser.");
       return;
     }
 
-    const hls = new Hls({
-      liveSyncDurationCount: 3,
-      maxLiveSyncPlaybackRate: 1.2
+    hls = new Hls({
+      backBufferLength: 30,
+      maxBufferLength: 30,
+      maxMaxBufferLength: 60
     });
 
     hls.loadSource(src);
     hls.attachMedia(video);
+    video.addEventListener("playing", handlePlayable);
 
     hls.on(Hls.Events.MANIFEST_PARSED, () => {
-      setState("Feed connected.");
       void video.play().catch(() => {
-        setState("Feed connected. Press play to begin.");
+        setPlaybackState("Press play to start the feed.");
       });
     });
 
     hls.on(Hls.Events.ERROR, (_, data) => {
       if (data.fatal) {
-        setState("Feed error: retrying...");
-        hls.startLoad();
+        setPlaybackState("Live feed reconnecting...");
+        if (data.type === Hls.ErrorTypes.NETWORK_ERROR) {
+          hls?.startLoad();
+          return;
+        }
+
+        if (data.type === Hls.ErrorTypes.MEDIA_ERROR) {
+          hls?.recoverMediaError();
+          return;
+        }
+
+        hls?.destroy();
       }
     });
 
     return () => {
-      hls.destroy();
+      video.removeEventListener("playing", handlePlayable);
+      hls?.destroy();
     };
-  }, [src]);
+  }, [imageSrc, src]);
 
   return (
     <div
       ref={shellRef}
       className={fullScreen ? "video-shell video-shell-fullscreen" : "video-shell"}
-      onPointerMove={handleEditorPointerMove}
-      onPointerUp={finishDragging}
-      onPointerCancel={finishDragging}
     >
-      <video
-        ref={videoRef}
-        muted
-        playsInline
-        autoPlay
-        preload="auto"
-        controls={false}
-        disablePictureInPicture
-        disableRemotePlayback
-        controlsList="nodownload nofullscreen noplaybackrate noremoteplayback"
-        tabIndex={-1}
-      />
-      {normalizedRegion && normalizedRegion.length >= 3 ? (
-        <svg
-          className={
-            regionEditorEnabled
-              ? "region-overlay-svg region-overlay-svg-editable"
-              : "region-overlay-svg"
-          }
-          viewBox="0 0 100 100"
-          preserveAspectRatio="none"
-          aria-hidden="true"
-        >
-          <polygon className="region-overlay-fill" points={polygonPoints} />
-          <polygon className="region-overlay-stroke" points={polygonPoints} />
-          {regionEditorEnabled
-            ? normalizedRegion.map((point, index) => (
-                <circle
-                  key={`${index}-${point.x}-${point.y}`}
-                  className="region-overlay-handle"
-                  cx={point.x * 100}
-                  cy={point.y * 100}
-                  r="1.5"
-                  onPointerDown={(event) => {
-                    dragPointIndexRef.current = index;
-                    event.currentTarget.setPointerCapture(event.pointerId);
-                    updateRegionPoint(event.clientX, event.clientY);
-                  }}
-                />
-              ))
-            : null}
-        </svg>
-      ) : null}
-      {personBoxes.map((box) => (
-        <div
-          key={box.id}
-          className="person-detection-box"
-          style={{
-            left: `${box.x * 100}%`,
-            top: `${box.y * 100}%`,
-            width: `${box.width * 100}%`,
-            height: `${box.height * 100}%`
-          }}
-        >
-          <span className="person-detection-label">person {Math.round(box.confidence * 100)}%</span>
-        </div>
-      ))}
-      <div className={fullScreen ? "video-state video-state-overlay" : "video-state"}>{state}</div>
+      <div
+        ref={stageRef}
+        className="video-stage"
+        style={
+          stageSize
+            ? {
+                width: `${stageSize.width}px`,
+                height: `${stageSize.height}px`
+              }
+            : undefined
+        }
+        onPointerMove={handleEditorPointerMove}
+        onPointerUp={finishDragging}
+        onPointerCancel={finishDragging}
+      >
+        {imageSrc ? (
+          // Detector frames change every poll, so this bypasses Next.js image optimization on purpose.
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={imageSrc} alt="Live camera frame" draggable={false} />
+        ) : (
+          <video
+            ref={videoRef}
+            muted
+            playsInline
+            autoPlay
+            preload="auto"
+            controls={false}
+            disablePictureInPicture
+            disableRemotePlayback
+            controlsList="nodownload nofullscreen noplaybackrate noremoteplayback"
+            tabIndex={-1}
+          />
+        )}
+        {normalizedRegion && normalizedRegion.length >= 3 ? (
+          <svg
+            className={
+              regionEditorEnabled
+                ? "region-overlay-svg region-overlay-svg-editable"
+                : "region-overlay-svg"
+            }
+            viewBox="0 0 100 100"
+            preserveAspectRatio="none"
+            aria-hidden="true"
+          >
+            <polygon className="region-overlay-fill" points={polygonPoints} />
+            <polygon className="region-overlay-stroke" points={polygonPoints} />
+            {regionEditorEnabled
+              ? normalizedRegion.map((point, index) => (
+                  <circle
+                    key={`${index}-${point.x}-${point.y}`}
+                    className="region-overlay-handle"
+                    cx={point.x * 100}
+                    cy={point.y * 100}
+                    r="1.5"
+                    onPointerDown={(event) => {
+                      dragPointIndexRef.current = index;
+                      event.currentTarget.setPointerCapture(event.pointerId);
+                      updateRegionPoint(event.clientX, event.clientY);
+                    }}
+                  />
+                ))
+              : null}
+          </svg>
+        ) : null}
+        {personBoxes.map((box) => (
+          <div
+            key={box.id}
+            className="person-detection-box"
+            style={{
+              left: `${box.x * 100}%`,
+              top: `${box.y * 100}%`,
+              width: `${box.width * 100}%`,
+              height: `${box.height * 100}%`
+            }}
+          >
+            <span className="person-detection-label">person {Math.round(box.confidence * 100)}%</span>
+          </div>
+        ))}
+        {overlayState ? (
+          <div className={fullScreen ? "video-state video-state-overlay" : "video-state"}>
+            {overlayState}
+          </div>
+        ) : null}
+      </div>
     </div>
   );
 }

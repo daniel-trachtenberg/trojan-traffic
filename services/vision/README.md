@@ -33,7 +33,8 @@ continuously and tracks people across successive frames.
 
 - `GET /health`: health check
 - `POST /sessions/{session_id}/run`: run a stub counting session with typed payload
-- `GET /detections/live`: latest person boxes from YOLO detector loop
+- `GET /detections/live`: latest detector metadata, frame ID, frame geometry, and person boxes
+- `GET /detections/live/frame.jpg`: the exact JPEG frame that the latest boxes were produced from
 - `POST /sessions/{session_id}/resolve`: write final count into Supabase via `resolve_session` RPC
 
 The run endpoint is intentionally scaffold-level. It validates timing and payload shape but returns a
@@ -45,35 +46,45 @@ The live detections endpoint requires `ENABLE_LIVE_DETECTIONS=true` and uses `CA
 
 ## Model choice
 
-For this repo's current CPU-based live service, the higher-recall default is now `RT-DETR-L` with a
-simple IoU tracker.
+For this repo's current CPU-based live service, the default is now `YOLO11s` with explicit input
+resolution and conservative NMS.
 
-- `RT-DETR-L` detected more pedestrians on the full frame than the YOLO variants tested in this
-  repo.
-- Ultralytics' built-in `track()` path dropped valid full-frame detections for this camera, so the
-  service now uses `predict()` plus a lightweight IoU-based tracker to preserve recall.
+- On sampled USC night frames, `YOLO11s` produced materially fewer false positives than the
+  repo's earlier `RT-DETR-L` path while running much faster on CPU.
+- The detector now passes an explicit `imgsz` into Ultralytics instead of relying on the smaller
+  default inference size, which was dropping distant pedestrians.
+- The service keeps track state internally, but it no longer renders unmatched stale tracks back to
+  the frontend. That removes the "ghost boxes" lag that appeared when a detection briefly disappeared.
+
+## Frontend sync
+
+The frontend should render `/detections/live/frame.jpg?frame_id=...` when live detections are
+enabled, instead of trying to align boxes to a separate HLS playback buffer. The frame endpoint is
+the same image the detector used for the returned boxes, so the overlay stays synchronized.
 
 ## Tuning detection quality
 
-For the USC traffic camera, small distant pedestrians were missed when the service used a narrower
-ROI and a lighter detector. The defaults now favor full-frame recall:
+For the USC traffic camera, the current defaults are tuned for small pedestrians on a static,
+nighttime full-frame view:
 
-- `DETECTION_MODEL_NAME=rtdetr-l.pt`
-- `DETECTION_CONFIDENCE=0.18`
-- `DETECTION_INTERVAL_MS=1800`
-- `DETECTION_STREAM_MAX_WIDTH=1920`
+- `DETECTION_MODEL_NAME=yolo11s.pt`
+- `DETECTION_CONFIDENCE=0.30`
+- `DETECTION_INTERVAL_MS=600`
+- `DETECTION_STREAM_MAX_WIDTH=1280`
+- `DETECTION_MODEL_INPUT_SIZE=1280`
+- `DETECTION_NMS_IOU=0.45`
 - `DETECTION_REGION_LEFT=0.00`
 - `DETECTION_REGION_TOP=0.00`
 - `DETECTION_REGION_RIGHT=1.00`
 - `DETECTION_REGION_BOTTOM=1.00`
-- `DETECTION_MIN_BOX_AREA_RATIO=0.00015`
-- `DETECTION_MIN_BOX_HEIGHT_RATIO=0.025`
+- `DETECTION_MIN_BOX_AREA_RATIO=0.00012`
+- `DETECTION_MIN_BOX_HEIGHT_RATIO=0.022`
 - `DETECTION_MIN_BOX_ASPECT_RATIO=1.2`
 - `DETECTION_MAX_BOX_ASPECT_RATIO=6.0`
 - `DETECTION_MIN_TRACK_HITS=1`
 
-This is the higher-recall path. It is slower on CPU than the earlier YOLO setup, but it is the
-better choice if missing pedestrians is a worse failure than slower updates.
+This path is intentionally full-frame. It favors reliable person boxes over trying to crop the
+scene aggressively and missing distant walkers.
 
 The region values are normalized coordinates on the full frame. The detector now looks across the
 entire frame and filters candidates by size and person-like aspect ratio before assigning stable IDs.

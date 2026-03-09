@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import pytest
 
@@ -6,7 +6,7 @@ from app.counter import CountSessionRequest, Point, run_counting_session
 
 
 def test_run_counting_session_returns_scaffold_payload() -> None:
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     payload = CountSessionRequest(
         feed_url="https://cs9.pixelcaster.com/live/usc-tommy.stream/playlist.m3u8",
         starts_at=now - timedelta(seconds=60),
@@ -20,7 +20,7 @@ def test_run_counting_session_returns_scaffold_payload() -> None:
 
 
 def test_run_counting_session_rejects_future_end_time() -> None:
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     payload = CountSessionRequest(
         feed_url="https://cs9.pixelcaster.com/live/usc-tommy.stream/playlist.m3u8",
         starts_at=now,

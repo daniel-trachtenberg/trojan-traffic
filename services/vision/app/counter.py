@@ -1,5 +1,5 @@
 from collections.abc import Sequence
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from pydantic import BaseModel, Field, HttpUrl
 
@@ -30,7 +30,7 @@ def run_counting_session(session_id: str, payload: CountSessionRequest) -> Count
     if payload.ends_at <= payload.starts_at:
         raise ValueError("Session end time must be after start time.")
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     if payload.ends_at > now:
         raise ValueError("Session cannot be resolved before its end time.")
 

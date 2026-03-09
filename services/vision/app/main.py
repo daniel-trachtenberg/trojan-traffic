@@ -1,7 +1,7 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import httpx
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Response
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
@@ -21,7 +21,9 @@ app = FastAPI(
 if settings.cors_origins.strip() == "*":
     allow_origins = ["*"]
 else:
-    allow_origins = [origin.strip() for origin in settings.cors_origins.split(",") if origin.strip()]
+    allow_origins = [
+        origin.strip() for origin in settings.cors_origins.split(",") if origin.strip()
+    ]
 
 app.add_middleware(
     CORSMiddleware,
@@ -59,6 +61,10 @@ class LiveDetectionsResponse(BaseModel):
     source_url: str
     updated_at: str | None
     processing_ms: float | None
+    server_now: str
+    frame_id: str | None
+    frame_width: int | None = Field(default=None, ge=1)
+    frame_height: int | None = Field(default=None, ge=1)
     boxes: list[PersonDetectionBox]
 
 
@@ -74,6 +80,8 @@ def startup_event() -> None:
         confidence=settings.detection_confidence,
         interval_ms=settings.detection_interval_ms,
         stream_max_width=settings.detection_stream_max_width,
+        model_input_size=settings.detection_model_input_size,
+        nms_iou=settings.detection_nms_iou,
         region_left=settings.detection_region_left,
         region_top=settings.detection_region_top,
         region_right=settings.detection_region_right,
@@ -102,7 +110,7 @@ def healthcheck() -> dict[str, str]:
     return {
         "service": settings.app_name,
         "status": "ok",
-        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "timestamp": datetime.now(UTC).isoformat(),
     }
 
 
@@ -120,17 +128,43 @@ def get_live_detections() -> LiveDetectionsResponse:
         raise HTTPException(status_code=503, detail="Live detector is not enabled.")
 
     snapshot = person_detector.get_snapshot()
+    server_now = datetime.now(UTC).isoformat()
     return LiveDetectionsResponse(
         status=snapshot.status,
         source_url=snapshot.source_url,
         updated_at=snapshot.updated_at,
         processing_ms=snapshot.processing_ms,
+        server_now=server_now,
+        frame_id=snapshot.frame_id,
+        frame_width=snapshot.frame_width,
+        frame_height=snapshot.frame_height,
         boxes=[PersonDetectionBox.model_validate(box) for box in snapshot.boxes],
     )
 
 
+@app.get("/detections/live/frame.jpg")
+def get_live_detection_frame(frame_id: str | None = None) -> Response:
+    if person_detector is None:
+        raise HTTPException(status_code=503, detail="Live detector is not enabled.")
+
+    frame_jpeg = person_detector.get_frame_jpeg(frame_id=frame_id)
+    if frame_jpeg is None:
+        raise HTTPException(status_code=404, detail="Live detector frame is not available.")
+
+    return Response(
+        content=frame_jpeg,
+        media_type="image/jpeg",
+        headers={
+            "Cache-Control": "no-store, max-age=0",
+            "Pragma": "no-cache",
+        },
+    )
+
+
 @app.post("/sessions/{session_id}/resolve", response_model=ResolveSessionResponse)
-async def resolve_session(session_id: str, payload: ResolveSessionRequest) -> ResolveSessionResponse:
+async def resolve_session(
+    session_id: str, payload: ResolveSessionRequest
+) -> ResolveSessionResponse:
     try:
         processed_predictions = await resolve_session_in_supabase(
             session_id=session_id,
@@ -148,5 +182,5 @@ async def resolve_session(session_id: str, payload: ResolveSessionRequest) -> Re
         session_id=session_id,
         final_count=payload.final_count,
         processed_predictions=processed_predictions,
-        resolved_at=datetime.now(timezone.utc).isoformat(),
+        resolved_at=datetime.now(UTC).isoformat(),
     )

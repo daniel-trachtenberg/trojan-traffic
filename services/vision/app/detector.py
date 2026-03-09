@@ -1,14 +1,16 @@
 from __future__ import annotations
 
 import logging
+from collections import OrderedDict
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from subprocess import PIPE, Popen, TimeoutExpired, run
 from threading import Event, Lock, Thread
 from time import perf_counter, sleep
 from typing import Any, BinaryIO
 from uuid import uuid4
 
+import cv2
 import numpy as np
 from ultralytics import YOLO
 
@@ -19,6 +21,9 @@ class DetectorSnapshot:
     source_url: str
     updated_at: str | None
     processing_ms: float | None
+    frame_id: str | None
+    frame_width: int | None
+    frame_height: int | None
     boxes: list[dict[str, Any]]
 
 
@@ -76,6 +81,8 @@ class LivePersonDetector:
         confidence: float,
         interval_ms: int,
         stream_max_width: int,
+        model_input_size: int,
+        nms_iou: float,
         region_left: float,
         region_top: float,
         region_right: float,
@@ -93,6 +100,8 @@ class LivePersonDetector:
         self._confidence = confidence
         self._target_fps = min(max(1000 / max(interval_ms, 1), 0.2), 5.0)
         self._stream_max_width = max(stream_max_width, 0)
+        self._model_input_size = max(model_input_size, 320)
+        self._nms_iou = max(min(nms_iou, 0.95), 0.1)
         self._detection_region = DetectionRegion(
             left=max(0.0, min(region_left, 0.99)),
             top=max(0.0, min(region_top, 0.99)),
@@ -112,11 +121,16 @@ class LivePersonDetector:
 
         self._state_lock = Lock()
         self._process_lock = Lock()
+        self._frame_jpegs: OrderedDict[str, bytes] = OrderedDict()
+        self._max_frame_history = 24
         self._snapshot = DetectorSnapshot(
             status="warming",
             source_url=source_url,
             updated_at=None,
             processing_ms=None,
+            frame_id=None,
+            frame_width=None,
+            frame_height=None,
             boxes=[],
         )
         self._stop_event = Event()
@@ -144,8 +158,23 @@ class LivePersonDetector:
                 source_url=self._snapshot.source_url,
                 updated_at=self._snapshot.updated_at,
                 processing_ms=self._snapshot.processing_ms,
+                frame_id=self._snapshot.frame_id,
+                frame_width=self._snapshot.frame_width,
+                frame_height=self._snapshot.frame_height,
                 boxes=[dict(box) for box in self._snapshot.boxes],
             )
+
+    def get_frame_jpeg(self, frame_id: str | None = None) -> bytes | None:
+        with self._state_lock:
+            resolved_frame_id = frame_id or self._snapshot.frame_id
+            if resolved_frame_id is None:
+                return None
+
+            frame_jpeg = self._frame_jpegs.get(resolved_frame_id)
+            if frame_jpeg is None:
+                return None
+
+            return bytes(frame_jpeg)
 
     def _set_snapshot(
         self,
@@ -154,13 +183,31 @@ class LivePersonDetector:
         boxes: list[dict[str, Any]] | None = None,
         processing_ms: float | None = None,
         source_url: str | None = None,
+        frame_jpeg: bytes | None = None,
+        frame_width: int | None = None,
+        frame_height: int | None = None,
     ) -> None:
+        frame_id = None
+        if frame_jpeg is not None:
+            frame_id = f"frame-{uuid4().hex[:12]}"
+
         with self._state_lock:
+            if frame_id and frame_jpeg is not None:
+                self._frame_jpegs[frame_id] = frame_jpeg
+                while len(self._frame_jpegs) > self._max_frame_history:
+                    self._frame_jpegs.popitem(last=False)
+
+            resolved_frame_id = frame_id or self._snapshot.frame_id
+            resolved_frame_width = frame_width or self._snapshot.frame_width
+            resolved_frame_height = frame_height or self._snapshot.frame_height
             self._snapshot = DetectorSnapshot(
                 status=status,
                 source_url=source_url or self._source_url,
-                updated_at=datetime.now(timezone.utc).isoformat(),
+                updated_at=datetime.now(UTC).isoformat(),
                 processing_ms=processing_ms,
+                frame_id=resolved_frame_id,
+                frame_width=resolved_frame_width,
+                frame_height=resolved_frame_height,
                 boxes=boxes or [],
             )
 
@@ -192,10 +239,14 @@ class LivePersonDetector:
                     started_at = perf_counter()
                     boxes = self._detect_people(frame)
                     processing_ms = round((perf_counter() - started_at) * 1000, 2)
+                    frame_jpeg = self._encode_frame_jpeg(frame)
                     self._set_snapshot(
                         status="online",
                         boxes=boxes,
                         processing_ms=processing_ms,
+                        frame_jpeg=frame_jpeg,
+                        frame_width=frame.shape[1],
+                        frame_height=frame.shape[0],
                     )
             finally:
                 self._close_stream_process()
@@ -371,6 +422,18 @@ class LivePersonDetector:
 
         return bytes(buffer)
 
+    def _encode_frame_jpeg(self, frame: np.ndarray) -> bytes | None:
+        success, encoded = cv2.imencode(
+            ".jpg",
+            frame,
+            [int(cv2.IMWRITE_JPEG_QUALITY), 82],
+        )
+        if not success:
+            self._logger.warning("failed to encode live detector frame as JPEG")
+            return None
+
+        return encoded.tobytes()
+
     def _detect_people(self, frame: np.ndarray) -> list[dict[str, Any]]:
         frame_height, frame_width = frame.shape[:2]
         self._frame_index += 1
@@ -383,6 +446,8 @@ class LivePersonDetector:
         results = self._model.predict(
             source=roi_frame,
             conf=self._confidence,
+            iou=self._nms_iou,
+            imgsz=self._model_input_size,
             classes=[0],
             verbose=False,
         )
@@ -423,7 +488,10 @@ class LivePersonDetector:
                 continue
 
             aspect_ratio = height / max(width, 1e-6)
-            if aspect_ratio < self._min_box_aspect_ratio or aspect_ratio > self._max_box_aspect_ratio:
+            if (
+                aspect_ratio < self._min_box_aspect_ratio
+                or aspect_ratio > self._max_box_aspect_ratio
+            ):
                 continue
 
             confidence = float(confidences[index]) if index < len(confidences) else 0.0
@@ -437,10 +505,12 @@ class LivePersonDetector:
                 )
             )
 
-        merged_detections = self._non_max_suppress(raw_detections, iou_threshold=0.45)
+        merged_detections = self._non_max_suppress(raw_detections, iou_threshold=self._nms_iou)
         tracks = self._assign_tracks(merged_detections)
 
-        visible_tracks = [track for track in tracks if track.hits >= self._min_track_hits][: self._max_boxes]
+        visible_tracks = [
+            track for track in tracks if track.hits >= self._min_track_hits
+        ][: self._max_boxes]
         return [
             {
                 "id": track.id,
@@ -466,28 +536,22 @@ class LivePersonDetector:
         scored_matches: list[tuple[float, str, int]] = []
         for track in active_tracks:
             for detection_index, detection in detection_by_index.items():
-                iou = self._box_iou(
-                    (track.x1, track.y1, track.x2, track.y2),
-                    (detection.x1, detection.y1, detection.x2, detection.y2),
-                )
-                if iou >= 0.18:
-                    scored_matches.append((iou, track.id, detection_index))
+                match_score = self._track_match_score(track, detection)
+                if match_score is not None:
+                    scored_matches.append((match_score, track.id, detection_index))
 
         scored_matches.sort(reverse=True)
         current_tracks: list[TrackState] = []
         for _, track_id, detection_index in scored_matches:
-            if track_id not in unmatched_track_ids or detection_index not in unmatched_detection_indices:
+            if (
+                track_id not in unmatched_track_ids
+                or detection_index not in unmatched_detection_indices
+            ):
                 continue
 
             detection = detection_by_index[detection_index]
             track = self._tracks[track_id]
-            track.x1 = detection.x1
-            track.y1 = detection.y1
-            track.x2 = detection.x2
-            track.y2 = detection.y2
-            track.confidence = detection.confidence
-            track.hits += 1
-            track.last_seen_frame = self._frame_index
+            self._update_track(track, detection)
             current_tracks.append(track)
             unmatched_track_ids.remove(track_id)
             unmatched_detection_indices.remove(detection_index)
@@ -507,8 +571,33 @@ class LivePersonDetector:
             self._tracks[track.id] = track
             current_tracks.append(track)
 
+        current_tracks.sort(
+            key=lambda track: (track.last_seen_frame, track.hits, track.confidence),
+            reverse=True,
+        )
         self._prune_tracks()
         return current_tracks
+
+    def _track_match_score(self, track: TrackState, detection: RawDetection) -> float | None:
+        track_box = (track.x1, track.y1, track.x2, track.y2)
+        detection_box = (detection.x1, detection.y1, detection.x2, detection.y2)
+        iou = self._box_iou(track_box, detection_box)
+        center_distance_ratio = self._box_center_distance_ratio(track_box, detection_box)
+        if iou < 0.12 and center_distance_ratio > 0.35:
+            return None
+
+        return iou + max(0.0, 0.35 - center_distance_ratio)
+
+    def _update_track(self, track: TrackState, detection: RawDetection) -> None:
+        detection_weight = 0.68 if track.hits > 1 else 1.0
+        history_weight = 1.0 - detection_weight
+        track.x1 = (track.x1 * history_weight) + (detection.x1 * detection_weight)
+        track.y1 = (track.y1 * history_weight) + (detection.y1 * detection_weight)
+        track.x2 = (track.x2 * history_weight) + (detection.x2 * detection_weight)
+        track.y2 = (track.y2 * history_weight) + (detection.y2 * detection_weight)
+        track.confidence = max(track.confidence * 0.6, detection.confidence)
+        track.hits += 1
+        track.last_seen_frame = self._frame_index
 
     def _prune_tracks(self) -> None:
         stale_before = self._frame_index - 10
@@ -560,3 +649,18 @@ class LivePersonDetector:
             return 0.0
 
         return intersection_area / union_area
+
+    def _box_center_distance_ratio(
+        self, box_a: tuple[float, float, float, float], box_b: tuple[float, float, float, float]
+    ) -> float:
+        ax1, ay1, ax2, ay2 = box_a
+        bx1, by1, bx2, by2 = box_b
+        center_a_x = (ax1 + ax2) / 2
+        center_a_y = (ay1 + ay2) / 2
+        center_b_x = (bx1 + bx2) / 2
+        center_b_y = (by1 + by2) / 2
+        center_distance = float(np.hypot(center_a_x - center_b_x, center_a_y - center_b_y))
+        diagonal_a = float(np.hypot(ax2 - ax1, ay2 - ay1))
+        diagonal_b = float(np.hypot(bx2 - bx1, by2 - by1))
+        reference_diagonal = max(diagonal_a, diagonal_b, 1.0)
+        return center_distance / reference_diagonal

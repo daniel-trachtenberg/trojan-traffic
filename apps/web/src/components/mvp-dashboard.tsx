@@ -155,8 +155,36 @@ type LiveDetectionBox = {
 type LiveDetectionsResponse = {
   status: string;
   updated_at?: string | null;
+  frame_id?: string | null;
+  frame_width?: number | null;
+  frame_height?: number | null;
   boxes: LiveDetectionBox[];
 };
+
+const DETECTION_POLL_INTERVAL_MS = 300;
+
+function getDetectorStatusMessage(
+  detections: LiveDetectionsResponse | null,
+  hasDetectorFrame: boolean
+) {
+  if (!detections) {
+    return "Connecting detector...";
+  }
+
+  if (detections.status === "online") {
+    return hasDetectorFrame ? null : "Receiving detector frames...";
+  }
+
+  if (detections.status === "warming") {
+    return "Warming detector...";
+  }
+
+  if (detections.status === "connecting") {
+    return "Connecting to camera...";
+  }
+
+  return "Detector reconnecting...";
+}
 
 export function MvpDashboard({
   hlsUrl,
@@ -186,8 +214,7 @@ export function MvpDashboard({
   const [openRightPanel, setOpenRightPanel] = useState<"account" | "leaderboard" | null>(null);
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [authIntentSessionId, setAuthIntentSessionId] = useState<string | null>(null);
-  const [livePersonBoxes, setLivePersonBoxes] = useState<LiveDetectionBox[]>([]);
-  const [, setDetectorStatus] = useState("idle");
+  const [liveDetections, setLiveDetections] = useState<LiveDetectionsResponse | null>(null);
   const [regionPoints, setRegionPoints] = useState(() => normalizeBettingRegion(initialRegion));
   const [savedRegionPoints, setSavedRegionPoints] = useState(() =>
     normalizeBettingRegion(initialRegion)
@@ -241,6 +268,19 @@ export function MvpDashboard({
           ? `${selectedSession.mode_seconds}s round`
           : "";
   const hasUnsavedRegionChanges = !bettingRegionsEqual(regionPoints, savedRegionPoints);
+  const visionApiBaseUrl = visionApiUrl ? visionApiUrl.replace(/\/+$/, "") : null;
+  const liveFrameUrl =
+    visionApiBaseUrl && liveDetections?.frame_id
+      ? `${visionApiBaseUrl}/detections/live/frame.jpg?frame_id=${encodeURIComponent(
+          liveDetections.frame_id
+        )}`
+      : null;
+  const liveFeedAspectRatio =
+    liveDetections?.frame_width && liveDetections.frame_height
+      ? liveDetections.frame_width / liveDetections.frame_height
+      : 16 / 9;
+  const liveFeedStatusMessage = getDetectorStatusMessage(liveDetections, Boolean(liveFrameUrl));
+  const livePersonBoxes = liveDetections?.boxes ?? [];
 
   async function refreshData(activeUser: User | null) {
     if (!supabase) {
@@ -356,7 +396,7 @@ export function MvpDashboard({
   useEffect(() => {
     const timer = setInterval(() => {
       setNowMs(Date.now());
-    }, 1000);
+    }, 250);
 
     return () => clearInterval(timer);
   }, []);
@@ -419,8 +459,7 @@ export function MvpDashboard({
 
   useEffect(() => {
     if (!visionApiUrl) {
-      setLivePersonBoxes([]);
-      setDetectorStatus("disabled");
+      setLiveDetections(null);
       return;
     }
 
@@ -443,8 +482,17 @@ export function MvpDashboard({
             return;
           }
 
-          setDetectorStatus("offline");
-          setLivePersonBoxes([]);
+          setLiveDetections((current) =>
+            current
+              ? {
+                  ...current,
+                  status: "offline"
+                }
+              : {
+                  status: "offline",
+                  boxes: []
+                }
+          );
           return;
         }
 
@@ -453,8 +501,14 @@ export function MvpDashboard({
           return;
         }
 
-        setDetectorStatus(payload.status ?? "online");
-        setLivePersonBoxes(Array.isArray(payload.boxes) ? payload.boxes : []);
+        setLiveDetections({
+          status: payload.status ?? "online",
+          updated_at: payload.updated_at ?? null,
+          frame_id: payload.frame_id ?? null,
+          frame_width: payload.frame_width ?? null,
+          frame_height: payload.frame_height ?? null,
+          boxes: Array.isArray(payload.boxes) ? payload.boxes : []
+        });
       } catch (fetchError) {
         if (!isMounted) {
           return;
@@ -464,13 +518,22 @@ export function MvpDashboard({
           return;
         }
 
-        setDetectorStatus("offline");
-        setLivePersonBoxes([]);
+        setLiveDetections((current) =>
+          current
+            ? {
+                ...current,
+                status: "offline"
+              }
+            : {
+                status: "offline",
+                boxes: []
+              }
+        );
       } finally {
         if (isMounted) {
           timeoutId = setTimeout(() => {
             void fetchDetections();
-          }, 300);
+          }, DETECTION_POLL_INTERVAL_MS);
         }
       }
     }
@@ -726,9 +789,12 @@ export function MvpDashboard({
     <main className="betting-screen">
       <LiveFeed
         src={hlsUrl}
+        imageSrc={liveFrameUrl}
+        mediaAspectRatio={liveFeedAspectRatio}
         region={regionPoints}
         fullScreen
         personBoxes={livePersonBoxes}
+        statusMessage={visionApiUrl ? liveFeedStatusMessage : null}
         regionEditorEnabled={regionEditorEnabled}
         onRegionChange={regionEditorEnabled ? setRegionPoints : null}
       />
