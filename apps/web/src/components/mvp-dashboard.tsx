@@ -233,6 +233,7 @@ export function MvpDashboard({
   );
   const [isSavingRegion, setIsSavingRegion] = useState(false);
   const nextToastIdRef = useRef(0);
+  const toastsRef = useRef<ToastRecord[]>([]);
   const toastTimeoutsRef = useRef(new Map<number, ReturnType<typeof setTimeout>>());
 
   const predictionBySession = new Map(predictions.map((prediction) => [prediction.session_id, prediction]));
@@ -315,7 +316,11 @@ export function MvpDashboard({
       toastTimeoutsRef.current.delete(toastId);
     }
 
-    setToasts((current) => current.filter((toast) => toast.id !== toastId));
+    setToasts((current) => {
+      const nextToasts = current.filter((toast) => toast.id !== toastId);
+      toastsRef.current = nextToasts;
+      return nextToasts;
+    });
   }
 
   function dismissToastByKey(dedupeKey: string) {
@@ -332,7 +337,9 @@ export function MvpDashboard({
         }
       }
 
-      return current.filter((toast) => toast.dedupeKey !== dedupeKey);
+      const nextToasts = current.filter((toast) => toast.dedupeKey !== dedupeKey);
+      toastsRef.current = nextToasts;
+      return nextToasts;
     });
   }
 
@@ -351,7 +358,6 @@ export function MvpDashboard({
 
     const nextToastId = nextToastIdRef.current + 1;
     nextToastIdRef.current = nextToastId;
-    let didEnqueue = false;
 
     const nextToast: ToastRecord = {
       id: nextToastId,
@@ -360,32 +366,32 @@ export function MvpDashboard({
       dedupeKey: options?.dedupeKey
     };
 
-    setToasts((current) => {
-      if (
-        options?.dedupeKey &&
-        current.some((toast) => toast.dedupeKey === options.dedupeKey && toast.message === message)
-      ) {
-        return current;
-      }
+    if (
+      options?.dedupeKey &&
+      toastsRef.current.some(
+        (toast) => toast.dedupeKey === options.dedupeKey && toast.message === message
+      )
+    ) {
+      return;
+    }
 
-      didEnqueue = true;
-
-      const overflowCount = Math.max(current.length + 1 - MAX_VISIBLE_TOASTS, 0);
-      if (overflowCount > 0) {
-        const overflowToasts = current.slice(0, overflowCount);
-        for (const toast of overflowToasts) {
-          const activeTimeout = toastTimeoutsRef.current.get(toast.id);
-          if (activeTimeout) {
-            clearTimeout(activeTimeout);
-            toastTimeoutsRef.current.delete(toast.id);
-          }
+    const overflowCount = Math.max(toastsRef.current.length + 1 - MAX_VISIBLE_TOASTS, 0);
+    if (overflowCount > 0) {
+      const overflowToasts = toastsRef.current.slice(0, overflowCount);
+      for (const toast of overflowToasts) {
+        const activeTimeout = toastTimeoutsRef.current.get(toast.id);
+        if (activeTimeout) {
+          clearTimeout(activeTimeout);
+          toastTimeoutsRef.current.delete(toast.id);
         }
       }
+    }
 
-      return [...current.slice(overflowCount), nextToast];
-    });
+    const nextToasts = [...toastsRef.current.slice(overflowCount), nextToast];
+    toastsRef.current = nextToasts;
+    setToasts(nextToasts);
 
-    if (!didEnqueue || options?.persistent) {
+    if (options?.persistent) {
       return;
     }
 
