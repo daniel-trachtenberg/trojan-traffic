@@ -976,6 +976,23 @@ export function MvpDashboard({
     setShowAuthModal(true);
   }
 
+  function handleAccountAction() {
+    if (!user) {
+      if (!supabase) {
+        setError("Configure Supabase before signing in.");
+        return;
+      }
+
+      setOpenRightPanel(null);
+      setAuthIntentSessionId(null);
+      setAuthMode("sign-in");
+      setShowAuthModal(true);
+      return;
+    }
+
+    toggleRightPanel("account");
+  }
+
   function toggleRightPanel(panel: "account" | "leaderboard") {
     setOpenRightPanel((current) => (current === panel ? null : panel));
   }
@@ -1245,8 +1262,8 @@ export function MvpDashboard({
               className={
                 openRightPanel === "account" ? "icon-account-button active" : "icon-account-button"
               }
-              onClick={() => toggleRightPanel("account")}
-              aria-label="Open account panel"
+              onClick={handleAccountAction}
+              aria-label={user ? "Open account panel" : "Open sign in panel"}
             >
               <span className="icon-account-badge" aria-hidden="true">
                 <svg viewBox="0 0 24 24" role="img" aria-hidden="true" className="icon-account-glyph">
