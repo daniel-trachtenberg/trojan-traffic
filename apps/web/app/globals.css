@@ -626,6 +626,53 @@ body {
   color: var(--muted);
 }
 
+.market-standby-card {
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  min-height: 14.5rem;
+  padding: 1rem 0.95rem;
+  background:
+    radial-gradient(circle at top, rgb(255 204 0 / 8%), transparent 42%),
+    linear-gradient(180deg, rgb(255 255 255 / 4%), rgb(255 255 255 / 2%));
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  text-align: center;
+  gap: 0.42rem;
+}
+
+.market-standby-label {
+  font-size: 0.64rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #f0dca2;
+}
+
+.market-standby-card strong {
+  font-size: 1.9rem;
+  line-height: 1;
+  color: var(--text);
+  letter-spacing: -0.05em;
+}
+
+.market-standby-title {
+  margin: 0.12rem 0 0;
+  font-size: 1rem;
+  line-height: 1.35;
+  color: #eef2fb;
+}
+
+.market-standby-note {
+  max-width: 28ch;
+  font-size: 0.76rem;
+  line-height: 1.5;
+  color: var(--muted);
+}
+
+.market-standby-button {
+  margin-top: 0.35rem;
+}
+
 .hint {
   margin: 0.2rem 0 0;
   color: var(--muted);
