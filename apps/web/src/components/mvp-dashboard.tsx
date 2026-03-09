@@ -1,7 +1,7 @@
 "use client";
 
 import type { User } from "@supabase/supabase-js";
-import { useEffect, useState, useTransition, type FormEvent } from "react";
+import { useEffect, useRef, useState, useTransition, type FormEvent } from "react";
 import { LiveFeed } from "@/components/live-feed";
 import {
   bettingRegionsEqual,
@@ -67,8 +67,21 @@ type MvpDashboardProps = {
   visionApiUrl?: string;
 };
 
+type ToastTone = "success" | "error" | "warning";
+
+type ToastRecord = {
+  id: number;
+  tone: ToastTone;
+  message: string;
+  dedupeKey?: string;
+};
+
 const DEFAULT_WAGER = "10";
 const WAGER_STEPS = [1, 5, 10, 20];
+const DEFAULT_TOAST_DURATION_MS = 5000;
+const SUCCESS_TOAST_DURATION_MS = 4200;
+const ERROR_TOAST_DURATION_MS = 6200;
+const MAX_VISIBLE_TOASTS = 4;
 
 function formatCountdown(milliseconds: number) {
   const safeMilliseconds = Math.max(milliseconds, 0);
@@ -202,8 +215,7 @@ export function MvpDashboard({
   const [tokenBalance, setTokenBalance] = useState(0);
   const [loading, setLoading] = useState(true);
   const [nowMs, setNowMs] = useState(() => Date.now());
-  const [notice, setNotice] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [toasts, setToasts] = useState<ToastRecord[]>([]);
   const [isRefreshing, startTransition] = useTransition();
   const [authMode, setAuthMode] = useState<"sign-in" | "sign-up">("sign-in");
   const [email, setEmail] = useState("");
@@ -220,6 +232,8 @@ export function MvpDashboard({
     normalizeBettingRegion(initialRegion)
   );
   const [isSavingRegion, setIsSavingRegion] = useState(false);
+  const nextToastIdRef = useRef(0);
+  const toastTimeoutsRef = useRef(new Map<number, ReturnType<typeof setTimeout>>());
 
   const predictionBySession = new Map(predictions.map((prediction) => [prediction.session_id, prediction]));
   const openRisk = predictions
@@ -293,6 +307,110 @@ export function MvpDashboard({
       : 16 / 9;
   const liveFeedStatusMessage = getDetectorStatusMessage(liveDetections, Boolean(liveFrameUrl));
   const livePersonBoxes = liveDetections?.boxes ?? [];
+
+  function dismissToast(toastId: number) {
+    const activeTimeout = toastTimeoutsRef.current.get(toastId);
+    if (activeTimeout) {
+      clearTimeout(activeTimeout);
+      toastTimeoutsRef.current.delete(toastId);
+    }
+
+    setToasts((current) => current.filter((toast) => toast.id !== toastId));
+  }
+
+  function dismissToastByKey(dedupeKey: string) {
+    setToasts((current) => {
+      const removedToastIds = current
+        .filter((toast) => toast.dedupeKey === dedupeKey)
+        .map((toast) => toast.id);
+
+      for (const toastId of removedToastIds) {
+        const activeTimeout = toastTimeoutsRef.current.get(toastId);
+        if (activeTimeout) {
+          clearTimeout(activeTimeout);
+          toastTimeoutsRef.current.delete(toastId);
+        }
+      }
+
+      return current.filter((toast) => toast.dedupeKey !== dedupeKey);
+    });
+  }
+
+  function pushToast(
+    tone: ToastTone,
+    message: string | null,
+    options?: {
+      durationMs?: number;
+      persistent?: boolean;
+      dedupeKey?: string;
+    }
+  ) {
+    if (!message) {
+      return;
+    }
+
+    const nextToastId = nextToastIdRef.current + 1;
+    nextToastIdRef.current = nextToastId;
+    let didEnqueue = false;
+
+    const nextToast: ToastRecord = {
+      id: nextToastId,
+      tone,
+      message,
+      dedupeKey: options?.dedupeKey
+    };
+
+    setToasts((current) => {
+      if (
+        options?.dedupeKey &&
+        current.some((toast) => toast.dedupeKey === options.dedupeKey && toast.message === message)
+      ) {
+        return current;
+      }
+
+      didEnqueue = true;
+
+      const overflowCount = Math.max(current.length + 1 - MAX_VISIBLE_TOASTS, 0);
+      if (overflowCount > 0) {
+        const overflowToasts = current.slice(0, overflowCount);
+        for (const toast of overflowToasts) {
+          const activeTimeout = toastTimeoutsRef.current.get(toast.id);
+          if (activeTimeout) {
+            clearTimeout(activeTimeout);
+            toastTimeoutsRef.current.delete(toast.id);
+          }
+        }
+      }
+
+      return [...current.slice(overflowCount), nextToast];
+    });
+
+    if (!didEnqueue || options?.persistent) {
+      return;
+    }
+
+    const durationMs = options?.durationMs ?? DEFAULT_TOAST_DURATION_MS;
+    const timeoutId = setTimeout(() => {
+      dismissToast(nextToastId);
+    }, durationMs);
+    toastTimeoutsRef.current.set(nextToastId, timeoutId);
+  }
+
+  function setError(message: string | null) {
+    if (!message) {
+      return;
+    }
+
+    pushToast("error", message, { durationMs: ERROR_TOAST_DURATION_MS });
+  }
+
+  function setNotice(message: string | null) {
+    if (!message) {
+      return;
+    }
+
+    pushToast("success", message, { durationMs: SUCCESS_TOAST_DURATION_MS });
+  }
 
   async function refreshData(activeUser: User | null) {
     if (!supabase) {
@@ -412,6 +530,34 @@ export function MvpDashboard({
 
     return () => clearInterval(timer);
   }, []);
+
+  useEffect(() => {
+    const activeToastTimeouts = toastTimeoutsRef.current;
+
+    return () => {
+      for (const timeoutId of activeToastTimeouts.values()) {
+        clearTimeout(timeoutId);
+      }
+      activeToastTimeouts.clear();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!supabase) {
+      pushToast(
+        "warning",
+        "Configure NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY in apps/web/.env.local.",
+        {
+          persistent: true,
+          dedupeKey: "supabase-config"
+        }
+      );
+      return;
+    }
+
+    dismissToastByKey("supabase-config");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [supabase]);
 
   useEffect(() => {
     if (!supabase) {
@@ -1214,16 +1360,34 @@ export function MvpDashboard({
         </div>
       ) : null}
 
-      <div className="bottom-ribbon">
-        {!supabase ? (
-          <div className="alert alert-warning">
-            Configure <code>NEXT_PUBLIC_SUPABASE_URL</code> and{" "}
-            <code>NEXT_PUBLIC_SUPABASE_ANON_KEY</code> in <code>apps/web/.env.local</code>.
-          </div>
-        ) : null}
-        {error ? <div className="alert alert-error">{error}</div> : null}
-        {notice ? <div className="alert alert-success">{notice}</div> : null}
+      {toasts.length > 0 ? (
+        <div className="toast-stack" aria-live="polite" aria-atomic="false">
+          {toasts.map((toast) => (
+            <div key={toast.id} className={`toast toast-${toast.tone}`} role="status">
+              <div className="toast-copy">
+                <span className="toast-label">
+                  {toast.tone === "error"
+                    ? "Error"
+                    : toast.tone === "warning"
+                      ? "Notice"
+                      : "Success"}
+                </span>
+                <p>{toast.message}</p>
+              </div>
+              <button
+                type="button"
+                className="toast-close-button"
+                onClick={() => dismissToast(toast.id)}
+                aria-label="Dismiss notification"
+              >
+                ×
+              </button>
+            </div>
+          ))}
+        </div>
+      ) : null}
 
+      <div className="bottom-ribbon">
         {user ? (
           <div className="history-strip">
             {predictions.slice(0, 5).map((prediction) => {

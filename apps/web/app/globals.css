@@ -978,32 +978,93 @@ body {
   pointer-events: none;
 }
 
-.alert {
+.toast-stack {
+  position: absolute;
+  top: 4.9rem;
+  right: 1rem;
+  z-index: 35;
+  width: min(360px, calc(100vw - 1.5rem));
+  display: grid;
+  gap: 0.55rem;
+  pointer-events: none;
+}
+
+.toast {
   pointer-events: auto;
-  border-radius: 9px;
-  padding: 0.5rem 0.7rem;
-  font-size: 0.81rem;
-  backdrop-filter: blur(7px);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 0.65rem;
+  border-radius: 14px;
+  padding: 0.72rem 0.78rem 0.76rem;
   border: 1px solid var(--line);
+  background: rgb(12 14 20 / 90%);
+  backdrop-filter: blur(12px);
+  box-shadow: 0 16px 36px rgb(0 0 0 / 24%);
+  animation: toast-enter 180ms ease-out;
 }
 
-.alert code {
-  font-family: "IBM Plex Mono", "SFMono-Regular", monospace;
+.toast-copy {
+  display: grid;
+  gap: 0.22rem;
 }
 
-.alert-warning {
-  color: #ffe8ba;
-  background: rgb(107 74 8 / 60%);
+.toast-copy p {
+  margin: 0;
+  font-size: 0.83rem;
+  line-height: 1.4;
 }
 
-.alert-error {
-  color: #ffd4d4;
-  background: rgb(113 25 25 / 64%);
+.toast-label {
+  font-size: 0.68rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgb(245 247 251 / 72%);
 }
 
-.alert-success {
-  color: #d7f0de;
-  background: rgb(32 93 48 / 60%);
+.toast-success {
+  color: #dcf5e2;
+  background: rgb(18 56 30 / 88%);
+}
+
+.toast-error {
+  color: #ffe0e0;
+  background: rgb(90 22 22 / 90%);
+}
+
+.toast-warning {
+  color: #ffeec7;
+  background: rgb(90 63 16 / 90%);
+}
+
+.toast-close-button {
+  width: 1.9rem;
+  height: 1.9rem;
+  border: 0;
+  border-radius: 999px;
+  padding: 0;
+  font: inherit;
+  font-size: 1rem;
+  line-height: 1;
+  color: inherit;
+  background: rgb(255 255 255 / 7%);
+  cursor: pointer;
+}
+
+.toast-close-button:hover {
+  background: rgb(255 255 255 / 13%);
+}
+
+@keyframes toast-enter {
+  from {
+    opacity: 0;
+    transform: translate3d(10px, -8px, 0);
+  }
+
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
 }
 
 .history-strip {
@@ -1064,5 +1125,11 @@ body {
     left: 0.65rem;
     right: 0.65rem;
     bottom: 0.65rem;
+  }
+
+  .toast-stack {
+    top: 4.25rem;
+    right: 0.65rem;
+    width: min(360px, calc(100vw - 1.3rem));
   }
 }
