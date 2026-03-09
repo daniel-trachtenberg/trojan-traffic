@@ -1061,7 +1061,10 @@ export function MvpDashboard({
               <p className="widget-kicker">Tommy Walkway</p>
               <h2>Betting</h2>
             </div>
-            <span className="status">{isRefreshing ? "Refreshing" : "Live"}</span>
+            <span className="status status-live-badge">
+              <span className="status-live-dot" aria-hidden="true" />
+              {isRefreshing ? "Refreshing" : "Live"}
+            </span>
           </header>
 
           <div className="market-meta-row">
