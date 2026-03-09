@@ -122,8 +122,17 @@ export function LiveFeed({
       }
 
       const shellAspectRatio = bounds.width / bounds.height;
-      const nextSize =
-        shellAspectRatio > resolvedAspectRatio
+      const nextSize = fullScreen
+        ? shellAspectRatio > resolvedAspectRatio
+          ? {
+              width: Math.round(bounds.width),
+              height: Math.round(bounds.width / resolvedAspectRatio)
+            }
+          : {
+              width: Math.round(bounds.height * resolvedAspectRatio),
+              height: Math.round(bounds.height)
+            }
+        : shellAspectRatio > resolvedAspectRatio
           ? {
               width: Math.round(bounds.height * resolvedAspectRatio),
               height: Math.round(bounds.height)
@@ -153,7 +162,7 @@ export function LiveFeed({
     return () => {
       observer.disconnect();
     };
-  }, [resolvedAspectRatio]);
+  }, [fullScreen, resolvedAspectRatio]);
 
   useEffect(() => {
     const video = videoRef.current;
