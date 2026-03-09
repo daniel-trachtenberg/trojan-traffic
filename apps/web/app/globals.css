@@ -152,10 +152,10 @@ body {
   pointer-events: none;
   background: linear-gradient(
     180deg,
-    rgb(10 12 17 / 18%) 0%,
-    rgb(10 12 17 / 6%) 30%,
-    rgb(10 12 17 / 10%) 62%,
-    rgb(10 12 17 / 24%) 100%
+    rgb(10 12 17 / 24%) 0%,
+    rgb(10 12 17 / 9%) 30%,
+    rgb(10 12 17 / 14%) 62%,
+    rgb(10 12 17 / 34%) 100%
   );
 }
 
