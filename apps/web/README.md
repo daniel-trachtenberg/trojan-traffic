@@ -13,18 +13,14 @@ npm run dev:web
 Set `NEXT_PUBLIC_VISION_API_URL` in `.env.local` to enable live person box overlays from the
 vision service.
 
-## One-off Admin Region Editor
+## Admin Region Editor
 
-The betting region editor is disabled by default. Only enable it when an admin needs to place or
+Admin users can enable region edit mode from the admin console whenever they need to place or
 adjust the polygon on the live feed.
 
-```bash
-REGION_EDITOR_ENABLED=true
-```
-
-When enabled, admin users get draggable corner handles on the feed plus region save controls inside
-the admin console. Saving writes the polygon to `apps/web/src/config/betting-region.json`. Turn
-`REGION_EDITOR_ENABLED` back to `false` after saving.
+When edit mode is enabled, draggable corner handles appear on the feed and save/reset controls stay
+available outside the admin modal. Saving writes the polygon to
+`apps/web/src/config/betting-region.json`.
 
 This currently updates the web overlay region only. The vision backend ROI is still configured
 separately.

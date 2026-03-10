@@ -42,10 +42,6 @@ function getRegionConfigPath() {
     : workspacePath;
 }
 
-export function isRegionEditorEnabled() {
-  return process.env.REGION_EDITOR_ENABLED === "true";
-}
-
 export async function readStoredBettingRegion() {
   const filePath = getRegionConfigPath();
 

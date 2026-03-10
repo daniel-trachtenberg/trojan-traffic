@@ -22,12 +22,11 @@ type AdminSessionRow = {
 type AdminConsoleProps = {
   supabase: SupabaseClient;
   defaultCameraFeedUrl: string;
-  regionEditorEnabled: boolean;
+  isRegionEditModeEnabled: boolean;
   regionPoints: RegionPoint[];
   hasUnsavedRegionChanges: boolean;
-  isSavingRegion: boolean;
-  onResetRegion: () => void;
-  onSaveRegion: () => Promise<void>;
+  onStartRegionEditMode: () => void;
+  onToggleRegionEditMode: () => void;
   onError: (message: string | null) => void;
   onNotice: (message: string | null) => void;
   onPublicDataRefresh: () => Promise<void>;
@@ -154,12 +153,11 @@ function sortAdminSessions(left: AdminSessionRow, right: AdminSessionRow) {
 export function AdminConsole({
   supabase,
   defaultCameraFeedUrl,
-  regionEditorEnabled,
+  isRegionEditModeEnabled,
   regionPoints,
   hasUnsavedRegionChanges,
-  isSavingRegion,
-  onResetRegion,
-  onSaveRegion,
+  onStartRegionEditMode,
+  onToggleRegionEditMode,
   onError,
   onNotice,
   onPublicDataRefresh
@@ -481,14 +479,14 @@ export function AdminConsole({
 
           <div className="admin-form-note admin-form-wide">
             <strong>Region snapshot:</strong> this session will use the overlay currently shown on the feed.
-            {regionEditorEnabled ? (
+            {isRegionEditModeEnabled ? (
               hasUnsavedRegionChanges ? (
-                <span> Save the region below first if you want future sessions to inherit the same shape.</span>
+                <span> Save or reset your current edits before creating a session that should use them.</span>
               ) : (
-                <span> Live region editing is enabled for this admin session.</span>
+                <span> Live region editing is enabled right now.</span>
               )
             ) : (
-              <span> Region editing is currently disabled, so new sessions use the saved shape only.</span>
+              <span> Enable edit mode if you want to adjust the live polygon before saving a session.</span>
             )}
           </div>
 
@@ -506,34 +504,38 @@ export function AdminConsole({
             <p className="admin-section-kicker">Region Controls</p>
             <h3>Betting Region</h3>
           </div>
-          <span className={regionEditorEnabled ? "status status-open" : "status"}>
-            {regionEditorEnabled ? "Handles Enabled" : "Handles Disabled"}
+          <span
+            className={
+              isRegionEditModeEnabled
+                ? "status status-open"
+                : hasUnsavedRegionChanges
+                  ? "status status-upcoming"
+                  : "status"
+            }
+          >
+            {isRegionEditModeEnabled
+              ? "Edit Mode On"
+              : hasUnsavedRegionChanges
+                ? "Unsaved Changes"
+                : "Edit Mode Off"}
           </span>
         </div>
 
         <p className="admin-section-copy">
-          Only admins can drag and save the live feed region. Keep the editor off unless you are actively
-          adjusting the polygon.
+          {isRegionEditModeEnabled
+            ? "Drag the live feed corner handles to adjust the polygon. Save or reset from the floating controls beside the player."
+            : hasUnsavedRegionChanges
+              ? "Your last drag changes are still unsaved. Save, reset, or re-enable edit mode from the floating controls."
+              : "Only admins can drag and save the live feed region. Turn on edit mode when you want to adjust the polygon."}
         </p>
 
         <div className="admin-inline-actions">
           <button
             type="button"
-            className="secondary-button"
-            onClick={onResetRegion}
-            disabled={!regionEditorEnabled || !hasUnsavedRegionChanges || isSavingRegion}
+            className={isRegionEditModeEnabled ? "secondary-button" : "primary-button"}
+            onClick={isRegionEditModeEnabled ? onToggleRegionEditMode : onStartRegionEditMode}
           >
-            Reset Region
-          </button>
-          <button
-            type="button"
-            className="primary-button"
-            onClick={() => {
-              void onSaveRegion();
-            }}
-            disabled={!regionEditorEnabled || !hasUnsavedRegionChanges || isSavingRegion}
-          >
-            {isSavingRegion ? "Saving..." : "Save Region"}
+            {isRegionEditModeEnabled ? "Disable Edit Mode" : "Enable Edit Mode"}
           </button>
         </div>
       </section>

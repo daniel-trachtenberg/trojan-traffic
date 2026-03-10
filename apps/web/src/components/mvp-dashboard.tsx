@@ -67,7 +67,6 @@ type AdminRow = {
 type MvpDashboardProps = {
   hlsUrl: string;
   initialRegion: RegionPoint[];
-  regionEditorEnabled?: boolean;
   visionApiUrl?: string;
 };
 
@@ -240,7 +239,6 @@ function getDetectorStatusMessage(
 export function MvpDashboard({
   hlsUrl,
   initialRegion,
-  regionEditorEnabled = false,
   visionApiUrl
 }: MvpDashboardProps) {
   const supabase = getBrowserSupabaseClient();
@@ -272,6 +270,7 @@ export function MvpDashboard({
   const [savedRegionPoints, setSavedRegionPoints] = useState(() =>
     normalizeBettingRegion(initialRegion)
   );
+  const [isRegionEditModeEnabled, setIsRegionEditModeEnabled] = useState(false);
   const [isSavingRegion, setIsSavingRegion] = useState(false);
   const nextToastIdRef = useRef(0);
   const toastsRef = useRef<ToastRecord[]>([]);
@@ -460,7 +459,8 @@ export function MvpDashboard({
         ? "Sign In or Create Account"
         : null;
   const hasUnsavedRegionChanges = !bettingRegionsEqual(regionPoints, savedRegionPoints);
-  const canEditRegion = regionEditorEnabled && isAdmin;
+  const canEditRegion = isAdmin && isRegionEditModeEnabled;
+  const showRegionEditDock = isAdmin && (isRegionEditModeEnabled || hasUnsavedRegionChanges);
   const visionApiBaseUrl = visionApiUrl ? visionApiUrl.replace(/\/+$/, "") : null;
   const liveFrameUrl =
     visionApiBaseUrl && liveDetections?.frame_id
@@ -904,10 +904,17 @@ export function MvpDashboard({
   }, [visionApiUrl]);
 
   useEffect(() => {
-    if (!isAdmin && openRightPanel === "admin") {
+    if (isAdmin) {
+      return;
+    }
+
+    if (openRightPanel === "admin") {
       setOpenRightPanel(null);
     }
-  }, [isAdmin, openRightPanel]);
+
+    setIsRegionEditModeEnabled(false);
+    setRegionPoints(savedRegionPoints);
+  }, [isAdmin, openRightPanel, savedRegionPoints]);
 
   async function handleAuthSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -1148,7 +1155,7 @@ export function MvpDashboard({
   }
 
   async function handleSaveRegion() {
-    if (!canEditRegion || !supabase || !user) {
+    if (!isAdmin || !supabase || !user) {
       return;
     }
 
@@ -1184,7 +1191,7 @@ export function MvpDashboard({
       const normalizedRegion = normalizeBettingRegion(payload.points);
       setRegionPoints(normalizedRegion);
       setSavedRegionPoints(normalizedRegion);
-      setNotice("Betting region saved. Disable REGION_EDITOR_ENABLED when you are done.");
+      setNotice("Betting region saved.");
     } catch (saveError) {
       const message =
         saveError instanceof Error ? saveError.message : "Failed to save betting region.";
@@ -1192,6 +1199,19 @@ export function MvpDashboard({
     } finally {
       setIsSavingRegion(false);
     }
+  }
+
+  function handleResetRegion() {
+    setRegionPoints(savedRegionPoints);
+  }
+
+  function handleToggleRegionEditMode() {
+    setIsRegionEditModeEnabled((current) => !current);
+  }
+
+  function handleStartRegionEditModeFromAdmin() {
+    setIsRegionEditModeEnabled(true);
+    setOpenRightPanel(null);
   }
 
   const sessionLookup = new Map(sessions.map((session) => [session.id, session]));
@@ -1470,6 +1490,64 @@ export function MvpDashboard({
               </span>
             </button>
           </div>
+          {showRegionEditDock ? (
+            <section className="region-editor-dock">
+              <div className="region-editor-dock-header">
+                <div>
+                  <p className="region-editor-dock-kicker">Region Editor</p>
+                  <h3 className="region-editor-dock-title">
+                    {isRegionEditModeEnabled ? "Edit Mode Active" : "Unsaved Region Changes"}
+                  </h3>
+                </div>
+                <span
+                  className={
+                    isRegionEditModeEnabled
+                      ? "status status-open"
+                      : hasUnsavedRegionChanges
+                        ? "status status-upcoming"
+                        : "status"
+                  }
+                >
+                  {isRegionEditModeEnabled ? "Handles On" : "Pending Save"}
+                </span>
+              </div>
+
+              <p className="region-editor-dock-copy">
+                {isRegionEditModeEnabled
+                  ? "Drag the feed corner points to adjust the betting area. You can save or reset here without reopening the admin console."
+                  : "You still have unsaved region changes. Save them, reset them, or resume edit mode to keep adjusting."}
+              </p>
+
+              <div className="region-editor-dock-actions">
+                <button
+                  type="button"
+                  className="secondary-button region-editor-dock-toggle"
+                  onClick={handleToggleRegionEditMode}
+                  disabled={isSavingRegion}
+                >
+                  {isRegionEditModeEnabled ? "Disable Edit Mode" : "Resume Edit Mode"}
+                </button>
+                <button
+                  type="button"
+                  className="secondary-button"
+                  onClick={handleResetRegion}
+                  disabled={!hasUnsavedRegionChanges || isSavingRegion}
+                >
+                  Reset Region
+                </button>
+                <button
+                  type="button"
+                  className="primary-button"
+                  onClick={() => {
+                    void handleSaveRegion();
+                  }}
+                  disabled={!hasUnsavedRegionChanges || isSavingRegion}
+                >
+                  {isSavingRegion ? "Saving..." : "Save Region"}
+                </button>
+              </div>
+            </section>
+          ) : null}
         </div>
       </div>
 
@@ -1546,12 +1624,11 @@ export function MvpDashboard({
                 <AdminConsole
                   supabase={supabase}
                   defaultCameraFeedUrl={hlsUrl}
-                  regionEditorEnabled={canEditRegion}
+                  isRegionEditModeEnabled={isRegionEditModeEnabled}
                   regionPoints={regionPoints}
                   hasUnsavedRegionChanges={hasUnsavedRegionChanges}
-                  isSavingRegion={isSavingRegion}
-                  onResetRegion={() => setRegionPoints(savedRegionPoints)}
-                  onSaveRegion={handleSaveRegion}
+                  onStartRegionEditMode={handleStartRegionEditModeFromAdmin}
+                  onToggleRegionEditMode={handleToggleRegionEditMode}
                   onError={setError}
                   onNotice={setNotice}
                   onPublicDataRefresh={() => load(user)}

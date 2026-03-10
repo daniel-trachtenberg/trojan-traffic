@@ -1,5 +1,4 @@
 import {
-  isRegionEditorEnabled,
   readStoredBettingRegion,
   regionPayloadSchema,
   writeStoredBettingRegion
@@ -9,7 +8,6 @@ import { AdminRequestError, requireAdminRequest } from "@/lib/admin-auth";
 export async function GET() {
   return Response.json(
     {
-      enabled: isRegionEditorEnabled(),
       points: await readStoredBettingRegion()
     },
     {
@@ -19,17 +17,6 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
-  if (!isRegionEditorEnabled()) {
-    return Response.json(
-      {
-        error: "Region editor is disabled."
-      },
-      {
-        status: 403
-      }
-    );
-  }
-
   try {
     await requireAdminRequest(request);
     const payload = regionPayloadSchema.parse(await request.json());

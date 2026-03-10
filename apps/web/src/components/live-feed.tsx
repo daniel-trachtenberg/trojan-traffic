@@ -308,18 +308,25 @@ export function LiveFeed({
             <polygon className="region-overlay-stroke" points={polygonPoints} />
             {regionEditorEnabled
               ? normalizedRegion.map((point, index) => (
-                  <circle
-                    key={`${index}-${point.x}-${point.y}`}
-                    className="region-overlay-handle"
-                    cx={point.x * 100}
-                    cy={point.y * 100}
-                    r="1.5"
-                    onPointerDown={(event) => {
-                      dragPointIndexRef.current = index;
-                      event.currentTarget.setPointerCapture(event.pointerId);
-                      updateRegionPoint(event.clientX, event.clientY);
-                    }}
-                  />
+                  <g key={`${index}-${point.x}-${point.y}`}>
+                    <circle
+                      className="region-overlay-handle-hitbox"
+                      cx={point.x * 100}
+                      cy={point.y * 100}
+                      r="1.7"
+                      onPointerDown={(event) => {
+                        dragPointIndexRef.current = index;
+                        event.currentTarget.setPointerCapture(event.pointerId);
+                        updateRegionPoint(event.clientX, event.clientY);
+                      }}
+                    />
+                    <circle
+                      className="region-overlay-handle"
+                      cx={point.x * 100}
+                      cy={point.y * 100}
+                      r="0.95"
+                    />
+                  </g>
                 ))
               : null}
           </svg>
