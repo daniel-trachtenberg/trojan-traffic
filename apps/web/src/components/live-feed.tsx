@@ -307,12 +307,16 @@ export function LiveFeed({
             <polygon className="region-overlay-fill" points={polygonPoints} />
             <polygon className="region-overlay-stroke" points={polygonPoints} />
             {regionEditorEnabled
-              ? normalizedRegion.map((point, index) => (
+              ? normalizedRegion.map((point, index) => {
+                  const x = point.x * 100;
+                  const y = point.y * 100;
+
+                  return (
                   <g key={`${index}-${point.x}-${point.y}`}>
                     <circle
                       className="region-overlay-handle-hitbox"
-                      cx={point.x * 100}
-                      cy={point.y * 100}
+                      cx={x}
+                      cy={y}
                       r="1.7"
                       onPointerDown={(event) => {
                         dragPointIndexRef.current = index;
@@ -321,13 +325,18 @@ export function LiveFeed({
                       }}
                     />
                     <circle
-                      className="region-overlay-handle"
-                      cx={point.x * 100}
-                      cy={point.y * 100}
-                      r="0.95"
+                      className="region-overlay-handle-ring"
+                      cx={x}
+                      cy={y}
+                      r="0.7"
                     />
+                    <line className="region-overlay-handle-tick" x1={x - 1.15} y1={y} x2={x - 0.48} y2={y} />
+                    <line className="region-overlay-handle-tick" x1={x + 0.48} y1={y} x2={x + 1.15} y2={y} />
+                    <line className="region-overlay-handle-tick" x1={x} y1={y - 1.15} x2={x} y2={y - 0.48} />
+                    <line className="region-overlay-handle-tick" x1={x} y1={y + 0.48} x2={x} y2={y + 1.15} />
                   </g>
-                ))
+                  );
+                })
               : null}
           </svg>
         ) : null}
