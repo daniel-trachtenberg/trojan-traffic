@@ -1134,8 +1134,8 @@ export function MvpDashboard({
     openAuthModal("sign-up");
   }
 
-  function handleRoundAuthAction(sessionId: string | null = selectedSession?.id ?? null) {
-    openAuthModal("sign-in", sessionId);
+  function handleRoundAuthAction() {
+    openAuthModal("sign-in");
   }
 
   function handleAccountAction() {
@@ -1380,7 +1380,7 @@ export function MvpDashboard({
                       onClick={
                         emptyStateSignupEnabled
                           ? handleEmptyStateSignupAction
-                          : () => handleRoundAuthAction(selectedSession?.id ?? null)
+                          : handleRoundAuthAction
                       }
                     >
                       {standbyActionLabel}
