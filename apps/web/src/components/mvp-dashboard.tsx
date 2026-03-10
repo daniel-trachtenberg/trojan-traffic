@@ -81,6 +81,11 @@ type ToastRecord = {
   dedupeKey?: string;
 };
 
+type StandbyMetaItem = {
+  label: string;
+  value: string;
+};
+
 const DEFAULT_WAGER = "10";
 const WAGER_STEPS = [1, 5, 10, 20];
 const BETTING_OPEN_WINDOW_MS = 5 * 60 * 1000;
@@ -95,6 +100,27 @@ function formatCountdown(milliseconds: number) {
   const minutes = Math.floor(totalSeconds / 60);
   const seconds = totalSeconds % 60;
   return `${minutes.toString().padStart(2, "0")}:${seconds.toString().padStart(2, "0")}`;
+}
+
+function formatReadableDuration(milliseconds: number) {
+  const safeMilliseconds = Math.max(milliseconds, 0);
+  const totalMinutes = Math.floor(safeMilliseconds / 60_000);
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+
+  if (hours > 0 && minutes > 0) {
+    return `${hours}h ${minutes}m`;
+  }
+
+  if (hours > 0) {
+    return `${hours}h`;
+  }
+
+  if (totalMinutes > 0) {
+    return `${totalMinutes}m`;
+  }
+
+  return "<1m";
 }
 
 function getSessionState(session: SessionRow, nowMs: number): SessionState {
@@ -273,9 +299,9 @@ export function MvpDashboard({
   const selectedCountdown = selectedSession
     ? formatCountdown(new Date(selectedSession.starts_at).getTime() - nowMs)
     : "00:00";
-  const selectedOpensInCountdown = selectedSession
-    ? formatCountdown(new Date(selectedSession.starts_at).getTime() - nowMs - BETTING_OPEN_WINDOW_MS)
-    : "00:00";
+  const selectedOpensInLabel = selectedSession
+    ? formatReadableDuration(new Date(selectedSession.starts_at).getTime() - nowMs - BETTING_OPEN_WINDOW_MS)
+    : "Soon";
   const selectedWager = selectedSession ? (wagerBySession[selectedSession.id] ?? DEFAULT_WAGER) : DEFAULT_WAGER;
   const selectedSide = selectedSession ? (sideBySession[selectedSession.id] ?? "over") : "over";
   const canConfigureSelected = Boolean(selectedSession && selectedState === "open" && selectedPrediction === null);
@@ -303,7 +329,7 @@ export function MvpDashboard({
           : "Status";
   const sessionMetricValue =
     selectedState === "upcoming"
-      ? selectedOpensInCountdown
+      ? selectedOpensInLabel
       : selectedState === "open"
       ? selectedCountdown
       : selectedState === "live"
@@ -368,7 +394,7 @@ export function MvpDashboard({
   const standbyValue = !selectedSession
     ? "Stand by"
     : selectedState === "upcoming"
-      ? selectedOpensInCountdown
+      ? selectedOpensInLabel
     : selectedState === "live"
       ? "In progress"
       : selectedState === "resolving"
@@ -392,7 +418,7 @@ export function MvpDashboard({
       ? "This card will refresh on its own as soon as the next window is announced."
       : "Create an account now so you can jump in as soon as the next window opens."
     : selectedState === "upcoming"
-      ? `Round starts at ${selectedStartsAtLabel}. Betting opens at ${selectedOpensAtLabel}.`
+      ? `Betting opens at ${selectedStartsAtLabel}. Entries close at ${selectedOpensAtLabel}.`
     : selectedState === "live"
       ? `Started at ${selectedStartsAtLabel}. Check back here when the next window opens.`
       : selectedState === "resolving"
@@ -400,6 +426,41 @@ export function MvpDashboard({
         : selectedState === "resolved"
           ? `Last window ended at ${selectedEndsAtLabel}. We will post the next one here when it is ready.`
           : "We will surface the next playable window here as soon as it is available.";
+  const standbyMetaItems: StandbyMetaItem[] = !selectedSession
+    ? [
+        { label: "Status", value: "Awaiting post" },
+        { label: "Updates", value: "Auto refresh" }
+      ]
+    : selectedState === "upcoming"
+      ? [
+          { label: "Opens", value: selectedStartsAtLabel ?? "Soon" },
+          { label: "Closes", value: selectedOpensAtLabel ?? "Soon" }
+        ]
+      : selectedState === "live"
+        ? [
+            { label: "Started", value: selectedStartsAtLabel ?? "Live now" },
+            { label: "Entries", value: "Locked" }
+          ]
+        : selectedState === "resolving"
+          ? [
+              { label: "Closed", value: selectedEndsAtLabel ?? "Just now" },
+              { label: "Status", value: "Checking result" }
+            ]
+          : selectedState === "resolved"
+            ? [
+                { label: "Ended", value: selectedEndsAtLabel ?? "Finished" },
+                { label: "Status", value: "Awaiting next round" }
+              ]
+            : [
+                { label: "Status", value: "Paused" },
+                { label: "Updates", value: "Refresh soon" }
+              ];
+  const standbyActionLabel =
+    !user && !selectedSession
+      ? "Create Account to Be Ready"
+      : !user && hasSelectedSession
+        ? "Sign In or Create Account"
+        : null;
   const hasUnsavedRegionChanges = !bettingRegionsEqual(regionPoints, savedRegionPoints);
   const canEditRegion = regionEditorEnabled && isAdmin;
   const visionApiBaseUrl = visionApiUrl ? visionApiUrl.replace(/\/+$/, "") : null;
@@ -415,6 +476,20 @@ export function MvpDashboard({
       : 16 / 9;
   const liveFeedStatusMessage = getDetectorStatusMessage(liveDetections, Boolean(liveFrameUrl));
   const livePersonBoxes = liveDetections?.boxes ?? [];
+  const authModalTitle = authIntentSessionId
+    ? authMode === "sign-in"
+      ? "Sign In to Join This Round"
+      : "Create an Account to Join This Round"
+    : authMode === "sign-in"
+      ? "Sign In"
+      : "Create Your Account";
+  const authModalHint = authIntentSessionId
+    ? authMode === "sign-in"
+      ? "Sign in first, then your bet will be submitted automatically."
+      : "Create your account first, then your bet will be submitted automatically."
+    : authMode === "sign-in"
+      ? "Sign in to place bets and track tokens."
+      : "Create an account to track tokens and be ready for the next round.";
 
   function dismissToast(toastId: number) {
     const activeTimeout = toastTimeoutsRef.current.get(toastId);
@@ -1000,6 +1075,19 @@ export function MvpDashboard({
     setAuthIntentSessionId(null);
   }
 
+  function openAuthModal(mode: "sign-in" | "sign-up", sessionId: string | null = null) {
+    if (!supabase) {
+      setError(`Configure Supabase before ${mode === "sign-in" ? "signing in" : "creating an account"}.`);
+      return;
+    }
+
+    setError(null);
+    setNotice(null);
+    setAuthIntentSessionId(sessionId);
+    setAuthMode(mode);
+    setShowAuthModal(true);
+  }
+
   function updateSelectedSide(sessionId: string, nextSide: PredictionSide) {
     setSideBySession((current) => ({
       ...current,
@@ -1031,9 +1119,7 @@ export function MvpDashboard({
     }
 
     if (!user) {
-      setAuthMode("sign-in");
-      setAuthIntentSessionId(session.id);
-      setShowAuthModal(true);
+      openAuthModal("sign-in", session.id);
       return;
     }
 
@@ -1045,42 +1131,17 @@ export function MvpDashboard({
       return;
     }
 
-    if (!supabase) {
-      setError("Configure Supabase before signing up.");
-      return;
-    }
-
-    setError(null);
-    setNotice(null);
-    setAuthIntentSessionId(null);
-    setAuthMode("sign-up");
-    setShowAuthModal(true);
+    openAuthModal("sign-up");
   }
 
   function handleRoundAuthAction(sessionId: string | null = selectedSession?.id ?? null) {
-    if (!supabase) {
-      setError("Configure Supabase before signing in.");
-      return;
-    }
-
-    setError(null);
-    setNotice(null);
-    setAuthIntentSessionId(sessionId);
-    setAuthMode("sign-in");
-    setShowAuthModal(true);
+    openAuthModal("sign-in", sessionId);
   }
 
   function handleAccountAction() {
     if (!user) {
-      if (!supabase) {
-        setError("Configure Supabase before signing in.");
-        return;
-      }
-
       setOpenRightPanel(null);
-      setAuthIntentSessionId(null);
-      setAuthMode("sign-in");
-      setShowAuthModal(true);
+      openAuthModal("sign-in");
       return;
     }
 
@@ -1290,27 +1351,41 @@ export function MvpDashboard({
                 </div>
               </>
             ) : (
-              <div className="market-standby-card">
+              <div
+                className={
+                  !selectedSession
+                    ? "market-standby-card market-standby-card-idle"
+                    : selectedState
+                      ? `market-standby-card market-standby-card-${selectedState}`
+                      : "market-standby-card"
+                }
+              >
                 <span className="market-standby-label">{standbyLabel}</span>
-                <strong>{standbyValue}</strong>
+                <strong className="market-standby-value">{standbyValue}</strong>
                 <p className="market-standby-title">{standbyTitle}</p>
+                <div className="market-standby-meta-grid">
+                  {standbyMetaItems.map((item) => (
+                    <div className="market-standby-meta-card" key={item.label}>
+                      <span>{item.label}</span>
+                      <strong>{item.value}</strong>
+                    </div>
+                  ))}
+                </div>
                 <span className="market-standby-note">{standbyNote}</span>
-                {emptyStateSignupEnabled ? (
-                  <button
-                    type="button"
-                    className="bet-submit-button market-standby-button"
-                    onClick={handleEmptyStateSignupAction}
-                  >
-                    Get ready for next round
-                  </button>
-                ) : !user && hasSelectedSession ? (
-                  <button
-                    type="button"
-                    className="bet-submit-button market-standby-button"
-                    onClick={() => handleRoundAuthAction(selectedSession?.id ?? null)}
-                  >
-                    Sign In or Create Account
-                  </button>
+                {standbyActionLabel ? (
+                  <div className="market-standby-actions">
+                    <button
+                      type="button"
+                      className="bet-submit-button market-standby-button"
+                      onClick={
+                        emptyStateSignupEnabled
+                          ? handleEmptyStateSignupAction
+                          : () => handleRoundAuthAction(selectedSession?.id ?? null)
+                      }
+                    >
+                      {standbyActionLabel}
+                    </button>
+                  </div>
                 ) : null}
               </div>
             )}
@@ -1514,23 +1589,23 @@ export function MvpDashboard({
             className="center-modal auth-modal"
             role="dialog"
             aria-modal="true"
-            aria-label="Sign in to place your bet"
+            aria-label={authModalTitle}
             onClick={(event) => event.stopPropagation()}
           >
             <header className="widget-header center-modal-header">
-              <h2>{authMode === "sign-in" ? "Sign In to Bet" : "Create Your Account"}</h2>
+              <h2>{authModalTitle}</h2>
               <button
                 type="button"
                 className="panel-close-button"
                 onClick={closeAuthModal}
-                aria-label="Close sign-in modal"
+                aria-label="Close account access modal"
               >
                 ×
               </button>
             </header>
 
             <p className="hint auth-modal-hint">
-              {authIntentSessionId ? "Sign in first, then your bet will be submitted automatically." : "Sign in to place bets and track tokens."}
+              {authModalHint}
             </p>
 
             <form className="auth-form auth-modal-form" onSubmit={handleAuthSubmit}>
