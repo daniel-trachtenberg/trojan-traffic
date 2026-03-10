@@ -516,6 +516,10 @@ body {
   color: #d6ddf0;
 }
 
+.status-upcoming {
+  color: #f0dca2;
+}
+
 .status-live {
   color: #ffe5a3;
   border-color: rgb(255 204 0 / 36%);

@@ -13,7 +13,7 @@ import { getBrowserSupabaseClient } from "@/lib/supabase/client";
 
 type PredictionSide = "over" | "under";
 
-type SessionState = "open" | "live" | "resolving" | "resolved" | "cancelled";
+type SessionState = "upcoming" | "open" | "live" | "resolving" | "resolved" | "cancelled";
 
 type SessionRow = {
   id: string;
@@ -83,6 +83,7 @@ type ToastRecord = {
 
 const DEFAULT_WAGER = "10";
 const WAGER_STEPS = [1, 5, 10, 20];
+const BETTING_OPEN_WINDOW_MS = 5 * 60 * 1000;
 const DEFAULT_TOAST_DURATION_MS = 5000;
 const SUCCESS_TOAST_DURATION_MS = 4200;
 const ERROR_TOAST_DURATION_MS = 6200;
@@ -108,6 +109,10 @@ function getSessionState(session: SessionRow, nowMs: number): SessionState {
   const startsAt = new Date(session.starts_at).getTime();
   const endsAt = new Date(session.ends_at).getTime();
 
+  if (nowMs < startsAt - BETTING_OPEN_WINDOW_MS) {
+    return "upcoming";
+  }
+
   if (nowMs < startsAt) {
     return "open";
   }
@@ -120,6 +125,10 @@ function getSessionState(session: SessionRow, nowMs: number): SessionState {
 }
 
 function getSessionStateLabel(state: SessionState) {
+  if (state === "upcoming") {
+    return "Upcoming";
+  }
+
   if (state === "open") {
     return "Open";
   }
@@ -247,12 +256,13 @@ export function MvpDashboard({
   const predictionBySession = new Map(predictions.map((prediction) => [prediction.session_id, prediction]));
   const pendingPredictionCount = predictions.filter((prediction) => prediction.resolved_at === null).length;
   const focusedSession = sessions.find((session) => getSessionState(session, nowMs) === "open");
+  const upcomingSession = sessions.find((session) => getSessionState(session, nowMs) === "upcoming");
   const inFlightSession =
     sessions.find((session) => {
       const state = getSessionState(session, nowMs);
       return state === "live" || state === "resolving";
     }) ?? null;
-  const selectedSession = focusedSession ?? inFlightSession;
+  const selectedSession = focusedSession ?? inFlightSession ?? upcomingSession ?? null;
   const hasSelectedSession = Boolean(selectedSession);
   const selectedPrediction = selectedSession
     ? predictionBySession.get(selectedSession.id) ?? null
@@ -262,6 +272,9 @@ export function MvpDashboard({
   const displayedThreshold = selectedSession?.threshold ?? 5;
   const selectedCountdown = selectedSession
     ? formatCountdown(new Date(selectedSession.starts_at).getTime() - nowMs)
+    : "00:00";
+  const selectedOpensInCountdown = selectedSession
+    ? formatCountdown(new Date(selectedSession.starts_at).getTime() - nowMs - BETTING_OPEN_WINDOW_MS)
     : "00:00";
   const selectedWager = selectedSession ? (wagerBySession[selectedSession.id] ?? DEFAULT_WAGER) : DEFAULT_WAGER;
   const selectedSide = selectedSession ? (sideBySession[selectedSession.id] ?? "over") : "over";
@@ -277,7 +290,9 @@ export function MvpDashboard({
       ? "Waiting"
       : "Sign Up";
   const sessionMetricLabel =
-    selectedState === "open"
+    selectedState === "upcoming"
+      ? "Opens In"
+      : selectedState === "open"
       ? "Closes In"
       : selectedState === "live"
         ? "Betting"
@@ -285,7 +300,9 @@ export function MvpDashboard({
           ? "Round"
           : "Status";
   const sessionMetricValue =
-    selectedState === "open"
+    selectedState === "upcoming"
+      ? selectedOpensInCountdown
+      : selectedState === "open"
       ? selectedCountdown
       : selectedState === "live"
         ? "Locked"
@@ -295,7 +312,16 @@ export function MvpDashboard({
             ? getSessionStateLabel(selectedState)
             : "Waiting";
   const sessionMetricNote =
-    selectedState === "open"
+    selectedState === "upcoming"
+      ? selectedSession
+        ? `Betting unlocks at ${new Date(
+            new Date(selectedSession.starts_at).getTime() - BETTING_OPEN_WINDOW_MS
+          ).toLocaleTimeString([], {
+            hour: "numeric",
+            minute: "2-digit"
+          })}`
+        : "Betting opens shortly before the round begins."
+      : selectedState === "open"
       ? `${displayedModeSeconds}s window`
       : selectedState === "resolved" && selectedSession
         ? new Date(selectedSession.ends_at).toLocaleTimeString([], {
@@ -311,6 +337,15 @@ export function MvpDashboard({
         minute: "2-digit"
       })
     : null;
+  const selectedOpensAtLabel = selectedSession
+    ? new Date(new Date(selectedSession.starts_at).getTime() - BETTING_OPEN_WINDOW_MS).toLocaleTimeString(
+        [],
+        {
+          hour: "numeric",
+          minute: "2-digit"
+        }
+      )
+    : null;
   const selectedEndsAtLabel = selectedSession
     ? new Date(selectedSession.ends_at).toLocaleTimeString([], {
         hour: "numeric",
@@ -319,6 +354,8 @@ export function MvpDashboard({
     : null;
   const standbyLabel = !selectedSession
     ? "Watching the board"
+    : selectedState === "upcoming"
+      ? "Next betting window"
     : selectedState === "live"
       ? "Round in motion"
       : selectedState === "resolving"
@@ -328,6 +365,8 @@ export function MvpDashboard({
           : "Board update";
   const standbyValue = !selectedSession
     ? "Stand by"
+    : selectedState === "upcoming"
+      ? selectedOpensInCountdown
     : selectedState === "live"
       ? "In progress"
       : selectedState === "resolving"
@@ -337,6 +376,8 @@ export function MvpDashboard({
           : "Paused";
   const standbyTitle = !selectedSession
     ? "No new Tommy Walkway round has been posted yet."
+    : selectedState === "upcoming"
+      ? "This market stays locked until five minutes before the round begins."
     : selectedState === "live"
       ? "This count is already underway, so entries are closed for now."
       : selectedState === "resolving"
@@ -348,6 +389,8 @@ export function MvpDashboard({
     ? user
       ? "This card will refresh on its own as soon as the next window is announced."
       : "Create an account now so you can jump in as soon as the next window opens."
+    : selectedState === "upcoming"
+      ? `Round starts at ${selectedStartsAtLabel}. Betting opens at ${selectedOpensAtLabel}.`
     : selectedState === "live"
       ? `Started at ${selectedStartsAtLabel}. Check back here when the next window opens.`
       : selectedState === "resolving"
@@ -1287,10 +1330,12 @@ export function MvpDashboard({
 
         <div className="right-rail">
           <div className="quick-actions">
-            <div className="quick-balance-chip" aria-label={`Token balance ${tokenBalance}`}>
-              <span className="quick-balance-label">Tokens</span>
-              <strong>{tokenBalance}</strong>
-            </div>
+            {user ? (
+              <div className="quick-balance-chip" aria-label={`Token balance ${tokenBalance}`}>
+                <span className="quick-balance-label">Tokens</span>
+                <strong>{tokenBalance}</strong>
+              </div>
+            ) : null}
             {isAdmin ? (
               <button
                 type="button"
