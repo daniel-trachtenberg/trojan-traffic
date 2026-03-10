@@ -13,9 +13,7 @@ type AdminSessionRow = {
   status: string;
   final_count: number | null;
   resolved_at: string | null;
-  created_at: string;
   camera_feed_url: string;
-  region_polygon: unknown;
   prediction_count: number;
   open_prediction_count: number;
   wager_total: number;
@@ -41,6 +39,20 @@ type SessionFormState = {
   startsAt: string;
   cameraFeedUrl: string;
 };
+
+const ADMIN_SESSION_LIMIT = 80;
+
+async function listAdminSessions(supabase: SupabaseClient) {
+  const response = await supabase.rpc("admin_list_game_sessions", {
+    p_limit: ADMIN_SESSION_LIMIT
+  });
+
+  if (response.error) {
+    throw new Error(response.error.message);
+  }
+
+  return Array.isArray(response.data) ? (response.data as AdminSessionRow[]) : [];
+}
 
 function formatDateTimeForInput(value: Date | string) {
   const date = typeof value === "string" ? new Date(value) : value;
@@ -179,41 +191,43 @@ export function AdminConsole({
   async function loadAdminSessions() {
     setLoading(true);
 
-    const response = await supabase.rpc("admin_list_game_sessions", {
-      p_limit: 80
-    });
-
-    if (response.error) {
-      onError(response.error.message);
+    try {
+      setSessions(await listAdminSessions(supabase));
+    } catch (error) {
+      onErrorRef.current(error instanceof Error ? error.message : "Failed to load admin sessions.");
       setSessions([]);
+    } finally {
       setLoading(false);
-      return;
     }
+  }
 
-    setSessions(Array.isArray(response.data) ? (response.data as AdminSessionRow[]) : []);
-    setLoading(false);
+  async function refreshAdminData() {
+    await Promise.all([loadAdminSessions(), onPublicDataRefresh()]);
   }
 
   useEffect(() => {
     let isMounted = true;
 
     async function bootstrap() {
-      const response = await supabase.rpc("admin_list_game_sessions", {
-        p_limit: 80
-      });
+      try {
+        const nextSessions = await listAdminSessions(supabase);
+        if (!isMounted) {
+          return;
+        }
 
-      if (!isMounted) {
-        return;
-      }
+        setSessions(nextSessions);
+      } catch (error) {
+        if (!isMounted) {
+          return;
+        }
 
-      if (response.error) {
-        onErrorRef.current(response.error.message);
+        onErrorRef.current(error instanceof Error ? error.message : "Failed to load admin sessions.");
         setSessions([]);
-      } else {
-        setSessions(Array.isArray(response.data) ? (response.data as AdminSessionRow[]) : []);
+      } finally {
+        if (isMounted) {
+          setLoading(false);
+        }
       }
-
-      setLoading(false);
     }
 
     void bootstrap();
@@ -284,7 +298,7 @@ export function AdminConsole({
 
     onNotice(editingSessionId ? "Session updated." : "Session created.");
     resetForm();
-    await Promise.all([loadAdminSessions(), onPublicDataRefresh()]);
+    await refreshAdminData();
   }
 
   async function handleCancelSession(session: AdminSessionRow) {
@@ -310,7 +324,7 @@ export function AdminConsole({
     }
 
     onNotice("Session cancelled.");
-    await Promise.all([loadAdminSessions(), onPublicDataRefresh()]);
+    await refreshAdminData();
   }
 
   async function handleResolveSession(session: AdminSessionRow) {
@@ -349,7 +363,7 @@ export function AdminConsole({
       [session.id]: ""
     }));
     onNotice("Session resolved.");
-    await Promise.all([loadAdminSessions(), onPublicDataRefresh()]);
+    await refreshAdminData();
   }
 
   return (

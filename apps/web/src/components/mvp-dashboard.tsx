@@ -24,7 +24,6 @@ type SessionRow = {
   status: string;
   final_count: number | null;
   resolved_at: string | null;
-  region_polygon: unknown;
 };
 
 type PredictionRow = {
@@ -174,7 +173,7 @@ function getSessionStateLabel(state: SessionState) {
   return "Cancelled";
 }
 
-function createFallbackSessions(region: RegionPoint[]): SessionRow[] {
+function createFallbackSessions(): SessionRow[] {
   const now = Date.now();
   return [0, 1, 2, 3].map((index) => {
     const startsAt = new Date(now + (index + 1) * 120_000);
@@ -190,8 +189,7 @@ function createFallbackSessions(region: RegionPoint[]): SessionRow[] {
       ends_at: endsAt.toISOString(),
       status: "scheduled",
       final_count: null,
-      resolved_at: null,
-      region_polygon: region
+      resolved_at: null
     };
   });
 }
@@ -602,7 +600,7 @@ export function MvpDashboard({
 
   async function refreshData(activeUser: User | null) {
     if (!supabase) {
-      setSessions(createFallbackSessions(regionPoints));
+      setSessions(createFallbackSessions());
       setPredictions([]);
       setLeaderboard([]);
       setProfile(null);
@@ -615,9 +613,7 @@ export function MvpDashboard({
     const since = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString();
     const sessionResponse = await supabase
       .from("game_sessions")
-      .select(
-        "id,mode_seconds,threshold,starts_at,ends_at,status,final_count,resolved_at,region_polygon"
-      )
+      .select("id,mode_seconds,threshold,starts_at,ends_at,status,final_count,resolved_at")
       .gte("ends_at", since)
       .order("starts_at", { ascending: true })
       .limit(24);

@@ -214,38 +214,6 @@ body {
   gap: 0.45rem;
 }
 
-.region-editor-panel {
-  pointer-events: auto;
-  width: min(280px, 100%);
-  border: 1px solid var(--line);
-  border-radius: 14px;
-  padding: 0.72rem;
-  background: var(--surface-strong);
-  backdrop-filter: blur(10px);
-  display: grid;
-  gap: 0.56rem;
-}
-
-.region-editor-title {
-  margin: 0;
-  font-size: 0.88rem;
-  font-weight: 650;
-  color: var(--text);
-}
-
-.region-editor-hint {
-  margin: 0;
-  font-size: 0.76rem;
-  line-height: 1.45;
-  color: var(--muted);
-}
-
-.region-editor-actions {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0.44rem;
-}
-
 .quick-balance-chip {
   display: inline-flex;
   align-items: center;
@@ -827,12 +795,6 @@ body {
   gap: 0.52rem;
 }
 
-.inline-auth {
-  margin-top: 0.68rem;
-  border-top: 1px solid var(--line);
-  padding-top: 0.68rem;
-}
-
 .auth-modal-form {
   margin-top: 0.9rem;
 }
@@ -841,23 +803,14 @@ body {
   margin: 0;
 }
 
-.sign-in-hint {
-  margin-top: 0.75rem;
-  padding-top: 0.75rem;
-  border-top: 1px solid var(--line);
-}
-
-.auth-form label,
-.bet-controls label {
+.auth-form label {
   display: grid;
   gap: 0.18rem;
   font-size: 0.79rem;
   color: #dbe2f2;
 }
 
-.auth-form input,
-.bet-controls input,
-.bet-controls select {
+.auth-form input {
   width: 100%;
   border: 1px solid var(--line);
   border-radius: 9px;
@@ -887,13 +840,6 @@ body {
   border-color: rgb(153 0 0 / 60%);
   background: rgb(153 0 0 / 24%);
   color: var(--text);
-}
-
-.bet-controls {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
-  gap: 0.44rem;
-  align-items: end;
 }
 
 .stake-toolbar {
@@ -952,8 +898,7 @@ body {
   gap: 0;
 }
 
-.stake-input-card,
-.stake-display-card {
+.stake-input-card {
   border: 1px solid var(--line);
   border-radius: 14px;
   min-height: 4.35rem;
@@ -968,9 +913,7 @@ body {
   gap: 0.6rem;
 }
 
-.stake-input-card span,
-.stake-display-card span,
-.stake-total-label {
+.stake-input-card span {
   font-size: 0.68rem;
   letter-spacing: 0.05em;
   text-transform: uppercase;
@@ -999,23 +942,6 @@ body {
 
 .stake-input-card input[type="number"] {
   -moz-appearance: textfield;
-}
-
-.stake-display-card {
-  display: grid;
-  align-content: center;
-  gap: 0.36rem;
-}
-
-.stake-display-card strong {
-  font-size: 1.2rem;
-  color: var(--text);
-  letter-spacing: -0.03em;
-  font-variant-numeric: tabular-nums;
-}
-
-.overlay-bet-controls {
-  margin-top: 0.1rem;
 }
 
 .primary-button,
@@ -1079,11 +1005,6 @@ body {
   border-radius: 12px;
   border: 1px solid var(--line);
   background: rgb(255 255 255 / 3%);
-}
-
-.empty-session-note {
-  color: var(--muted);
-  background: rgb(255 255 255 / 2%);
 }
 
 .bet-card-footer {
@@ -1480,10 +1401,6 @@ body {
 
   .admin-modal {
     width: min(760px, 100%);
-  }
-
-  .bet-controls {
-    grid-template-columns: 1fr;
   }
 
   .market-choice-grid {
