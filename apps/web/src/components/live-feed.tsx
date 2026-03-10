@@ -49,6 +49,27 @@ function toNormalizedPoints(points: RegionPoint[]) {
   );
 }
 
+function isPointInsidePolygon(point: RegionPoint, polygon: RegionPoint[]) {
+  let isInside = false;
+
+  for (let index = 0, previousIndex = polygon.length - 1; index < polygon.length; previousIndex = index++) {
+    const currentPoint = polygon[index];
+    const previousPoint = polygon[previousIndex];
+    const intersects =
+      currentPoint.y > point.y !== previousPoint.y > point.y &&
+      point.x <
+        ((previousPoint.x - currentPoint.x) * (point.y - currentPoint.y)) /
+          (previousPoint.y - currentPoint.y) +
+          currentPoint.x;
+
+    if (intersects) {
+      isInside = !isInside;
+    }
+  }
+
+  return isInside;
+}
+
 export function LiveFeed({
   src,
   imageSrc = null,
@@ -303,18 +324,33 @@ export function LiveFeed({
               : null}
           </svg>
         ) : null}
-        {personBoxes.map((box) => (
-          <div
-            key={box.id}
-            className="person-detection-box"
-            style={{
-              left: `${box.x * 100}%`,
-              top: `${box.y * 100}%`,
-              width: `${box.width * 100}%`,
-              height: `${box.height * 100}%`
-            }}
-          />
-        ))}
+        {personBoxes.map((box) => {
+          const boxCenter = {
+            x: box.x + box.width / 2,
+            y: box.y + box.height / 2
+          };
+          const isInsideRegion =
+            normalizedRegion && normalizedRegion.length >= 3
+              ? isPointInsidePolygon(boxCenter, normalizedRegion)
+              : false;
+
+          return (
+            <div
+              key={box.id}
+              className={
+                isInsideRegion
+                  ? "person-detection-box person-detection-box-inside"
+                  : "person-detection-box person-detection-box-outside"
+              }
+              style={{
+                left: `${box.x * 100}%`,
+                top: `${box.y * 100}%`,
+                width: `${box.width * 100}%`,
+                height: `${box.height * 100}%`
+              }}
+            />
+          );
+        })}
         {overlayState ? (
           <div className={fullScreen ? "video-state video-state-overlay" : "video-state"}>
             {overlayState}
