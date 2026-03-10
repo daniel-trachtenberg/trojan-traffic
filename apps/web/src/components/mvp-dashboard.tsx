@@ -245,10 +245,7 @@ export function MvpDashboard({
   const toastTimeoutsRef = useRef(new Map<number, ReturnType<typeof setTimeout>>());
 
   const predictionBySession = new Map(predictions.map((prediction) => [prediction.session_id, prediction]));
-  const openRisk = predictions
-    .filter((prediction) => prediction.resolved_at === null)
-    .reduce((sum, prediction) => sum + prediction.wager_tokens, 0);
-  const availableTokens = tokenBalance - openRisk;
+  const pendingPredictionCount = predictions.filter((prediction) => prediction.resolved_at === null).length;
   const focusedSession = sessions.find((session) => getSessionState(session, nowMs) === "open");
   const inFlightSession =
     sessions.find((session) => {
@@ -896,10 +893,13 @@ export function MvpDashboard({
     }
 
     const claim = Array.isArray(claimResponse.data)
-      ? (claimResponse.data[0] as { tokens_awarded: number; login_streak: number } | undefined)
+      ? (claimResponse.data[0] as
+          | { tokens_awarded: number; token_balance: number; login_streak: number }
+          | undefined)
       : undefined;
 
     if (claim) {
+      setTokenBalance(claim.token_balance);
       setNotice(`Daily reward claimed: +${claim.tokens_awarded} tokens (streak ${claim.login_streak}).`);
     }
 
@@ -936,7 +936,15 @@ export function MvpDashboard({
       return;
     }
 
-    setNotice(`Prediction submitted: ${side.toUpperCase()} ${session.threshold}.`);
+    const predictionResult = Array.isArray(predictionResponse.data)
+      ? (predictionResponse.data[0] as { available_tokens: number } | undefined)
+      : undefined;
+
+    if (predictionResult) {
+      setTokenBalance(predictionResult.available_tokens);
+    }
+
+    setNotice(`Prediction submitted: ${side.toUpperCase()} ${session.threshold}. ${wagerTokens} tokens deducted.`);
     startTransition(() => {
       void load(activeUser);
     });
@@ -1246,7 +1254,9 @@ export function MvpDashboard({
             <p className="session-result compact-result selection-summary">
               Locked in: <strong>{selectedPrediction.side.toUpperCase()}</strong> ·{" "}
               {selectedPrediction.wager_tokens} tokens
-              {selectedPrediction.was_correct !== null
+              {selectedPrediction.resolved_at && selectedPrediction.was_correct === null
+                ? " · Cancelled"
+                : selectedPrediction.was_correct !== null
                 ? selectedPrediction.was_correct
                   ? ` · Win +${selectedPrediction.token_delta ?? 0}`
                   : ` · Loss ${selectedPrediction.token_delta ?? 0}`
@@ -1369,12 +1379,12 @@ export function MvpDashboard({
                       <strong>{tokenBalance}</strong>
                     </div>
                     <div>
-                      <span>Available</span>
-                      <strong>{availableTokens}</strong>
+                      <span>Pending Bets</span>
+                      <strong>{pendingPredictionCount}</strong>
                     </div>
                     <div>
-                      <span>Open Risk</span>
-                      <strong>{openRisk}</strong>
+                      <span>Prediction Streak</span>
+                      <strong>{streaks?.prediction_streak ?? 0}</strong>
                     </div>
                     <div>
                       <span>Login Streak</span>
@@ -1549,7 +1559,9 @@ export function MvpDashboard({
                     {prediction.wager_tokens}
                   </span>
                   <span>
-                    {prediction.was_correct === null
+                    {prediction.resolved_at && prediction.was_correct === null
+                      ? "Cancelled"
+                      : prediction.was_correct === null
                       ? "Pending"
                       : prediction.was_correct
                         ? `+${prediction.token_delta ?? 0}`
