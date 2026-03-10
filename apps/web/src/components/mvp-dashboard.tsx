@@ -283,7 +283,9 @@ export function MvpDashboard({
   const emptyStateSignupEnabled = !hasSelectedSession && !user;
   const betButtonDisabled = hasSelectedSession ? !canConfigureSelected : !emptyStateSignupEnabled;
   const betButtonLabel = hasSelectedSession
-    ? selectedPrediction
+    ? !user
+      ? "Sign In to Bet"
+      : selectedPrediction
       ? "Entered"
       : "Bet"
     : user
@@ -1055,6 +1057,19 @@ export function MvpDashboard({
     setShowAuthModal(true);
   }
 
+  function handleRoundAuthAction(sessionId: string | null = selectedSession?.id ?? null) {
+    if (!supabase) {
+      setError("Configure Supabase before signing in.");
+      return;
+    }
+
+    setError(null);
+    setNotice(null);
+    setAuthIntentSessionId(sessionId);
+    setAuthMode("sign-in");
+    setShowAuthModal(true);
+  }
+
   function handleAccountAction() {
     if (!user) {
       if (!supabase) {
@@ -1287,6 +1302,14 @@ export function MvpDashboard({
                     onClick={handleEmptyStateSignupAction}
                   >
                     Get ready for next round
+                  </button>
+                ) : !user && hasSelectedSession ? (
+                  <button
+                    type="button"
+                    className="bet-submit-button market-standby-button"
+                    onClick={() => handleRoundAuthAction(selectedSession?.id ?? null)}
+                  >
+                    Sign In or Create Account
                   </button>
                 ) : null}
               </div>
