@@ -962,7 +962,6 @@ export function MvpDashboard({
       return;
     }
 
-    setNotice("Signed in.");
     const nextUser = signInResponse.data.user;
     setUser(nextUser);
     await load(nextUser);
