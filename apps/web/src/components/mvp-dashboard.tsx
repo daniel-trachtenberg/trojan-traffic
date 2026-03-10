@@ -1191,6 +1191,7 @@ export function MvpDashboard({
       const normalizedRegion = normalizeBettingRegion(payload.points);
       setRegionPoints(normalizedRegion);
       setSavedRegionPoints(normalizedRegion);
+      setIsRegionEditModeEnabled(false);
       setNotice("Betting region saved.");
     } catch (saveError) {
       const message =
