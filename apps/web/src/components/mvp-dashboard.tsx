@@ -84,6 +84,8 @@ type StandbyMetaItem = {
   value: string;
 };
 
+type PredictionHistoryTone = "win" | "loss" | "pending" | "cancelled";
+
 const DEFAULT_WAGER = "10";
 const WAGER_STEPS = [1, 5, 10, 20];
 const BETTING_OPEN_WINDOW_MS = 5 * 60 * 1000;
@@ -93,6 +95,7 @@ const ERROR_TOAST_DURATION_MS = 6200;
 const MAX_VISIBLE_TOASTS = 4;
 const RESULT_SPOTLIGHT_WINDOW_MS = 10_000;
 const LIVE_TRACK_LINE_PROGRESS = 0.68;
+const SESSION_SELECT_COLUMNS = "id,mode_seconds,threshold,starts_at,ends_at,status,final_count,resolved_at";
 const SCREEN_CONFETTI_COLORS = ["#ffcc00", "#f8fafc", "#f59e0b", "#ef4444", "#22c55e", "#60a5fa"];
 const SCREEN_CONFETTI_PIECES = Array.from({ length: 120 }, (_, index) => ({
   left: `${(((index * 73) % 1000) / 10).toFixed(1)}%`,
@@ -145,12 +148,172 @@ function getWinningSide(session: SessionRow): PredictionSide | null {
     return null;
   }
 
-  return session.final_count >= session.threshold ? "over" : "under";
+  if (session.final_count > session.threshold) {
+    return "over";
+  }
+
+  if (session.final_count < session.threshold) {
+    return "under";
+  }
+
+  return null;
 }
 
 function formatTokenDelta(tokenDelta: number | null) {
   const safeTokenDelta = tokenDelta ?? 0;
   return safeTokenDelta > 0 ? `+${safeTokenDelta}` : `${safeTokenDelta}`;
+}
+
+function formatShortDateTime(value: string) {
+  return new Date(value).toLocaleString([], {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit"
+  });
+}
+
+function formatShortTime(value: string) {
+  return new Date(value).toLocaleTimeString([], {
+    hour: "numeric",
+    minute: "2-digit"
+  });
+}
+
+function mergeSessionRows(...groups: SessionRow[][]) {
+  const mergedSessions = new Map<string, SessionRow>();
+
+  for (const group of groups) {
+    for (const session of group) {
+      mergedSessions.set(session.id, session);
+    }
+  }
+
+  return [...mergedSessions.values()].sort(
+    (left, right) => new Date(left.starts_at).getTime() - new Date(right.starts_at).getTime()
+  );
+}
+
+function getResolvedMarketResultLabel(session: SessionRow | null) {
+  if (!session || session.final_count === null) {
+    return "Pending";
+  }
+
+  if (session.final_count > session.threshold) {
+    return "OVER";
+  }
+
+  if (session.final_count < session.threshold) {
+    return "UNDER";
+  }
+
+  return "Exact line";
+}
+
+function getPredictionHistoryStatus(
+  prediction: PredictionRow,
+  session: SessionRow | null,
+  nowMs: number
+): { label: string; tone: PredictionHistoryTone } {
+  if (prediction.resolved_at && prediction.was_correct === null) {
+    return {
+      label: "Cancelled",
+      tone: "cancelled"
+    };
+  }
+
+  if (prediction.was_correct === true) {
+    return {
+      label: "Won",
+      tone: "win"
+    };
+  }
+
+  if (prediction.was_correct === false) {
+    return {
+      label: "Lost",
+      tone: "loss"
+    };
+  }
+
+  if (session) {
+    const sessionState = getSessionState(session, nowMs);
+
+    if (sessionState === "open" || sessionState === "upcoming") {
+      return {
+        label: "Locked In",
+        tone: "pending"
+      };
+    }
+
+    if (sessionState === "live") {
+      return {
+        label: "In Play",
+        tone: "pending"
+      };
+    }
+
+    if (sessionState === "resolving") {
+      return {
+        label: "Settling",
+        tone: "pending"
+      };
+    }
+
+    if (sessionState === "cancelled") {
+      return {
+        label: "Cancelled",
+        tone: "cancelled"
+      };
+    }
+  }
+
+  return {
+    label: "Pending",
+    tone: "pending"
+  };
+}
+
+function getPredictionHistoryNote(prediction: PredictionRow, session: SessionRow | null, nowMs: number) {
+  if (!session) {
+    return "Round details are still syncing to your history.";
+  }
+
+  if (prediction.resolved_at && prediction.was_correct === null) {
+    return "This round was voided after betting locked.";
+  }
+
+  if (prediction.was_correct === true && session.final_count !== null) {
+    return `${prediction.side.toUpperCase()} cleared the ${session.threshold} line with ${session.final_count} people.`;
+  }
+
+  if (prediction.was_correct === false && session.final_count !== null) {
+    if (session.final_count === session.threshold) {
+      return `Final count landed exactly on the ${session.threshold} line.`;
+    }
+
+    return `${prediction.side.toUpperCase()} missed the ${session.threshold} line with ${session.final_count} people.`;
+  }
+
+  const sessionState = getSessionState(session, nowMs);
+
+  if (sessionState === "open" || sessionState === "upcoming") {
+    return `Entry is locked for the ${formatShortTime(session.starts_at)} round start.`;
+  }
+
+  if (sessionState === "live") {
+    return `Round is live until ${formatShortTime(session.ends_at)}.`;
+  }
+
+  if (sessionState === "resolving") {
+    return "Round closed. Settlement should post automatically.";
+  }
+
+  if (sessionState === "cancelled") {
+    return "This round was cancelled.";
+  }
+
+  return "Outcome is syncing to your account.";
 }
 
 function getSessionState(session: SessionRow, nowMs: number): SessionState {
@@ -308,8 +471,21 @@ export function MvpDashboard({
   const toastsRef = useRef<ToastRecord[]>([]);
   const toastTimeoutsRef = useRef(new Map<number, ReturnType<typeof setTimeout>>());
 
+  const sessionLookup = new Map(sessions.map((session) => [session.id, session]));
   const predictionBySession = new Map(predictions.map((prediction) => [prediction.session_id, prediction]));
   const pendingPredictionCount = predictions.filter((prediction) => prediction.resolved_at === null).length;
+  const settledPredictions = predictions.filter((prediction) => prediction.was_correct !== null);
+  const wonPredictionCount = settledPredictions.filter(
+    (prediction) => prediction.was_correct === true
+  ).length;
+  const openRiskTokens = predictions
+    .filter((prediction) => prediction.resolved_at === null)
+    .reduce((total, prediction) => total + prediction.wager_tokens, 0);
+  const hitRateLabel =
+    settledPredictions.length > 0
+      ? `${Math.round((wonPredictionCount / settledPredictions.length) * 100)}%`
+      : "--";
+  const latestResolvedPrediction = predictions.find((prediction) => prediction.resolved_at !== null) ?? null;
   const focusedSession = sessions.find((session) => getSessionState(session, nowMs) === "open");
   const upcomingSession = sessions.find((session) => getSessionState(session, nowMs) === "upcoming");
   const inFlightSession =
@@ -453,6 +629,8 @@ export function MvpDashboard({
     const finalCountLabel = selectedSession.final_count !== null ? `${selectedSession.final_count}` : "--";
     const resolvedWinningSideLabel = selectedWinningSide ? selectedWinningSide.toUpperCase() : "Pending";
     const settledAtCopy = selectedEndsAtLabel ? `Round closed at ${selectedEndsAtLabel}.` : "Round closed.";
+    const exactLineHit =
+      selectedSession.final_count !== null && selectedSession.final_count === selectedSession.threshold;
 
     if (selectedPrediction?.resolved_at && selectedPrediction.was_correct === null) {
       return {
@@ -500,14 +678,18 @@ export function MvpDashboard({
 
     return {
       eyebrow: "Round closed",
-      headline: selectedWinningSide ? `${resolvedWinningSideLabel} hit` : "Round closed",
+      headline: selectedWinningSide
+        ? `${resolvedWinningSideLabel} hit`
+        : exactLineHit
+          ? "Exact line hit"
+          : "Round closed",
       copy:
         selectedSession.final_count !== null
           ? `${finalCountLabel} people crossed into the box during the ${displayedModeSeconds}s round.`
           : `The ${displayedModeSeconds}s round has ended.`,
       footer: settledAtCopy,
       secondaryLabel: "Winning side",
-      secondaryValue: resolvedWinningSideLabel
+      secondaryValue: selectedWinningSide ? resolvedWinningSideLabel : exactLineHit ? "Exact line" : "Pending"
     };
   })();
   const standbyLabel = !selectedSession
@@ -746,7 +928,7 @@ export function MvpDashboard({
     const since = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString();
     const sessionResponse = await supabase
       .from("game_sessions")
-      .select("id,mode_seconds,threshold,starts_at,ends_at,status,final_count,resolved_at")
+      .select(SESSION_SELECT_COLUMNS)
       .gte("ends_at", since)
       .order("starts_at", { ascending: true })
       .limit(24);
@@ -809,8 +991,7 @@ export function MvpDashboard({
       .from("predictions")
       .select("id,session_id,side,wager_tokens,was_correct,token_delta,resolved_at,placed_at")
       .eq("user_id", activeUser.id)
-      .order("placed_at", { ascending: false })
-      .limit(40);
+      .order("placed_at", { ascending: false });
     if (predictionResponse.error) {
       throw new Error(predictionResponse.error.message);
     }
@@ -824,12 +1005,35 @@ export function MvpDashboard({
       throw new Error(adminResponse.error.message);
     }
 
-    setSessions(sessionRows);
+    const predictionRows = (predictionResponse.data as PredictionRow[]) ?? [];
+    const recentSessionIds = new Set(sessionRows.map((session) => session.id));
+    const missingPredictionSessionIds = [...new Set(predictionRows.map((prediction) => prediction.session_id))].filter(
+      (sessionId) => !recentSessionIds.has(sessionId)
+    );
+    let allSessionRows = sessionRows;
+
+    if (missingPredictionSessionIds.length > 0) {
+      const predictionSessionResponse = await supabase
+        .from("game_sessions")
+        .select(SESSION_SELECT_COLUMNS)
+        .in("id", missingPredictionSessionIds);
+
+      if (predictionSessionResponse.error) {
+        throw new Error(predictionSessionResponse.error.message);
+      }
+
+      allSessionRows = mergeSessionRows(
+        sessionRows,
+        (predictionSessionResponse.data as SessionRow[]) ?? []
+      );
+    }
+
+    setSessions(allSessionRows);
     setLeaderboard(leaderboardRows);
     setProfile((profileResponse.data as ProfileRow | null) ?? null);
     setStreaks((streakResponse.data as StreakRow | null) ?? null);
     setTokenBalance((balanceResponse.data as BalanceRow | null)?.token_balance ?? 0);
-    setPredictions((predictionResponse.data as PredictionRow[]) ?? []);
+    setPredictions(predictionRows);
     setIsAdmin(Boolean((adminResponse.data as AdminRow | null)?.user_id));
   }
 
@@ -1347,8 +1551,6 @@ export function MvpDashboard({
     setOpenRightPanel(null);
   }
 
-  const sessionLookup = new Map(sessions.map((session) => [session.id, session]));
-
   return (
     <main className="betting-screen">
       <LiveFeed
@@ -1829,7 +2031,13 @@ export function MvpDashboard({
       {openRightPanel ? (
         <div className="center-modal-backdrop" onClick={() => setOpenRightPanel(null)} role="presentation">
           <section
-            className={openRightPanel === "admin" ? "center-modal admin-modal" : "center-modal"}
+            className={
+              openRightPanel === "account"
+                ? "center-modal account-modal"
+                : openRightPanel === "admin"
+                  ? "center-modal admin-modal"
+                  : "center-modal"
+            }
             role="dialog"
             aria-modal="true"
             aria-label={
@@ -1844,7 +2052,7 @@ export function MvpDashboard({
             <header className="widget-header center-modal-header">
               <h2>
                 {openRightPanel === "account"
-                  ? "Account"
+                  ? "Account & History"
                   : openRightPanel === "admin"
                     ? "Admin Console"
                     : "Leaderboard"}
@@ -1861,35 +2069,171 @@ export function MvpDashboard({
 
             {openRightPanel === "account" ? (
               user ? (
-                <div className="account-card">
-                  <p className="account-name">{profile?.display_name ?? user.email}</p>
-                  <p className="account-subtitle">{profile?.tier ?? "Bronze"} Tier</p>
-                  <div className="stat-grid compact-stats">
-                    <div>
-                      <span>Balance</span>
+                <div className="account-panel">
+                  <section className="account-hero">
+                    <div className="account-hero-copy">
+                      <p className="account-kicker">Player account</p>
+                      <p className="account-name">{profile?.display_name ?? user.email}</p>
+                      <p className="account-subtitle">{user.email}</p>
+                      <div className="account-badge-row">
+                        <span className="account-badge">{profile?.tier ?? "Bronze"} Tier</span>
+                        <span className="account-badge">
+                          Prediction streak {streaks?.prediction_streak ?? 0}
+                        </span>
+                        <span className="account-badge">Login streak {streaks?.login_streak ?? 0}</span>
+                        <span
+                          className={
+                            latestResolvedPrediction?.was_correct === true
+                              ? "account-badge account-badge-win"
+                              : latestResolvedPrediction?.was_correct === false
+                                ? "account-badge account-badge-loss"
+                                : "account-badge"
+                          }
+                        >
+                          Last result{" "}
+                          {latestResolvedPrediction?.resolved_at
+                            ? latestResolvedPrediction.was_correct === true
+                              ? "won"
+                              : latestResolvedPrediction.was_correct === false
+                                ? "lost"
+                                : "cancelled"
+                            : "pending"}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="account-actions">
+                      <button type="button" className="primary-button" onClick={handleClaimDailyLogin}>
+                        Claim Daily Tokens
+                      </button>
+                      <button type="button" className="secondary-button" onClick={handleSignOut}>
+                        Sign Out
+                      </button>
+                    </div>
+                  </section>
+
+                  <section className="account-stat-grid">
+                    <article className="account-stat-card">
+                      <span>Token balance</span>
                       <strong>{tokenBalance}</strong>
+                      <p>Available to back the next round.</p>
+                    </article>
+                    <article className="account-stat-card">
+                      <span>Bets tracked</span>
+                      <strong>{predictions.length}</strong>
+                      <p>Every pick from this account, newest first.</p>
+                    </article>
+                    <article className="account-stat-card">
+                      <span>Hit rate</span>
+                      <strong>{hitRateLabel}</strong>
+                      <p>{settledPredictions.length} settled picks in view.</p>
+                    </article>
+                    <article className="account-stat-card">
+                      <span>Tokens in play</span>
+                      <strong>{openRiskTokens}</strong>
+                      <p>{pendingPredictionCount} open or unsettled tickets.</p>
+                    </article>
+                  </section>
+
+                  <section className="account-history-section">
+                    <div className="account-history-header">
+                      <div>
+                        <p className="account-section-kicker">Betting history</p>
+                        <h3 className="account-section-title">Every round, settled cleanly</h3>
+                        <p className="account-section-copy">
+                          Stake, line, final count, and token swing all live in one place now.
+                        </p>
+                      </div>
+                      <span className="account-history-count">
+                        {loading ? "Refreshing..." : `${predictions.length} bets`}
+                      </span>
                     </div>
-                    <div>
-                      <span>Pending Bets</span>
-                      <strong>{pendingPredictionCount}</strong>
-                    </div>
-                    <div>
-                      <span>Prediction Streak</span>
-                      <strong>{streaks?.prediction_streak ?? 0}</strong>
-                    </div>
-                    <div>
-                      <span>Login Streak</span>
-                      <strong>{streaks?.login_streak ?? 0}</strong>
-                    </div>
-                  </div>
-                  <div className="account-actions">
-                    <button type="button" className="primary-button" onClick={handleClaimDailyLogin}>
-                      Claim Daily Tokens
-                    </button>
-                    <button type="button" className="secondary-button" onClick={handleSignOut}>
-                      Sign Out
-                    </button>
-                  </div>
+
+                    {predictions.length > 0 ? (
+                      <div className="account-history-list">
+                        {predictions.map((prediction) => {
+                          const session = sessionLookup.get(prediction.session_id) ?? null;
+                          const historyStatus = getPredictionHistoryStatus(prediction, session, nowMs);
+                          const marketLabel = session
+                            ? `${prediction.side.toUpperCase()} ${session.threshold}`
+                            : prediction.side.toUpperCase();
+                          const finalCountLabel =
+                            session?.final_count !== null && session?.final_count !== undefined
+                              ? `${session.final_count}`
+                              : "Pending";
+                          const netLabel =
+                            prediction.resolved_at && prediction.was_correct === null
+                              ? "Voided"
+                              : prediction.was_correct === null
+                                ? "Pending"
+                                : formatTokenDelta(prediction.token_delta);
+
+                          return (
+                            <article
+                              className={`bet-history-card bet-history-card-${historyStatus.tone}`}
+                              key={prediction.id}
+                            >
+                              <div className="bet-history-card-header">
+                                <div className="bet-history-card-title-block">
+                                  <p className="bet-history-card-kicker">
+                                    {session ? `${session.mode_seconds}s round` : "Round"} · Placed{" "}
+                                    {formatShortDateTime(prediction.placed_at)}
+                                  </p>
+                                  <strong className="bet-history-card-title">{marketLabel}</strong>
+                                </div>
+                                <span
+                                  className={`bet-history-status bet-history-status-${historyStatus.tone}`}
+                                >
+                                  {historyStatus.label}
+                                </span>
+                              </div>
+
+                              <div className="bet-history-stat-row">
+                                <div className="bet-history-stat-card">
+                                  <span>Stake</span>
+                                  <strong>{prediction.wager_tokens}</strong>
+                                </div>
+                                <div className="bet-history-stat-card">
+                                  <span>Final count</span>
+                                  <strong>{finalCountLabel}</strong>
+                                </div>
+                                <div className="bet-history-stat-card">
+                                  <span>Round result</span>
+                                  <strong>{getResolvedMarketResultLabel(session)}</strong>
+                                </div>
+                                <div className="bet-history-stat-card">
+                                  <span>Net</span>
+                                  <strong className={`bet-history-net bet-history-net-${historyStatus.tone}`}>
+                                    {netLabel}
+                                  </strong>
+                                </div>
+                              </div>
+
+                              <div className="bet-history-card-footer">
+                                <p>{getPredictionHistoryNote(prediction, session, nowMs)}</p>
+                                <span>
+                                  {prediction.resolved_at
+                                    ? `Settled ${formatShortDateTime(prediction.resolved_at)}`
+                                    : session?.starts_at
+                                      ? `Round start ${formatShortDateTime(session.starts_at)}`
+                                      : "Waiting for round details"}
+                                </span>
+                              </div>
+                            </article>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <div className="account-empty-state">
+                        <p className="account-section-kicker">No bets yet</p>
+                        <h3 className="account-section-title">Your history will land here</h3>
+                        <p className="account-section-copy">
+                          Place a round and this panel will start tracking your side, stake, final count,
+                          and payout.
+                        </p>
+                      </div>
+                    )}
+                  </section>
                 </div>
               ) : (
                 <p className="hint">Sign in to track tokens and place bets.</p>
@@ -2035,39 +2379,6 @@ export function MvpDashboard({
           ))}
         </div>
       ) : null}
-
-      <div className="bottom-ribbon">
-        {user ? (
-          <div className="history-strip">
-            {predictions.slice(0, 5).map((prediction) => {
-              const session = sessionLookup.get(prediction.session_id);
-              return (
-                <div className="history-pill" key={prediction.id}>
-                  <span>
-                    {session ? `${session.mode_seconds}s` : "Round"} · {prediction.side.toUpperCase()} ·{" "}
-                    {prediction.wager_tokens}
-                  </span>
-                  <span>
-                    {prediction.resolved_at && prediction.was_correct === null
-                      ? "Cancelled"
-                      : prediction.was_correct === null
-                      ? "Pending"
-                      : prediction.was_correct
-                        ? `+${prediction.token_delta ?? 0}`
-                        : `${prediction.token_delta ?? 0}`}
-                  </span>
-                </div>
-              );
-            })}
-            {predictions.length === 0 ? (
-              <div className="history-pill">
-                <span>No predictions yet</span>
-                <span>{loading ? "Loading..." : "Ready"}</span>
-              </div>
-            ) : null}
-          </div>
-        ) : null}
-      </div>
     </main>
   );
 }
