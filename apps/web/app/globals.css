@@ -1924,11 +1924,55 @@ body {
   min-width: 220px;
 }
 
-.account-action-hint {
-  margin: 0;
-  font-size: 0.78rem;
-  line-height: 1.4;
-  color: var(--muted);
+.account-action-tooltip-shell {
+  position: relative;
+}
+
+.account-action-tooltip-shell > .primary-button {
+  width: 100%;
+}
+
+.account-action-tooltip {
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 0.5rem);
+  z-index: 5;
+  width: max-content;
+  max-width: min(250px, calc(100vw - 2rem));
+  border: 1px solid rgb(255 255 255 / 10%);
+  border-radius: 10px;
+  padding: 0.45rem 0.6rem;
+  background: rgb(8 10 16 / 96%);
+  color: #fff5da;
+  font-size: 0.76rem;
+  line-height: 1.35;
+  text-align: center;
+  box-shadow: 0 0.8rem 1.8rem rgb(0 0 0 / 35%);
+  opacity: 0;
+  pointer-events: none;
+  transform: translate(-50%, 0.25rem);
+  transition:
+    opacity 140ms ease,
+    transform 140ms ease;
+}
+
+.account-action-tooltip::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 100%;
+  width: 0.72rem;
+  height: 0.72rem;
+  border-right: 1px solid rgb(255 255 255 / 10%);
+  border-bottom: 1px solid rgb(255 255 255 / 10%);
+  background: rgb(8 10 16 / 96%);
+  transform: translate(-50%, -50%) rotate(45deg);
+}
+
+.account-action-tooltip-shell:hover .account-action-tooltip,
+.account-action-tooltip-shell:focus-within .account-action-tooltip {
+  opacity: 1;
+  transform: translate(-50%, 0);
 }
 
 .account-stat-grid {

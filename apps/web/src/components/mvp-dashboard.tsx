@@ -586,7 +586,6 @@ export function MvpDashboard({
     : loading || isRefreshing
       ? "Refreshing account status..."
       : dailyClaimState.detail;
-  const dailyClaimTooltip = isDailyClaimDisabled ? dailyClaimHelperText : "Claim your daily reward.";
   const showLiveRoundCard = Boolean(selectedSession && selectedState === "live");
   const showResolvedRoundCard = Boolean(selectedSession && selectedState === "resolved");
   const emptyStateSignupEnabled = !hasSelectedSession && !user;
@@ -2199,16 +2198,22 @@ export function MvpDashboard({
                     </div>
 
                     <div className="account-actions">
-                      <button
-                        type="button"
-                        className="primary-button"
-                        onClick={handleClaimDailyLogin}
-                        disabled={isDailyClaimDisabled}
-                        title={dailyClaimTooltip}
-                      >
-                        {dailyClaimButtonLabel}
-                      </button>
-                      <p className="account-action-hint">{dailyClaimHelperText}</p>
+                      <div className="account-action-tooltip-shell">
+                        <button
+                          type="button"
+                          className="primary-button"
+                          onClick={handleClaimDailyLogin}
+                          disabled={isDailyClaimDisabled}
+                          aria-describedby={isDailyClaimDisabled ? "daily-claim-tooltip" : undefined}
+                        >
+                          {dailyClaimButtonLabel}
+                        </button>
+                        {isDailyClaimDisabled ? (
+                          <span id="daily-claim-tooltip" role="tooltip" className="account-action-tooltip">
+                            {dailyClaimHelperText}
+                          </span>
+                        ) : null}
+                      </div>
                       <button type="button" className="secondary-button" onClick={handleSignOut}>
                         Sign Out
                       </button>
