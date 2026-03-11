@@ -28,7 +28,6 @@ type AdminConsoleProps = {
   onStartRegionEditMode: () => void;
   onToggleRegionEditMode: () => void;
   onError: (message: string | null) => void;
-  onNotice: (message: string | null) => void;
   onPublicDataRefresh: () => Promise<void>;
 };
 
@@ -159,7 +158,6 @@ export function AdminConsole({
   onStartRegionEditMode,
   onToggleRegionEditMode,
   onError,
-  onNotice,
   onPublicDataRefresh
 }: AdminConsoleProps) {
   const [sessions, setSessions] = useState<AdminSessionRow[]>([]);
@@ -294,7 +292,6 @@ export function AdminConsole({
       return;
     }
 
-    onNotice(editingSessionId ? "Session updated." : "Session created.");
     resetForm();
     await refreshAdminData();
   }
@@ -321,7 +318,6 @@ export function AdminConsole({
       return;
     }
 
-    onNotice("Session cancelled.");
     await refreshAdminData();
   }
 
@@ -360,7 +356,6 @@ export function AdminConsole({
       ...current,
       [session.id]: ""
     }));
-    onNotice("Session resolved.");
     await refreshAdminData();
   }
 

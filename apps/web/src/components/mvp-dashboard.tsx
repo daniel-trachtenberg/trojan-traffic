@@ -1199,7 +1199,6 @@ export function MvpDashboard({
       setTokenBalance(predictionResult.available_tokens);
     }
 
-    setNotice(`Prediction submitted: ${side.toUpperCase()} ${session.threshold}. ${wagerTokens} tokens deducted.`);
     startTransition(() => {
       void load(activeUser);
     });
@@ -1906,7 +1905,6 @@ export function MvpDashboard({
                   onStartRegionEditMode={handleStartRegionEditModeFromAdmin}
                   onToggleRegionEditMode={handleToggleRegionEditMode}
                   onError={setError}
-                  onNotice={setNotice}
                   onPublicDataRefresh={() => load(user)}
                 />
               ) : (
