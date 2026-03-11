@@ -93,6 +93,15 @@ const ERROR_TOAST_DURATION_MS = 6200;
 const MAX_VISIBLE_TOASTS = 4;
 const RESULT_SPOTLIGHT_WINDOW_MS = 10_000;
 const LIVE_TRACK_LINE_PROGRESS = 0.68;
+const SCREEN_CONFETTI_COLORS = ["#ffcc00", "#f8fafc", "#f59e0b", "#ef4444", "#22c55e", "#60a5fa"];
+const SCREEN_CONFETTI_PIECES = Array.from({ length: 120 }, (_, index) => ({
+  left: `${(((index * 73) % 1000) / 10).toFixed(1)}%`,
+  delayMs: (index % 12) * 110,
+  durationMs: 2600 + (index % 7) * 220 + Math.floor(index / 12) * 80,
+  color: SCREEN_CONFETTI_COLORS[index % SCREEN_CONFETTI_COLORS.length],
+  widthRem: 0.28 + ((index * 11) % 5) * 0.08,
+  heightRem: 0.72 + ((index * 17) % 7) * 0.14
+}));
 
 function formatCountdown(milliseconds: number) {
   const safeMilliseconds = Math.max(milliseconds, 0);
@@ -428,6 +437,7 @@ export function MvpDashboard({
       : selectedPrediction?.was_correct === false
         ? "loss"
         : "neutral";
+  const showWinConfetti = showResolvedRoundCard && selectedResultTone === "win";
   const selectedResultPresentation = (() => {
     if (!selectedSession) {
       return {
@@ -1354,6 +1364,24 @@ export function MvpDashboard({
         onRegionChange={canEditRegion ? setRegionPoints : null}
       />
       <div className="feed-mask" />
+      {showWinConfetti ? (
+        <div className="screen-confetti" aria-hidden="true">
+          {SCREEN_CONFETTI_PIECES.map((piece, index) => (
+            <span
+              key={`${piece.left}-${piece.delayMs}-${index}`}
+              className="screen-confetti-piece"
+              style={{
+                left: piece.left,
+                background: piece.color,
+                animationDelay: `${piece.delayMs}ms`,
+                animationDuration: `${piece.durationMs}ms`,
+                width: `${piece.widthRem}rem`,
+                height: `${piece.heightRem}rem`
+              }}
+            />
+          ))}
+        </div>
+      ) : null}
       {showLiveRoundCard && selectedSession ? (
         <section className="live-round-overlay" aria-label="Live round status">
           <div className="live-round-overlay-panel">
