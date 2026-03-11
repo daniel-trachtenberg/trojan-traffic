@@ -54,6 +54,7 @@ type ProfileRow = {
 type StreakRow = {
   login_streak: number;
   prediction_streak: number;
+  last_login_date: string | null;
 };
 
 type BalanceRow = {
@@ -89,6 +90,8 @@ type PredictionHistoryTone = "win" | "loss" | "pending" | "cancelled";
 const DEFAULT_WAGER = "10";
 const WAGER_STEPS = [1, 5, 10, 20];
 const BETTING_OPEN_WINDOW_MS = 5 * 60 * 1000;
+const DAILY_CLAIM_TIMEZONE = "America/Los_Angeles";
+const DAILY_CLAIM_START_HOUR = 8;
 const DEFAULT_TOAST_DURATION_MS = 5000;
 const SUCCESS_TOAST_DURATION_MS = 4200;
 const ERROR_TOAST_DURATION_MS = 6200;
@@ -105,6 +108,57 @@ const SCREEN_CONFETTI_PIECES = Array.from({ length: 120 }, (_, index) => ({
   widthRem: 0.28 + ((index * 11) % 5) * 0.08,
   heightRem: 0.72 + ((index * 17) % 7) * 0.14
 }));
+const DAILY_CLAIM_CLOCK_FORMATTER = new Intl.DateTimeFormat("en-US", {
+  timeZone: DAILY_CLAIM_TIMEZONE,
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+  hour: "2-digit",
+  minute: "2-digit",
+  hour12: false
+});
+
+function getDailyClaimClockParts(timestampMs: number) {
+  const formattedParts = DAILY_CLAIM_CLOCK_FORMATTER.formatToParts(new Date(timestampMs));
+  const year = formattedParts.find((part) => part.type === "year")?.value ?? "0000";
+  const month = formattedParts.find((part) => part.type === "month")?.value ?? "00";
+  const day = formattedParts.find((part) => part.type === "day")?.value ?? "00";
+  const hour = Number.parseInt(
+    formattedParts.find((part) => part.type === "hour")?.value ?? "0",
+    10
+  );
+
+  return {
+    claimDate: `${year}-${month}-${day}`,
+    claimHour: Number.isNaN(hour) ? 0 : hour
+  };
+}
+
+function getDailyClaimState(lastLoginDate: string | null, timestampMs: number) {
+  const { claimDate, claimHour } = getDailyClaimClockParts(timestampMs);
+
+  if (lastLoginDate === claimDate) {
+    return {
+      canClaim: false,
+      hasClaimedToday: true,
+      detail: "Claim again tomorrow after 8:00 AM PT."
+    };
+  }
+
+  if (claimHour < DAILY_CLAIM_START_HOUR) {
+    return {
+      canClaim: false,
+      hasClaimedToday: false,
+      detail: "Daily reward becomes available at 8:00 AM PT."
+    };
+  }
+
+  return {
+    canClaim: true,
+    hasClaimedToday: false,
+    detail: "Daily reward is ready to claim."
+  };
+}
 
 function formatCountdown(milliseconds: number) {
   const safeMilliseconds = Math.max(milliseconds, 0);
@@ -446,6 +500,7 @@ export function MvpDashboard({
   const [tokenBalance, setTokenBalance] = useState(0);
   const [isAdmin, setIsAdmin] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [isClaimingDailyLogin, setIsClaimingDailyLogin] = useState(false);
   const [nowMs, setNowMs] = useState(() => Date.now());
   const [toasts, setToasts] = useState<ToastRecord[]>([]);
   const [isRefreshing, startTransition] = useTransition();
@@ -518,6 +573,19 @@ export function MvpDashboard({
   const selectedSide = selectedSession ? (sideBySession[selectedSession.id] ?? "over") : "over";
   const canConfigureSelected = Boolean(selectedSession && selectedState === "open" && selectedPrediction === null);
   const showBettingControls = Boolean(selectedSession && selectedState === "open");
+  const dailyClaimState = getDailyClaimState(streaks?.last_login_date ?? null, nowMs);
+  const isDailyClaimDisabled =
+    loading || isRefreshing || isClaimingDailyLogin || !dailyClaimState.canClaim;
+  const dailyClaimButtonLabel = isClaimingDailyLogin
+    ? "Claiming..."
+    : dailyClaimState.hasClaimedToday
+      ? "Claimed Today"
+      : "Claim Daily Tokens";
+  const dailyClaimHelperText = isClaimingDailyLogin
+    ? "Submitting your daily reward claim."
+    : loading || isRefreshing
+      ? "Refreshing account status..."
+      : dailyClaimState.detail;
   const showLiveRoundCard = Boolean(selectedSession && selectedState === "live");
   const showResolvedRoundCard = Boolean(selectedSession && selectedState === "resolved");
   const emptyStateSignupEnabled = !hasSelectedSession && !user;
@@ -971,7 +1039,7 @@ export function MvpDashboard({
 
     const streakResponse = await supabase
       .from("user_streaks")
-      .select("login_streak,prediction_streak")
+      .select("login_streak,prediction_streak,last_login_date")
       .eq("user_id", activeUser.id)
       .maybeSingle();
     if (streakResponse.error) {
@@ -1338,33 +1406,47 @@ export function MvpDashboard({
   }
 
   async function handleClaimDailyLogin() {
-    if (!supabase || !user) {
+    if (!supabase || !user || isClaimingDailyLogin || !dailyClaimState.canClaim) {
       return;
     }
 
-    setError(null);
-    setNotice(null);
+    setIsClaimingDailyLogin(true);
 
-    const claimResponse = await supabase.rpc("claim_daily_login");
-    if (claimResponse.error) {
-      setError(claimResponse.error.message);
-      return;
+    try {
+      setError(null);
+      setNotice(null);
+
+      const claimResponse = await supabase.rpc("claim_daily_login");
+      if (claimResponse.error) {
+        setError(claimResponse.error.message);
+        startTransition(() => {
+          void load(user);
+        });
+        return;
+      }
+
+      const claim = Array.isArray(claimResponse.data)
+        ? (claimResponse.data[0] as
+            | { tokens_awarded: number; token_balance: number; login_streak: number }
+            | undefined)
+        : undefined;
+
+      if (claim) {
+        setTokenBalance(claim.token_balance);
+        setStreaks((current) => ({
+          login_streak: claim.login_streak,
+          prediction_streak: current?.prediction_streak ?? 0,
+          last_login_date: getDailyClaimClockParts(Date.now()).claimDate
+        }));
+        setNotice(`Daily reward claimed: +${claim.tokens_awarded} tokens (streak ${claim.login_streak}).`);
+      }
+
+      startTransition(() => {
+        void load(user);
+      });
+    } finally {
+      setIsClaimingDailyLogin(false);
     }
-
-    const claim = Array.isArray(claimResponse.data)
-      ? (claimResponse.data[0] as
-          | { tokens_awarded: number; token_balance: number; login_streak: number }
-          | undefined)
-      : undefined;
-
-    if (claim) {
-      setTokenBalance(claim.token_balance);
-      setNotice(`Daily reward claimed: +${claim.tokens_awarded} tokens (streak ${claim.login_streak}).`);
-    }
-
-    startTransition(() => {
-      void load(user);
-    });
   }
 
   async function handlePlacePrediction(session: SessionRow, activeUser: User | null = user) {
@@ -2103,9 +2185,16 @@ export function MvpDashboard({
                     </div>
 
                     <div className="account-actions">
-                      <button type="button" className="primary-button" onClick={handleClaimDailyLogin}>
-                        Claim Daily Tokens
+                      <button
+                        type="button"
+                        className="primary-button"
+                        onClick={handleClaimDailyLogin}
+                        disabled={isDailyClaimDisabled}
+                        title={dailyClaimHelperText}
+                      >
+                        {dailyClaimButtonLabel}
                       </button>
+                      <p className="account-action-hint">{dailyClaimHelperText}</p>
                       <button type="button" className="secondary-button" onClick={handleSignOut}>
                         Sign Out
                       </button>

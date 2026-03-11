@@ -1924,6 +1924,13 @@ body {
   min-width: 220px;
 }
 
+.account-action-hint {
+  margin: 0;
+  font-size: 0.78rem;
+  line-height: 1.4;
+  color: var(--muted);
+}
+
 .account-stat-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
