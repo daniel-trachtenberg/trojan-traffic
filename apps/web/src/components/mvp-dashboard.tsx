@@ -91,22 +91,8 @@ const DEFAULT_TOAST_DURATION_MS = 5000;
 const SUCCESS_TOAST_DURATION_MS = 4200;
 const ERROR_TOAST_DURATION_MS = 6200;
 const MAX_VISIBLE_TOASTS = 4;
-const RESULT_SPOTLIGHT_WINDOW_MS = 90_000;
+const RESULT_SPOTLIGHT_WINDOW_MS = 10_000;
 const LIVE_TRACK_LINE_PROGRESS = 0.68;
-const RESULT_CONFETTI_PIECES = [
-  { left: "6%", color: "#ffcb47", delayMs: 0, durationMs: 2200 },
-  { left: "14%", color: "#990000", delayMs: 140, durationMs: 2120 },
-  { left: "22%", color: "#f4efe0", delayMs: 60, durationMs: 2280 },
-  { left: "30%", color: "#ffcb47", delayMs: 220, durationMs: 2160 },
-  { left: "38%", color: "#d7a800", delayMs: 120, durationMs: 2340 },
-  { left: "46%", color: "#f4efe0", delayMs: 260, durationMs: 2240 },
-  { left: "54%", color: "#990000", delayMs: 90, durationMs: 2200 },
-  { left: "62%", color: "#ffcb47", delayMs: 180, durationMs: 2100 },
-  { left: "70%", color: "#f4efe0", delayMs: 40, durationMs: 2300 },
-  { left: "78%", color: "#990000", delayMs: 200, durationMs: 2140 },
-  { left: "86%", color: "#ffcb47", delayMs: 110, durationMs: 2260 },
-  { left: "94%", color: "#f4efe0", delayMs: 280, durationMs: 2180 }
-] as const;
 
 function formatCountdown(milliseconds: number) {
   const safeMilliseconds = Math.max(milliseconds, 0);
@@ -323,14 +309,13 @@ export function MvpDashboard({
       return state === "live" || state === "resolving";
     }) ?? null;
   const resolvedSessions = sessions.filter((session) => getSessionState(session, nowMs) === "resolved");
-  const lastResolvedSession = resolvedSessions.at(-1) ?? null;
   const spotlightResolvedSession =
     [...resolvedSessions].reverse().find((session) => {
       const resolvedAtMs = getSessionReferenceTime(session);
       return nowMs - resolvedAtMs <= RESULT_SPOTLIGHT_WINDOW_MS;
     }) ?? null;
   const selectedSession =
-    focusedSession ?? inFlightSession ?? spotlightResolvedSession ?? upcomingSession ?? lastResolvedSession ?? null;
+    focusedSession ?? inFlightSession ?? spotlightResolvedSession ?? upcomingSession ?? null;
   const hasSelectedSession = Boolean(selectedSession);
   const selectedPrediction = selectedSession
     ? predictionBySession.get(selectedSession.id) ?? null
@@ -341,10 +326,9 @@ export function MvpDashboard({
   const selectedStartsAtMs = selectedSession ? new Date(selectedSession.starts_at).getTime() : null;
   const selectedEndsAtMs = selectedSession ? new Date(selectedSession.ends_at).getTime() : null;
   const selectedCountdown = selectedStartsAtMs !== null ? formatCountdown(selectedStartsAtMs - nowMs) : "00:00";
-  const selectedOpensInLabel =
-    selectedStartsAtMs !== null
-      ? formatReadableDuration(selectedStartsAtMs - nowMs - BETTING_OPEN_WINDOW_MS)
-      : "Soon";
+  const selectedOpensInLabel = selectedSession
+    ? formatReadableDuration(new Date(selectedSession.starts_at).getTime() - nowMs - BETTING_OPEN_WINDOW_MS)
+    : "Soon";
   const selectedWager = selectedSession ? (wagerBySession[selectedSession.id] ?? DEFAULT_WAGER) : DEFAULT_WAGER;
   const selectedSide = selectedSession ? (sideBySession[selectedSession.id] ?? "over") : "over";
   const canConfigureSelected = Boolean(selectedSession && selectedState === "open" && selectedPrediction === null);
@@ -395,7 +379,7 @@ export function MvpDashboard({
           })}`
         : "Betting opens shortly before the round begins."
       : selectedState === "open"
-      ? `Bets lock when the ${displayedModeSeconds}s round starts`
+      ? `${displayedModeSeconds}s window`
       : selectedState === "resolved" && selectedSession
         ? new Date(selectedSession.ends_at).toLocaleTimeString([], {
             hour: "numeric",
@@ -425,14 +409,18 @@ export function MvpDashboard({
         minute: "2-digit"
       })
     : null;
+  const livePeopleCount = null as number | null;
+  const livePeopleCountDisplay = `${livePeopleCount ?? 0}`.padStart(2, "0");
   const selectedRoundCountdown =
     selectedEndsAtMs !== null ? formatCountdown(selectedEndsAtMs - nowMs) : "00:00";
-  const selectedRoundProgress =
-    selectedStartsAtMs !== null && selectedEndsAtMs !== null && selectedEndsAtMs > selectedStartsAtMs
-      ? clamp((nowMs - selectedStartsAtMs) / (selectedEndsAtMs - selectedStartsAtMs), 0, 1)
-      : 0;
-  const selectedTrackProgressPercent = clamp(selectedRoundProgress, 0.04, 0.96) * 100;
-  const liveTrackHasCrossedLine = selectedRoundProgress >= LIVE_TRACK_LINE_PROGRESS;
+  const liveCountTrackProgress =
+    livePeopleCount !== null && displayedThreshold > 0
+      ? clamp((livePeopleCount / displayedThreshold) * LIVE_TRACK_LINE_PROGRESS, 0.08, 0.95)
+      : 0.08;
+  const liveTrackProgressPercent = liveCountTrackProgress * 100;
+  const liveTrackHasCrossedLine = livePeopleCount !== null && livePeopleCount >= displayedThreshold;
+  const liveTrackStateLabel =
+    livePeopleCount === null ? "Counter ready" : liveTrackHasCrossedLine ? "Line crossed" : "Below line";
   const selectedWinningSide = selectedSession ? getWinningSide(selectedSession) : null;
   const selectedResultTone =
     selectedPrediction?.was_correct === true
@@ -550,7 +538,7 @@ export function MvpDashboard({
       ? "This card will refresh on its own as soon as the next window is announced."
       : "Create an account now so you can jump in as soon as the next window opens."
     : selectedState === "upcoming"
-      ? `Betting opens at ${selectedOpensAtLabel}. Entries lock at ${selectedStartsAtLabel}.`
+      ? `Betting opens at ${selectedStartsAtLabel}. Entries close at ${selectedOpensAtLabel}.`
     : selectedState === "live"
       ? `Started at ${selectedStartsAtLabel}. Check back here when the next window opens.`
       : selectedState === "resolving"
@@ -565,8 +553,8 @@ export function MvpDashboard({
       ]
     : selectedState === "upcoming"
       ? [
-          { label: "Opens", value: selectedOpensAtLabel ?? "Soon" },
-          { label: "Locks", value: selectedStartsAtLabel ?? "Soon" }
+          { label: "Opens", value: selectedStartsAtLabel ?? "Soon" },
+          { label: "Closes", value: selectedOpensAtLabel ?? "Soon" }
         ]
       : selectedState === "live"
         ? [
@@ -1366,6 +1354,70 @@ export function MvpDashboard({
         onRegionChange={canEditRegion ? setRegionPoints : null}
       />
       <div className="feed-mask" />
+      {showLiveRoundCard && selectedSession ? (
+        <section className="live-round-overlay" aria-label="Live round status">
+          <div className="live-round-overlay-panel">
+            <div className="live-round-overlay-header">
+              <div className="live-round-overlay-clock">
+                <span>Time left</span>
+                <strong>{selectedRoundCountdown}</strong>
+                <p>{displayedModeSeconds}s round live now</p>
+              </div>
+
+              <div className="live-round-overlay-count">
+                <span>People in box</span>
+                <strong>{livePeopleCountDisplay}</strong>
+                <p>Live counter placeholder</p>
+              </div>
+            </div>
+
+            <div className="live-round-overlay-track-card">
+              <div className="live-round-overlay-track-header">
+                <div>
+                  <span>Betting line</span>
+                  <strong>{displayedThreshold} people</strong>
+                </div>
+                <div className="live-round-overlay-track-state">{liveTrackStateLabel}</div>
+              </div>
+
+              <div className="live-round-overlay-track-lane">
+                <div
+                  className={
+                    liveTrackHasCrossedLine
+                      ? "live-round-overlay-track-progress live-round-overlay-track-progress-crossed"
+                      : "live-round-overlay-track-progress"
+                  }
+                  style={{ width: `${liveTrackProgressPercent}%` }}
+                />
+                <div
+                  className="live-round-overlay-track-threshold"
+                  style={{ left: `${LIVE_TRACK_LINE_PROGRESS * 100}%` }}
+                >
+                  <span>Line</span>
+                </div>
+                <div
+                  className={
+                    liveTrackHasCrossedLine
+                      ? "live-round-overlay-track-pack live-round-overlay-track-pack-crossed"
+                      : "live-round-overlay-track-pack"
+                  }
+                  style={{ left: `${liveTrackProgressPercent}%` }}
+                >
+                  <span className="live-round-overlay-track-pack-dot" />
+                  <span className="live-round-overlay-track-pack-dot" />
+                  <span className="live-round-overlay-track-pack-dot" />
+                </div>
+              </div>
+
+              <div className="live-round-overlay-track-scale">
+                <span>Under</span>
+                <span>Line</span>
+                <span>Over</span>
+              </div>
+            </div>
+          </div>
+        </section>
+      ) : null}
 
       <div className="floating-widgets">
         <section className="floating-widget bet-widget">
@@ -1388,9 +1440,9 @@ export function MvpDashboard({
             {hasSelectedSession ? <span className="round-chip">Threshold {displayedThreshold}</span> : null}
           </div>
 
-            <div className="market-board">
-              {showBettingControls ? (
-                <>
+          <div className="market-board">
+            {showBettingControls ? (
+              <>
                 <div className="market-choice-grid">
                   <button
                     type="button"
@@ -1416,7 +1468,7 @@ export function MvpDashboard({
                   <div className="market-center-card">
                     <span className="market-center-label">Threshold</span>
                     <strong>{displayedThreshold}</strong>
-                    <span>{displayedModeSeconds}s live round</span>
+                    <span>{displayedModeSeconds}s window</span>
                   </div>
 
                   <button
@@ -1502,109 +1554,47 @@ export function MvpDashboard({
                 </div>
               </>
             ) : showLiveRoundCard && selectedSession ? (
-              <div className="market-live-card">
-                <div className="market-live-hero">
-                  <div className="market-live-copy">
-                    <span className="market-live-kicker">Betting closed</span>
-                    <h3>{displayedModeSeconds}s counting round is live</h3>
-                    <p>
-                      The post-lock window is now running. The live entrant counter can plug into this
-                      panel next without changing the layout again.
-                    </p>
+              <div className="market-live-summary-card">
+                <span className="market-live-summary-kicker">Round live</span>
+                <strong className="market-live-summary-headline">
+                  {selectedPrediction
+                    ? `${selectedPrediction.side.toUpperCase()} · ${selectedPrediction.wager_tokens} tokens`
+                    : "Watching this round"}
+                </strong>
+                <div className="market-live-summary-grid">
+                  <div className="market-live-summary-pill">
+                    <span>Betting line</span>
+                    <strong>{displayedThreshold}</strong>
                   </div>
-                  <div className="market-live-timer-card">
-                    <span>Window clock</span>
-                    <strong>{selectedRoundCountdown}</strong>
-                    <p>Ends at {selectedEndsAtLabel ?? "soon"}</p>
-                  </div>
-                </div>
-
-                <div className="market-live-stat-grid">
-                  <div className="market-live-stat-card">
-                    <span>People in box</span>
-                    <strong>--</strong>
-                    <p>Live entrant counter UI placeholder</p>
-                  </div>
-                  <div className="market-live-stat-card">
-                    <span>{selectedPrediction ? "Your pick" : "Board status"}</span>
-                    <strong>{selectedPrediction ? selectedPrediction.side.toUpperCase() : "Watching"}</strong>
-                    <p>
-                      {selectedPrediction
-                        ? `${selectedPrediction.wager_tokens} tokens are locked for this round.`
-                        : "This round is visible even if you did not enter."}
-                    </p>
+                  <div className="market-live-summary-pill">
+                    <span>Closes</span>
+                    <strong>{selectedEndsAtLabel ?? "soon"}</strong>
                   </div>
                 </div>
-
-                <div className="market-live-track-card">
-                  <div className="market-live-track-header">
-                    <span>Window tracker</span>
-                    <strong>{Math.round(selectedRoundProgress * 100)}% elapsed</strong>
-                  </div>
-                  <div className="market-live-track-lane">
-                    <div
-                      className="market-live-track-progress"
-                      style={{ width: `${selectedRoundProgress * 100}%` }}
-                    />
-                    <div
-                      className="market-live-track-threshold"
-                      style={{ left: `${LIVE_TRACK_LINE_PROGRESS * 100}%` }}
-                    >
-                      <span>Betting line</span>
-                    </div>
-                    <div
-                      className={
-                        liveTrackHasCrossedLine
-                          ? "market-live-track-runner market-live-track-runner-crossed"
-                          : "market-live-track-runner"
-                      }
-                      style={{ left: `${selectedTrackProgressPercent}%` }}
-                    />
-                  </div>
-                  <div className="market-live-track-scale">
-                    <span>Street</span>
-                    <span>Betting box</span>
-                  </div>
-                  <p className="market-live-track-note">
-                    The tracker flips from cardinal to gold once it crosses the betting line so the
-                    live phase feels active before the real entrant counter is wired in.
-                  </p>
-                </div>
+                <p className="market-live-summary-note">
+                  The live countdown and crowd animation are centered on the feed while this round runs.
+                </p>
               </div>
             ) : showResolvedRoundCard && selectedSession ? (
               <div className={`market-result-card market-result-card-${selectedResultTone}`}>
-                {selectedResultTone === "win" ? (
-                  <div className="market-result-confetti" aria-hidden="true">
-                    {RESULT_CONFETTI_PIECES.map((piece) => (
-                      <span
-                        key={`${piece.left}-${piece.delayMs}`}
-                        className="market-result-confetti-piece"
-                        style={{
-                          left: piece.left,
-                          background: piece.color,
-                          animationDelay: `${piece.delayMs}ms`,
-                          animationDuration: `${piece.durationMs}ms`
-                        }}
-                      />
-                    ))}
-                  </div>
-                ) : (
-                  <div className="market-result-beam" aria-hidden="true" />
-                )}
+                <div className="market-result-topline">
+                  <span className="market-result-kicker">{selectedResultPresentation.eyebrow}</span>
+                  <strong className="market-result-headline">{selectedResultPresentation.headline}</strong>
+                  <p className="market-result-copy">{selectedResultPresentation.copy}</p>
+                </div>
 
-                <span className="market-result-kicker">{selectedResultPresentation.eyebrow}</span>
-                <strong className="market-result-headline">{selectedResultPresentation.headline}</strong>
-                <p className="market-result-copy">{selectedResultPresentation.copy}</p>
-
-                <div className="market-result-stat-grid">
-                  <div className="market-result-stat-card">
+                <div className="market-result-scoreboard">
+                  <div className="market-result-score-card">
                     <span>Final count</span>
                     <strong>{selectedSession.final_count ?? "--"}</strong>
                   </div>
-                  <div className="market-result-stat-card">
-                    <span>Threshold</span>
+                  <div className="market-result-score-card">
+                    <span>Betting line</span>
                     <strong>{displayedThreshold}</strong>
                   </div>
+                </div>
+
+                <div className="market-result-stat-grid">
                   <div className="market-result-stat-card">
                     <span>{selectedPrediction ? "Your pick" : "Winning side"}</span>
                     <strong>
