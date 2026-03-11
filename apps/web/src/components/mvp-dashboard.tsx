@@ -141,7 +141,7 @@ function getDailyClaimState(lastLoginDate: string | null, timestampMs: number) {
     return {
       canClaim: false,
       hasClaimedToday: true,
-      detail: "Claim again tomorrow after 8:00 AM PT."
+      detail: "Can't claim right now. Try again after 8:00 AM PT tomorrow."
     };
   }
 
@@ -586,6 +586,7 @@ export function MvpDashboard({
     : loading || isRefreshing
       ? "Refreshing account status..."
       : dailyClaimState.detail;
+  const dailyClaimTooltip = isDailyClaimDisabled ? dailyClaimHelperText : "Claim your daily reward.";
   const showLiveRoundCard = Boolean(selectedSession && selectedState === "live");
   const showResolvedRoundCard = Boolean(selectedSession && selectedState === "resolved");
   const emptyStateSignupEnabled = !hasSelectedSession && !user;
@@ -1692,6 +1693,7 @@ export function MvpDashboard({
               </div>
 
               <div className="live-round-overlay-track-lane">
+                <div className="live-round-overlay-track-grid" aria-hidden="true" />
                 <div
                   className={
                     liveTrackHasCrossedLine
@@ -1699,12 +1701,17 @@ export function MvpDashboard({
                       : "live-round-overlay-track-progress"
                   }
                   style={{ width: `${liveTrackProgressPercent}%` }}
-                />
+                >
+                  <span className="live-round-overlay-track-progress-pulse" />
+                </div>
                 <div
                   className="live-round-overlay-track-threshold"
                   style={{ left: `${LIVE_TRACK_LINE_PROGRESS * 100}%` }}
                 >
-                  <span>Line</span>
+                  <span>{displayedThreshold}</span>
+                  <i className="live-round-overlay-track-gate-door live-round-overlay-track-gate-door-left" />
+                  <i className="live-round-overlay-track-gate-door live-round-overlay-track-gate-door-right" />
+                  <i className="live-round-overlay-track-gate-core" />
                 </div>
                 <div
                   className={
@@ -1714,9 +1721,16 @@ export function MvpDashboard({
                   }
                   style={{ left: `${liveTrackProgressPercent}%` }}
                 >
-                  <span className="live-round-overlay-track-pack-dot" />
-                  <span className="live-round-overlay-track-pack-dot" />
-                  <span className="live-round-overlay-track-pack-dot" />
+                  <span className="live-round-overlay-track-pack-fin live-round-overlay-track-pack-fin-top" />
+                  <span className="live-round-overlay-track-pack-cabin" />
+                  <span className="live-round-overlay-track-pack-fin live-round-overlay-track-pack-fin-bottom" />
+                  <span className="live-round-overlay-track-pack-thrust" />
+                </div>
+                <div className="live-round-overlay-track-sparks" aria-hidden="true">
+                  <span />
+                  <span />
+                  <span />
+                  <span />
                 </div>
               </div>
 
@@ -2190,7 +2204,7 @@ export function MvpDashboard({
                         className="primary-button"
                         onClick={handleClaimDailyLogin}
                         disabled={isDailyClaimDisabled}
-                        title={dailyClaimHelperText}
+                        title={dailyClaimTooltip}
                       >
                         {dailyClaimButtonLabel}
                       </button>
