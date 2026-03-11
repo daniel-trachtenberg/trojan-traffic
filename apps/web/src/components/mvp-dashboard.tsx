@@ -461,6 +461,7 @@ type LiveDetectionsResponse = {
 };
 
 const DETECTION_POLL_INTERVAL_MS = 300;
+const DETECTION_OFFLINE_RETRY_INTERVAL_MS = 5000;
 
 function getDetectorStatusMessage(
   detections: LiveDetectionsResponse | null,
@@ -666,14 +667,18 @@ export function MvpDashboard({
   const livePeopleCountDisplay = `${livePeopleCount ?? 0}`.padStart(2, "0");
   const selectedRoundCountdown =
     selectedEndsAtMs !== null ? formatCountdown(selectedEndsAtMs - nowMs) : "00:00";
-  const liveCountTrackProgress =
-    livePeopleCount !== null && displayedThreshold > 0
-      ? clamp((livePeopleCount / displayedThreshold) * LIVE_TRACK_LINE_PROGRESS, 0.08, 0.95)
-      : 0.08;
-  const liveTrackProgressPercent = liveCountTrackProgress * 100;
+  const liveThresholdPositionPercent = LIVE_TRACK_LINE_PROGRESS * 100;
+  const liveGateProgress =
+    livePeopleCount !== null && displayedThreshold > 0 ? clamp(livePeopleCount / displayedThreshold, 0, 1) : 0;
   const liveTrackHasCrossedLine = livePeopleCount !== null && livePeopleCount >= displayedThreshold;
+  const liveWaterLevelPercent = 48 + (1 - liveGateProgress) * 22;
+  const liveGateHeightPercent = 24 + liveGateProgress * 58;
+  const liveSpillWidthPercent = liveTrackHasCrossedLine ? 0 : 8 + (1 - liveGateProgress) * 20;
+  const liveSpillOpacity = liveTrackHasCrossedLine ? 0 : 0.24 + (1 - liveGateProgress) * 0.52;
+  const liveSafeZoneOpacity = 0.24 + liveGateProgress * 0.72;
+  const liveDangerZoneOpacity = 0.34 + (1 - liveGateProgress) * 0.42;
   const liveTrackStateLabel =
-    livePeopleCount === null ? "Counter ready" : liveTrackHasCrossedLine ? "Line crossed" : "Below line";
+    livePeopleCount === null ? "Counter ready" : liveTrackHasCrossedLine ? "Gate sealed" : "Sealing";
   const selectedWinningSide = selectedSession ? getWinningSide(selectedSession) : null;
   const selectedResultTone =
     selectedPrediction?.was_correct === true
@@ -1230,6 +1235,7 @@ export function MvpDashboard({
     async function fetchDetections() {
       activeController?.abort();
       activeController = new AbortController();
+      let nextPollDelay = DETECTION_POLL_INTERVAL_MS;
 
       try {
         const response = await fetch(endpoint, {
@@ -1241,6 +1247,7 @@ export function MvpDashboard({
             return;
           }
 
+          nextPollDelay = DETECTION_OFFLINE_RETRY_INTERVAL_MS;
           setLiveDetections((current) =>
             current
               ? {
@@ -1277,6 +1284,7 @@ export function MvpDashboard({
           return;
         }
 
+        nextPollDelay = DETECTION_OFFLINE_RETRY_INTERVAL_MS;
         setLiveDetections((current) =>
           current
             ? {
@@ -1292,7 +1300,7 @@ export function MvpDashboard({
         if (isMounted) {
           timeoutId = setTimeout(() => {
             void fetchDetections();
-          }, DETECTION_POLL_INTERVAL_MS);
+          }, nextPollDelay);
         }
       }
     }
@@ -1688,55 +1696,106 @@ export function MvpDashboard({
                   <span>Betting line</span>
                   <strong>{displayedThreshold} people</strong>
                 </div>
-                <div className="live-round-overlay-track-state">{liveTrackStateLabel}</div>
+                {livePeopleCount === null ? null : (
+                  <div className="live-round-overlay-track-state">{liveTrackStateLabel}</div>
+                )}
               </div>
 
               <div className="live-round-overlay-track-lane">
-                <div className="live-round-overlay-track-grid" aria-hidden="true" />
                 <div
                   className={
                     liveTrackHasCrossedLine
-                      ? "live-round-overlay-track-progress live-round-overlay-track-progress-crossed"
-                      : "live-round-overlay-track-progress"
+                      ? "live-round-overlay-track-scene live-round-overlay-track-scene-sealed"
+                      : "live-round-overlay-track-scene"
                   }
-                  style={{ width: `${liveTrackProgressPercent}%` }}
+                  aria-hidden="true"
                 >
-                  <span className="live-round-overlay-track-progress-pulse" />
-                </div>
-                <div
-                  className="live-round-overlay-track-threshold"
-                  style={{ left: `${LIVE_TRACK_LINE_PROGRESS * 100}%` }}
-                >
-                  <span>{displayedThreshold}</span>
-                  <i className="live-round-overlay-track-gate-door live-round-overlay-track-gate-door-left" />
-                  <i className="live-round-overlay-track-gate-door live-round-overlay-track-gate-door-right" />
-                  <i className="live-round-overlay-track-gate-core" />
-                </div>
-                <div
-                  className={
-                    liveTrackHasCrossedLine
-                      ? "live-round-overlay-track-pack live-round-overlay-track-pack-crossed"
-                      : "live-round-overlay-track-pack"
-                  }
-                  style={{ left: `${liveTrackProgressPercent}%` }}
-                >
-                  <span className="live-round-overlay-track-pack-fin live-round-overlay-track-pack-fin-top" />
-                  <span className="live-round-overlay-track-pack-cabin" />
-                  <span className="live-round-overlay-track-pack-fin live-round-overlay-track-pack-fin-bottom" />
-                  <span className="live-round-overlay-track-pack-thrust" />
-                </div>
-                <div className="live-round-overlay-track-sparks" aria-hidden="true">
-                  <span />
-                  <span />
-                  <span />
-                  <span />
+                  <div
+                    className="live-round-overlay-track-zone live-round-overlay-track-zone-danger"
+                    style={{ width: `${liveThresholdPositionPercent}%`, opacity: liveDangerZoneOpacity }}
+                  />
+                  <div
+                    className="live-round-overlay-track-zone live-round-overlay-track-zone-safe"
+                    style={{
+                      left: `${liveThresholdPositionPercent}%`,
+                      opacity: liveSafeZoneOpacity
+                    }}
+                  />
+                  <div
+                    className="live-round-overlay-track-water"
+                    style={{ width: `${liveThresholdPositionPercent + 2}%` }}
+                  >
+                    <div
+                      className="live-round-overlay-track-water-fill"
+                      style={{ top: `${100 - liveWaterLevelPercent}%` }}
+                    >
+                      <span className="live-round-overlay-track-water-wave live-round-overlay-track-water-wave-back" />
+                      <span className="live-round-overlay-track-water-wave live-round-overlay-track-water-wave-front" />
+                      <span className="live-round-overlay-track-water-foam" />
+                    </div>
+                  </div>
+                  <div
+                    className={
+                      liveTrackHasCrossedLine
+                        ? "live-round-overlay-track-spill live-round-overlay-track-spill-sealed"
+                        : "live-round-overlay-track-spill"
+                    }
+                    style={{
+                      left: `${liveThresholdPositionPercent - 1.2}%`,
+                      width: `${liveSpillWidthPercent}%`,
+                      opacity: liveSpillOpacity
+                    }}
+                  >
+                    <span className="live-round-overlay-track-spill-stream live-round-overlay-track-spill-stream-primary" />
+                    <span className="live-round-overlay-track-spill-stream live-round-overlay-track-spill-stream-secondary" />
+                    <span className="live-round-overlay-track-spill-mist" />
+                  </div>
+                  <div
+                    className={
+                      liveTrackHasCrossedLine
+                        ? "live-round-overlay-track-gate live-round-overlay-track-gate-sealed"
+                        : "live-round-overlay-track-gate"
+                    }
+                    style={{ left: `${liveThresholdPositionPercent}%` }}
+                  >
+                    <span className="live-round-overlay-track-gate-badge">{displayedThreshold}</span>
+                    <span className="live-round-overlay-track-gate-tower live-round-overlay-track-gate-tower-left" />
+                    <span className="live-round-overlay-track-gate-tower live-round-overlay-track-gate-tower-right" />
+                    <span className="live-round-overlay-track-gate-bridge" />
+                    <span
+                      className={
+                        liveTrackHasCrossedLine
+                          ? "live-round-overlay-track-gate-door live-round-overlay-track-gate-door-sealed"
+                          : "live-round-overlay-track-gate-door"
+                      }
+                      style={{ height: `${liveGateHeightPercent}%` }}
+                    >
+                      <i />
+                      <i />
+                      <i />
+                    </span>
+                    <span
+                      className={
+                        liveTrackHasCrossedLine
+                          ? "live-round-overlay-track-gate-sensor live-round-overlay-track-gate-sensor-sealed"
+                          : "live-round-overlay-track-gate-sensor"
+                      }
+                    />
+                  </div>
+                  <div className="live-round-overlay-track-refuge" style={{ opacity: liveSafeZoneOpacity }}>
+                    <span className="live-round-overlay-track-refuge-ground" />
+                    <span className="live-round-overlay-track-refuge-building live-round-overlay-track-refuge-building-tall" />
+                    <span className="live-round-overlay-track-refuge-building live-round-overlay-track-refuge-building-mid" />
+                    <span className="live-round-overlay-track-refuge-building live-round-overlay-track-refuge-building-small" />
+                    <span className="live-round-overlay-track-refuge-beacon" />
+                  </div>
                 </div>
               </div>
 
               <div className="live-round-overlay-track-scale">
-                <span>Under</span>
-                <span>Line</span>
-                <span>Over</span>
+                <span>Pressure</span>
+                <span>Threshold</span>
+                <span>Safe</span>
               </div>
             </div>
           </div>

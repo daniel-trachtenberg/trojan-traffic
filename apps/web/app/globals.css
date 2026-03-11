@@ -883,105 +883,372 @@ body {
 
 .live-round-overlay-track-lane {
   position: relative;
-  height: 4rem;
-  border-radius: 999px;
-  border: 1px solid rgb(255 255 255 / 8%);
-  background: linear-gradient(90deg, rgb(153 0 0 / 16%), rgb(255 204 0 / 8%));
+  height: 4.15rem;
+  border-radius: 1.5rem;
+  border: 1px solid rgb(255 255 255 / 10%);
+  background:
+    radial-gradient(circle at 18% 50%, rgb(82 131 255 / 9%), transparent 32%),
+    radial-gradient(circle at 84% 42%, rgb(124 229 160 / 10%), transparent 34%),
+    linear-gradient(180deg, rgb(18 22 32 / 94%), rgb(8 11 17 / 92%));
+  box-shadow:
+    inset 0 0 0 1px rgb(255 255 255 / 4%),
+    0 0.7rem 1.5rem rgb(0 0 0 / 18%);
   overflow: hidden;
 }
 
 .live-round-overlay-track-lane::before {
   content: "";
   position: absolute;
-  left: 0.9rem;
-  right: 0.9rem;
-  top: 50%;
-  height: 0.56rem;
-  border-radius: 999px;
-  transform: translateY(-50%);
-  background: linear-gradient(90deg, rgb(153 0 0 / 24%), rgb(255 204 0 / 20%));
+  inset: 0.34rem;
+  border-radius: 1.18rem;
+  border: 1px solid rgb(255 255 255 / 5%);
+  background: linear-gradient(180deg, rgb(255 255 255 / 3%), rgb(255 255 255 / 0%));
+  box-shadow:
+    inset 0 0 0 1px rgb(0 0 0 / 20%),
+    inset 0 -0.6rem 1rem rgb(0 0 0 / 16%);
 }
 
-.live-round-overlay-track-progress {
+.live-round-overlay-track-scene {
   position: absolute;
-  inset: 0 auto 0 0;
-  border-radius: 999px;
-  background: linear-gradient(90deg, rgb(153 0 0 / 28%), rgb(255 204 0 / 14%));
-  box-shadow: inset 0 1px 0 rgb(255 255 255 / 8%);
-  transition: width 220ms linear, background 180ms ease;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
 }
 
-.live-round-overlay-track-progress-crossed {
-  background: linear-gradient(90deg, rgb(153 0 0 / 22%), rgb(255 204 0 / 28%));
+.live-round-overlay-track-scene-sealed {
+  filter: saturate(1.06);
 }
 
-.live-round-overlay-track-threshold {
+.live-round-overlay-track-zone {
   position: absolute;
-  top: -0.2rem;
-  bottom: -0.2rem;
-  width: 2px;
-  transform: translateX(-50%);
-  background: rgb(255 244 207 / 76%);
-  box-shadow: 0 0 0.72rem rgb(255 204 0 / 28%);
+  top: 0.38rem;
+  bottom: 0.38rem;
+  border-radius: 1.12rem;
+  transition:
+    opacity 220ms ease,
+    width 220ms linear,
+    left 220ms linear;
 }
 
-.live-round-overlay-track-threshold span {
+.live-round-overlay-track-zone-danger {
+  left: 0.38rem;
+  background:
+    radial-gradient(circle at 14% 54%, rgb(239 68 68 / 28%), transparent 38%),
+    linear-gradient(90deg, rgb(114 15 24 / 28%), rgb(64 16 22 / 6%));
+}
+
+.live-round-overlay-track-zone-safe {
+  right: 0.38rem;
+  background:
+    radial-gradient(circle at 84% 50%, rgb(124 229 160 / 24%), transparent 32%),
+    linear-gradient(90deg, rgb(20 34 23 / 4%), rgb(39 92 53 / 22%));
+}
+
+.live-round-overlay-track-water {
   position: absolute;
+  left: 0.4rem;
   top: 0.48rem;
+  bottom: 0.48rem;
+  border-radius: 1rem;
+  overflow: hidden;
+}
+
+.live-round-overlay-track-water-fill {
+  position: absolute;
+  left: 0;
+  right: -0.5rem;
+  bottom: 0;
+  border-radius: 1rem 1rem 0.78rem 0.78rem;
+  background:
+    linear-gradient(180deg, rgb(144 224 255 / 92%), rgb(51 135 255 / 76%) 42%, rgb(12 59 173 / 88%) 100%);
+  box-shadow:
+    0 0 0.9rem rgb(88 174 255 / 18%),
+    inset 0 0.14rem 0 rgb(255 255 255 / 26%);
+  overflow: hidden;
+  transition: top 260ms ease;
+}
+
+.live-round-overlay-track-water-fill::after {
+  content: "";
+  position: absolute;
+  inset: auto 0 0;
+  height: 44%;
+  background: linear-gradient(180deg, rgb(8 23 76 / 0%), rgb(8 23 76 / 30%) 100%);
+}
+
+.live-round-overlay-track-water-wave {
+  position: absolute;
+  left: -8%;
+  width: 136%;
+  height: 0.92rem;
+  border-radius: 40% 60% 0 0 / 100% 100% 0 0;
+  top: -0.42rem;
+}
+
+.live-round-overlay-track-water-wave-back {
+  background: rgb(233 248 255 / 34%);
+  opacity: 0.42;
+  animation: live-round-water-drift 4.6s linear infinite;
+}
+
+.live-round-overlay-track-water-wave-front {
+  top: -0.28rem;
+  background: linear-gradient(90deg, rgb(255 255 255 / 72%), rgb(181 228 255 / 26%));
+  opacity: 0.72;
+  animation: live-round-water-drift 3.2s linear infinite reverse;
+}
+
+.live-round-overlay-track-water-foam {
+  position: absolute;
+  left: 0.42rem;
+  right: 0.62rem;
+  top: 0.16rem;
+  height: 0.16rem;
+  border-radius: 999px;
+  background:
+    linear-gradient(90deg, rgb(255 255 255 / 0%), rgb(255 255 255 / 82%), rgb(255 255 255 / 24%), rgb(255 255 255 / 0%));
+  filter: blur(0.02rem);
+}
+
+.live-round-overlay-track-spill {
+  position: absolute;
+  top: 0.96rem;
+  height: 1.45rem;
+  transform: translateX(-16%);
+  transition:
+    width 260ms ease,
+    opacity 220ms ease,
+    left 220ms linear;
+  filter: drop-shadow(0 0.3rem 0.5rem rgb(40 110 235 / 18%));
+}
+
+.live-round-overlay-track-spill-sealed {
+  filter: none;
+}
+
+.live-round-overlay-track-spill-stream {
+  position: absolute;
+  inset: 0;
+  border-radius: 56% 44% 46% 54% / 34% 60% 40% 66%;
+  clip-path: polygon(0 14%, 18% 0, 54% 8%, 100% 44%, 100% 80%, 60% 94%, 18% 100%, 0 74%);
+  transform-origin: left center;
+  animation: live-round-spill-flow 1.2s ease-in-out infinite;
+}
+
+.live-round-overlay-track-spill-stream-primary {
+  background:
+    linear-gradient(90deg, rgb(232 248 255 / 98%), rgb(122 198 255 / 78%) 38%, rgb(74 126 236 / 42%) 76%, rgb(74 126 236 / 0%));
+}
+
+.live-round-overlay-track-spill-stream-secondary {
+  inset: 0.24rem 0 0.18rem 0.2rem;
+  background:
+    linear-gradient(90deg, rgb(255 255 255 / 72%), rgb(143 211 255 / 48%) 44%, rgb(143 211 255 / 0%));
+  opacity: 0.68;
+  animation-duration: 1.5s;
+}
+
+.live-round-overlay-track-spill-mist {
+  position: absolute;
+  right: -0.12rem;
+  top: 0.5rem;
+  width: 0.8rem;
+  height: 0.52rem;
+  border-radius: 999px;
+  background: radial-gradient(circle, rgb(212 240 255 / 72%), rgb(212 240 255 / 0));
+  filter: blur(0.08rem);
+  opacity: 0.75;
+}
+
+.live-round-overlay-track-gate {
+  position: absolute;
+  top: 0.26rem;
+  bottom: 0.34rem;
+  width: 4.1rem;
+  transform: translateX(-50%);
+  z-index: 4;
+  transition: left 220ms linear;
+}
+
+.live-round-overlay-track-gate-sealed {
+  filter: drop-shadow(0 0 0.7rem rgb(255 204 0 / 18%));
+}
+
+.live-round-overlay-track-gate-badge {
+  position: absolute;
+  top: -0.02rem;
   left: 50%;
   transform: translateX(-50%);
-  border: 1px solid rgb(255 255 255 / 8%);
+  min-width: 1.85rem;
+  height: 1rem;
   border-radius: 999px;
-  padding: 0.12rem 0.42rem;
-  background: rgb(17 20 28 / 94%);
-  font-size: 0.58rem;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+  display: grid;
+  place-items: center;
+  padding: 0 0.45rem;
+  background: rgb(8 12 22 / 88%);
+  border: 1px solid rgb(255 244 207 / 22%);
+  box-shadow: 0 0.3rem 0.7rem rgb(0 0 0 / 24%);
+  font-size: 0.66rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
   color: #f7e9b3;
-  white-space: nowrap;
 }
 
-.live-round-overlay-track-pack {
+.live-round-overlay-track-gate-tower {
   position: absolute;
-  top: 50%;
-  display: inline-flex;
-  align-items: center;
-  gap: 0.22rem;
-  min-height: 1.8rem;
-  padding: 0.28rem 0.46rem;
-  border-radius: 999px;
-  transform: translate(-50%, -50%);
-  background: rgb(153 0 0 / 88%);
-  border: 1px solid rgb(255 244 219 / 84%);
+  top: 0.52rem;
+  bottom: 0;
+  width: 0.82rem;
+  border-radius: 0.8rem;
+  background:
+    linear-gradient(180deg, rgb(229 236 246 / 28%), rgb(89 101 124 / 96%) 26%, rgb(30 36 50 / 98%));
+  border: 1px solid rgb(255 255 255 / 10%);
   box-shadow:
-    0 0 0 0.42rem rgb(153 0 0 / 16%),
-    0 0 1rem rgb(153 0 0 / 28%);
+    inset 0 0 0 1px rgb(0 0 0 / 18%),
+    0 0.2rem 0.6rem rgb(0 0 0 / 16%);
+}
+
+.live-round-overlay-track-gate-tower-left {
+  left: 0.96rem;
+}
+
+.live-round-overlay-track-gate-tower-right {
+  right: 0.96rem;
+}
+
+.live-round-overlay-track-gate-bridge {
+  position: absolute;
+  left: 1.08rem;
+  right: 1.08rem;
+  top: 0.78rem;
+  height: 0.24rem;
+  border-radius: 999px;
+  background: linear-gradient(90deg, rgb(255 255 255 / 18%), rgb(255 255 255 / 6%));
+  box-shadow: 0 0 0 1px rgb(255 255 255 / 5%);
+}
+
+.live-round-overlay-track-gate-door {
+  position: absolute;
+  left: 1.34rem;
+  right: 1.34rem;
+  bottom: 0.22rem;
+  border-radius: 0.72rem 0.72rem 0.42rem 0.42rem;
+  background:
+    linear-gradient(180deg, rgb(248 252 255 / 54%), rgb(110 125 152 / 96%) 22%, rgb(30 38 54 / 98%));
+  border: 1px solid rgb(255 255 255 / 12%);
+  box-shadow:
+    inset 0 0 0 1px rgb(0 0 0 / 18%),
+    0 0.36rem 0.72rem rgb(0 0 0 / 18%);
+  overflow: hidden;
   transition:
-    left 220ms linear,
-    background 180ms ease,
-    box-shadow 180ms ease,
-    border-color 180ms ease;
-  animation: market-live-pack-bob 1.15s ease-in-out infinite;
+    height 260ms ease,
+    background 200ms ease,
+    box-shadow 200ms ease;
 }
 
-.live-round-overlay-track-pack-crossed {
-  background: var(--usc-gold);
-  border-color: rgb(255 255 255 / 76%);
+.live-round-overlay-track-gate-door i {
+  position: absolute;
+  left: 0.24rem;
+  right: 0.24rem;
+  height: 1px;
+  background: rgb(255 255 255 / 18%);
+}
+
+.live-round-overlay-track-gate-door i:nth-child(1) {
+  top: 28%;
+}
+
+.live-round-overlay-track-gate-door i:nth-child(2) {
+  top: 52%;
+}
+
+.live-round-overlay-track-gate-door i:nth-child(3) {
+  top: 76%;
+}
+
+.live-round-overlay-track-gate-door-sealed {
+  background: linear-gradient(180deg, rgb(255 231 146 / 98%), rgb(169 123 26 / 94%));
   box-shadow:
-    0 0 0 0.5rem rgb(255 204 0 / 16%),
-    0 0 1.2rem rgb(255 204 0 / 34%);
+    inset 0 0 0 1px rgb(255 255 255 / 22%),
+    0 0.4rem 0.9rem rgb(255 204 0 / 22%);
 }
 
-.live-round-overlay-track-pack-dot {
-  width: 0.36rem;
-  height: 0.36rem;
+.live-round-overlay-track-gate-sensor {
+  position: absolute;
+  top: 0.5rem;
+  left: 50%;
+  width: 0.58rem;
+  height: 0.58rem;
+  transform: translateX(-50%);
   border-radius: 999px;
-  background: #fff6dc;
-  opacity: 0.95;
+  background:
+    radial-gradient(circle, rgb(255 248 220 / 94%) 0 22%, rgb(255 138 76 / 80%) 44%, rgb(255 138 76 / 0) 72%);
+  box-shadow: 0 0 0.8rem rgb(255 138 76 / 22%);
+  animation: live-round-gate-sensor 1.6s ease-in-out infinite;
 }
 
-.live-round-overlay-track-pack-crossed .live-round-overlay-track-pack-dot {
-  background: rgb(72 34 0 / 78%);
+.live-round-overlay-track-gate-sensor-sealed {
+  background:
+    radial-gradient(circle, rgb(244 255 226 / 94%) 0 24%, rgb(124 229 160 / 82%) 48%, rgb(124 229 160 / 0) 74%);
+  box-shadow: 0 0 0.85rem rgb(124 229 160 / 22%);
+}
+
+.live-round-overlay-track-refuge {
+  position: absolute;
+  right: 0.74rem;
+  bottom: 0.44rem;
+  width: clamp(4.2rem, 22%, 6rem);
+  height: 1.9rem;
+  z-index: 2;
+  transition: opacity 240ms ease;
+}
+
+.live-round-overlay-track-refuge-ground {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 0.28rem;
+  border-radius: 999px;
+  background: linear-gradient(90deg, rgb(124 229 160 / 36%), rgb(255 204 0 / 32%));
+  box-shadow: 0 0 0.7rem rgb(124 229 160 / 10%);
+}
+
+.live-round-overlay-track-refuge-building {
+  position: absolute;
+  bottom: 0.28rem;
+  width: 0.52rem;
+  border-radius: 0.24rem 0.24rem 0.12rem 0.12rem;
+  background: linear-gradient(180deg, rgb(242 255 232 / 92%), rgb(48 110 61 / 94%));
+  box-shadow: 0 0 0.75rem rgb(124 229 160 / 12%);
+}
+
+.live-round-overlay-track-refuge-building-tall {
+  left: 0.48rem;
+  height: 1rem;
+}
+
+.live-round-overlay-track-refuge-building-mid {
+  left: 1.34rem;
+  height: 0.76rem;
+}
+
+.live-round-overlay-track-refuge-building-small {
+  left: 2.08rem;
+  height: 0.56rem;
+}
+
+.live-round-overlay-track-refuge-beacon {
+  position: absolute;
+  right: 0.18rem;
+  top: 0.14rem;
+  width: 0.6rem;
+  height: 0.6rem;
+  border-radius: 999px;
+  background:
+    radial-gradient(circle, rgb(255 255 255 / 96%) 0 18%, rgb(255 215 112 / 76%) 42%, rgb(255 215 112 / 0) 72%);
+  box-shadow: 0 0 0.95rem rgb(255 215 112 / 16%);
+  animation: live-round-refuge-beacon 1.9s ease-in-out infinite;
 }
 
 .live-round-overlay-track-scale {
@@ -1460,6 +1727,53 @@ body {
 
   50% {
     transform: translate(-50%, calc(-50% - 2px)) scale(1.03);
+  }
+}
+
+@keyframes live-round-water-drift {
+  0% {
+    transform: translateX(-8%);
+  }
+
+  100% {
+    transform: translateX(8%);
+  }
+}
+
+@keyframes live-round-spill-flow {
+  0%,
+  100% {
+    transform: scaleX(1) translateY(0);
+  }
+
+  50% {
+    transform: scaleX(1.04) translateY(0.08rem);
+  }
+}
+
+@keyframes live-round-gate-sensor {
+  0%,
+  100% {
+    opacity: 0.62;
+    transform: translateX(-50%) scale(0.92);
+  }
+
+  50% {
+    opacity: 1;
+    transform: translateX(-50%) scale(1.08);
+  }
+}
+
+@keyframes live-round-refuge-beacon {
+  0%,
+  100% {
+    opacity: 0.48;
+    transform: scale(0.94);
+  }
+
+  50% {
+    opacity: 0.94;
+    transform: scale(1.08);
   }
 }
 
@@ -2427,7 +2741,10 @@ body {
 
 @media (prefers-reduced-motion: reduce) {
   .live-round-overlay-count strong,
-  .live-round-overlay-track-pack,
+  .live-round-overlay-track-water-wave,
+  .live-round-overlay-track-spill-stream,
+  .live-round-overlay-track-gate-sensor,
+  .live-round-overlay-track-refuge-beacon,
   .market-live-count-value,
   .market-live-track-pack,
   .screen-confetti-piece,
@@ -2436,8 +2753,12 @@ body {
   }
 
   .market-live-track-progress,
-  .live-round-overlay-track-progress,
-  .live-round-overlay-track-pack,
+  .live-round-overlay-track-zone,
+  .live-round-overlay-track-water-fill,
+  .live-round-overlay-track-spill,
+  .live-round-overlay-track-gate,
+  .live-round-overlay-track-gate-door,
+  .live-round-overlay-track-refuge,
   .market-live-track-pack {
     transition: none;
   }
