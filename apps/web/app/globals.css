@@ -908,6 +908,148 @@ body {
     inset 0 -0.6rem 1rem rgb(0 0 0 / 16%);
 }
 
+.live-round-overlay-dam-svg {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.live-round-overlay-dam-svg-sealed {
+  filter: saturate(1.08);
+}
+
+.live-round-overlay-dam-grid-line {
+  fill: none;
+  stroke: rgb(255 255 255 / 8%);
+  stroke-width: 1;
+}
+
+.live-round-overlay-dam-wave {
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+.live-round-overlay-dam-wave-back {
+  fill: rgb(222 244 255 / 32%);
+  animation: live-round-dam-wave-shift 6s linear infinite;
+}
+
+.live-round-overlay-dam-wave-front {
+  fill: rgb(255 255 255 / 18%);
+  animation: live-round-dam-wave-shift 4s linear infinite reverse;
+}
+
+.live-round-overlay-dam-foam {
+  fill: none;
+  stroke: rgb(255 255 255 / 74%);
+  stroke-width: 3;
+  stroke-linecap: round;
+  opacity: 0.72;
+}
+
+.live-round-overlay-dam-spill {
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.live-round-overlay-dam-spill-main {
+  stroke: rgb(146 215 255 / 96%);
+  animation: live-round-dam-spill-pulse 1.3s ease-in-out infinite;
+}
+
+.live-round-overlay-dam-spill-accent {
+  stroke: rgb(255 255 255 / 84%);
+  animation: live-round-dam-spill-pulse 1.6s ease-in-out infinite;
+}
+
+.live-round-overlay-dam-splash {
+  fill: rgb(212 240 255 / 84%);
+  animation: live-round-dam-splash-float 1.4s ease-in-out infinite;
+}
+
+.live-round-overlay-dam-tower {
+  fill: rgb(41 49 67 / 96%);
+  stroke: rgb(255 255 255 / 12%);
+  stroke-width: 2;
+}
+
+.live-round-overlay-dam-beam {
+  fill: rgb(122 137 166 / 78%);
+}
+
+.live-round-overlay-dam-door {
+  fill: rgb(124 138 163 / 96%);
+  stroke: rgb(255 255 255 / 16%);
+  stroke-width: 2;
+  transition: fill 220ms ease;
+}
+
+.live-round-overlay-dam-door-sealed {
+  fill: rgb(194 148 42 / 96%);
+}
+
+.live-round-overlay-dam-door-slats {
+  fill: none;
+  stroke: rgb(255 255 255 / 20%);
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+
+.live-round-overlay-dam-sensor {
+  fill: rgb(255 138 76 / 92%);
+  animation: live-round-dam-sensor-pulse 1.7s ease-in-out infinite;
+}
+
+.live-round-overlay-dam-sensor-sealed {
+  fill: rgb(124 229 160 / 92%);
+}
+
+.live-round-overlay-dam-badge {
+  fill: rgb(8 12 22 / 92%);
+  stroke: rgb(255 244 207 / 22%);
+  stroke-width: 2;
+}
+
+.live-round-overlay-dam-badge-text {
+  fill: #f7e9b3;
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.live-round-overlay-dam-refuge-glow {
+  fill: rgb(124 229 160 / 42%);
+}
+
+.live-round-overlay-dam-refuge-ground {
+  fill: none;
+  stroke: rgb(154 241 184 / 64%);
+  stroke-width: 8;
+  stroke-linecap: round;
+}
+
+.live-round-overlay-dam-refuge-building {
+  fill: rgb(185 255 198 / 92%);
+}
+
+.live-round-overlay-dam-refuge-building-tall {
+  fill: rgb(255 230 142 / 94%);
+}
+
+.live-round-overlay-dam-refuge-tree {
+  fill: rgb(124 229 160 / 82%);
+}
+
+.live-round-overlay-dam-refuge-beacon {
+  fill: rgb(255 227 132 / 96%);
+  animation: live-round-dam-beacon-pulse 1.9s ease-in-out infinite;
+}
+
 .live-round-overlay-track-scene {
   position: absolute;
   inset: 0;
@@ -1727,6 +1869,64 @@ body {
 
   50% {
     transform: translate(-50%, calc(-50% - 2px)) scale(1.03);
+  }
+}
+
+@keyframes live-round-dam-wave-shift {
+  0% {
+    transform: translateX(-24px);
+  }
+
+  100% {
+    transform: translateX(24px);
+  }
+}
+
+@keyframes live-round-dam-spill-pulse {
+  0%,
+  100% {
+    opacity: 0.7;
+  }
+
+  50% {
+    opacity: 1;
+  }
+}
+
+@keyframes live-round-dam-splash-float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+
+  50% {
+    transform: translateY(-4px);
+  }
+}
+
+@keyframes live-round-dam-sensor-pulse {
+  0%,
+  100% {
+    opacity: 0.62;
+    transform: scale(0.92);
+  }
+
+  50% {
+    opacity: 1;
+    transform: scale(1.08);
+  }
+}
+
+@keyframes live-round-dam-beacon-pulse {
+  0%,
+  100% {
+    opacity: 0.44;
+    transform: scale(0.9);
+  }
+
+  50% {
+    opacity: 0.96;
+    transform: scale(1.12);
   }
 }
 
@@ -2741,6 +2941,11 @@ body {
 
 @media (prefers-reduced-motion: reduce) {
   .live-round-overlay-count strong,
+  .live-round-overlay-dam-wave,
+  .live-round-overlay-dam-spill,
+  .live-round-overlay-dam-splash,
+  .live-round-overlay-dam-sensor,
+  .live-round-overlay-dam-refuge-beacon,
   .live-round-overlay-track-water-wave,
   .live-round-overlay-track-spill-stream,
   .live-round-overlay-track-gate-sensor,
@@ -2753,6 +2958,7 @@ body {
   }
 
   .market-live-track-progress,
+  .live-round-overlay-dam-svg,
   .live-round-overlay-track-zone,
   .live-round-overlay-track-water-fill,
   .live-round-overlay-track-spill,

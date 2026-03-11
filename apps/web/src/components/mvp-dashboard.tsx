@@ -1,7 +1,7 @@
 "use client";
 
 import type { User } from "@supabase/supabase-js";
-import { useEffect, useRef, useState, useTransition, type FormEvent } from "react";
+import { useEffect, useId, useRef, useState, useTransition, type FormEvent } from "react";
 import { AdminConsole } from "@/components/admin-console";
 import { LiveFeed } from "@/components/live-feed";
 import {
@@ -667,16 +667,34 @@ export function MvpDashboard({
   const livePeopleCountDisplay = `${livePeopleCount ?? 0}`.padStart(2, "0");
   const selectedRoundCountdown =
     selectedEndsAtMs !== null ? formatCountdown(selectedEndsAtMs - nowMs) : "00:00";
-  const liveThresholdPositionPercent = LIVE_TRACK_LINE_PROGRESS * 100;
+  const liveSceneId = useId().replace(/:/g, "");
   const liveGateProgress =
     livePeopleCount !== null && displayedThreshold > 0 ? clamp(livePeopleCount / displayedThreshold, 0, 1) : 0;
   const liveTrackHasCrossedLine = livePeopleCount !== null && livePeopleCount >= displayedThreshold;
-  const liveWaterLevelPercent = 48 + (1 - liveGateProgress) * 22;
-  const liveGateHeightPercent = 24 + liveGateProgress * 58;
-  const liveSpillWidthPercent = liveTrackHasCrossedLine ? 0 : 8 + (1 - liveGateProgress) * 20;
-  const liveSpillOpacity = liveTrackHasCrossedLine ? 0 : 0.24 + (1 - liveGateProgress) * 0.52;
+  const liveSceneWidth = 1000;
+  const liveSceneHeight = 180;
+  const liveGateX = LIVE_TRACK_LINE_PROGRESS * liveSceneWidth;
+  const liveReservoirRight = liveGateX - 38;
+  const liveWaterSurfaceY = 88 - liveGateProgress * 10;
+  const liveGateDoorHeight = 36 + liveGateProgress * 84;
+  const liveGateDoorY = 150 - liveGateDoorHeight;
+  const liveSpillLength = liveTrackHasCrossedLine ? 24 : 128 + (1 - liveGateProgress) * 156;
+  const liveSpillOpacity = liveTrackHasCrossedLine ? 0 : 0.28 + (1 - liveGateProgress) * 0.48;
+  const liveSpillStrokeWidth = liveTrackHasCrossedLine ? 8 : 18 + (1 - liveGateProgress) * 18;
   const liveSafeZoneOpacity = 0.24 + liveGateProgress * 0.72;
   const liveDangerZoneOpacity = 0.34 + (1 - liveGateProgress) * 0.42;
+  const liveSpillStartX = liveGateX + 34;
+  const liveSpillEndX = liveSpillStartX + liveSpillLength;
+  const liveSpillPath = `M ${liveSpillStartX} 114 C ${liveSpillStartX + liveSpillLength * 0.18} ${92 - (1 - liveGateProgress) * 18}, ${liveSpillStartX + liveSpillLength * 0.58} ${122 + (1 - liveGateProgress) * 10}, ${liveSpillEndX} 108`;
+  const liveSpillAccentPath = `M ${liveSpillStartX} 102 C ${liveSpillStartX + liveSpillLength * 0.22} ${88 - (1 - liveGateProgress) * 12}, ${liveSpillStartX + liveSpillLength * 0.6} 112, ${liveSpillEndX} 101`;
+  const liveWaterClipId = `${liveSceneId}-water-clip`;
+  const liveGridPatternId = `${liveSceneId}-grid`;
+  const livePanelGradientId = `${liveSceneId}-panel-gradient`;
+  const liveWaterGradientId = `${liveSceneId}-water-gradient`;
+  const liveDangerGradientId = `${liveSceneId}-danger-gradient`;
+  const liveSafeGradientId = `${liveSceneId}-safe-gradient`;
+  const liveLeakGlowId = `${liveSceneId}-leak-glow`;
+  const liveSafeGlowId = `${liveSceneId}-safe-glow`;
   const liveTrackStateLabel =
     livePeopleCount === null ? "Counter ready" : liveTrackHasCrossedLine ? "Gate sealed" : "Sealing";
   const selectedWinningSide = selectedSession ? getWinningSide(selectedSession) : null;
@@ -1702,94 +1720,171 @@ export function MvpDashboard({
               </div>
 
               <div className="live-round-overlay-track-lane">
-                <div
+                <svg
+                  viewBox={`0 0 ${liveSceneWidth} ${liveSceneHeight}`}
                   className={
                     liveTrackHasCrossedLine
-                      ? "live-round-overlay-track-scene live-round-overlay-track-scene-sealed"
-                      : "live-round-overlay-track-scene"
+                      ? "live-round-overlay-dam-svg live-round-overlay-dam-svg-sealed"
+                      : "live-round-overlay-dam-svg"
                   }
                   aria-hidden="true"
                 >
-                  <div
-                    className="live-round-overlay-track-zone live-round-overlay-track-zone-danger"
-                    style={{ width: `${liveThresholdPositionPercent}%`, opacity: liveDangerZoneOpacity }}
-                  />
-                  <div
-                    className="live-round-overlay-track-zone live-round-overlay-track-zone-safe"
-                    style={{
-                      left: `${liveThresholdPositionPercent}%`,
-                      opacity: liveSafeZoneOpacity
-                    }}
-                  />
-                  <div
-                    className="live-round-overlay-track-water"
-                    style={{ width: `${liveThresholdPositionPercent + 2}%` }}
-                  >
-                    <div
-                      className="live-round-overlay-track-water-fill"
-                      style={{ top: `${100 - liveWaterLevelPercent}%` }}
+                  <defs>
+                    <linearGradient id={livePanelGradientId} x1="0%" y1="0%" x2="100%" y2="100%">
+                      <stop offset="0%" stopColor="rgb(23 30 46)" />
+                      <stop offset="52%" stopColor="rgb(11 15 25)" />
+                      <stop offset="100%" stopColor="rgb(18 25 20)" />
+                    </linearGradient>
+                    <linearGradient id={liveWaterGradientId} x1="0%" y1="0%" x2="0%" y2="100%">
+                      <stop offset="0%" stopColor="rgb(172 232 255)" />
+                      <stop offset="52%" stopColor="rgb(62 152 255)" />
+                      <stop offset="100%" stopColor="rgb(12 59 173)" />
+                    </linearGradient>
+                    <linearGradient id={liveDangerGradientId} x1="0%" y1="0%" x2="100%" y2="0%">
+                      <stop offset="0%" stopColor="rgb(123 23 33)" />
+                      <stop offset="100%" stopColor="rgb(123 23 33 / 0)" />
+                    </linearGradient>
+                    <linearGradient id={liveSafeGradientId} x1="0%" y1="0%" x2="100%" y2="0%">
+                      <stop offset="0%" stopColor="rgb(37 82 52 / 0)" />
+                      <stop offset="100%" stopColor="rgb(104 230 154)" />
+                    </linearGradient>
+                    <pattern
+                      id={liveGridPatternId}
+                      width="40"
+                      height="40"
+                      patternUnits="userSpaceOnUse"
                     >
-                      <span className="live-round-overlay-track-water-wave live-round-overlay-track-water-wave-back" />
-                      <span className="live-round-overlay-track-water-wave live-round-overlay-track-water-wave-front" />
-                      <span className="live-round-overlay-track-water-foam" />
-                    </div>
-                  </div>
-                  <div
-                    className={
-                      liveTrackHasCrossedLine
-                        ? "live-round-overlay-track-spill live-round-overlay-track-spill-sealed"
-                        : "live-round-overlay-track-spill"
-                    }
-                    style={{
-                      left: `${liveThresholdPositionPercent - 1.2}%`,
-                      width: `${liveSpillWidthPercent}%`,
-                      opacity: liveSpillOpacity
-                    }}
-                  >
-                    <span className="live-round-overlay-track-spill-stream live-round-overlay-track-spill-stream-primary" />
-                    <span className="live-round-overlay-track-spill-stream live-round-overlay-track-spill-stream-secondary" />
-                    <span className="live-round-overlay-track-spill-mist" />
-                  </div>
-                  <div
-                    className={
-                      liveTrackHasCrossedLine
-                        ? "live-round-overlay-track-gate live-round-overlay-track-gate-sealed"
-                        : "live-round-overlay-track-gate"
-                    }
-                    style={{ left: `${liveThresholdPositionPercent}%` }}
-                  >
-                    <span className="live-round-overlay-track-gate-badge">{displayedThreshold}</span>
-                    <span className="live-round-overlay-track-gate-tower live-round-overlay-track-gate-tower-left" />
-                    <span className="live-round-overlay-track-gate-tower live-round-overlay-track-gate-tower-right" />
-                    <span className="live-round-overlay-track-gate-bridge" />
-                    <span
+                      <path d="M 40 0 L 0 0 0 40" className="live-round-overlay-dam-grid-line" />
+                    </pattern>
+                    <clipPath id={liveWaterClipId}>
+                      <rect x="26" y="24" width={liveReservoirRight - 2} height="132" rx="30" />
+                    </clipPath>
+                    <filter id={liveLeakGlowId}>
+                      <feGaussianBlur stdDeviation="7" result="blur" />
+                      <feMerge>
+                        <feMergeNode in="blur" />
+                        <feMergeNode in="SourceGraphic" />
+                      </feMerge>
+                    </filter>
+                    <filter id={liveSafeGlowId}>
+                      <feGaussianBlur stdDeviation="10" result="blur" />
+                      <feMerge>
+                        <feMergeNode in="blur" />
+                        <feMergeNode in="SourceGraphic" />
+                      </feMerge>
+                    </filter>
+                  </defs>
+
+                  <rect x="18" y="16" width="964" height="148" rx="34" fill={`url(#${livePanelGradientId})`} />
+                  <rect x="18" y="16" width="964" height="148" rx="34" fill={`url(#${liveGridPatternId})`} opacity="0.18" />
+                  <rect
+                    x="26"
+                    y="24"
+                    width={liveReservoirRight - 2}
+                    height="132"
+                    rx="30"
+                    fill={`url(#${liveDangerGradientId})`}
+                    opacity={liveDangerZoneOpacity}
+                  />
+                  <rect
+                    x={liveGateX + 24}
+                    y="24"
+                    width={liveSceneWidth - liveGateX - 50}
+                    height="132"
+                    rx="30"
+                    fill={`url(#${liveSafeGradientId})`}
+                    opacity={liveSafeZoneOpacity}
+                  />
+
+                  <g clipPath={`url(#${liveWaterClipId})`}>
+                    <rect
+                      x="26"
+                      y={liveWaterSurfaceY}
+                      width={liveReservoirRight - 2}
+                      height={160 - liveWaterSurfaceY}
+                      rx="26"
+                      fill={`url(#${liveWaterGradientId})`}
+                    />
+                    <path
+                      d="M -160 0 C -90 22, -10 -18, 70 0 S 230 22 310 0 S 470 -18 550 0 S 710 22 790 0 S 950 -18 1030 0 S 1190 22 1270 0 V 88 H -160 Z"
+                      transform={`translate(0 ${liveWaterSurfaceY - 4})`}
+                      className="live-round-overlay-dam-wave live-round-overlay-dam-wave-back"
+                    />
+                    <path
+                      d="M -180 0 C -110 18, -20 -14, 60 0 S 220 18 300 0 S 460 -14 540 0 S 700 18 780 0 S 940 -14 1020 0 S 1180 18 1260 0 V 76 H -180 Z"
+                      transform={`translate(0 ${liveWaterSurfaceY + 4})`}
+                      className="live-round-overlay-dam-wave live-round-overlay-dam-wave-front"
+                    />
+                    <path
+                      d={`M 28 ${liveWaterSurfaceY + 8} H ${liveReservoirRight - 12}`}
+                      className="live-round-overlay-dam-foam"
+                    />
+                  </g>
+
+                  <path
+                    d={liveSpillPath}
+                    className="live-round-overlay-dam-spill live-round-overlay-dam-spill-main"
+                    style={{ opacity: liveSpillOpacity, strokeWidth: liveSpillStrokeWidth }}
+                    filter={`url(#${liveLeakGlowId})`}
+                  />
+                  <path
+                    d={liveSpillAccentPath}
+                    className="live-round-overlay-dam-spill live-round-overlay-dam-spill-accent"
+                    style={{ opacity: liveSpillOpacity * 0.82, strokeWidth: liveSpillStrokeWidth * 0.48 }}
+                  />
+                  <circle
+                    cx={liveSpillEndX + 10}
+                    cy="106"
+                    r={8 + (1 - liveGateProgress) * 6}
+                    className="live-round-overlay-dam-splash"
+                    style={{ opacity: liveSpillOpacity * 0.78 }}
+                  />
+
+                  <g transform={`translate(${liveGateX} 0)`}>
+                    <rect x="-60" y="36" width="22" height="112" rx="11" className="live-round-overlay-dam-tower" />
+                    <rect x="38" y="36" width="22" height="112" rx="11" className="live-round-overlay-dam-tower" />
+                    <rect x="-44" y="54" width="88" height="8" rx="4" className="live-round-overlay-dam-beam" />
+                    <rect
+                      x="-28"
+                      y={liveGateDoorY}
+                      width="56"
+                      height={liveGateDoorHeight}
+                      rx="16"
                       className={
                         liveTrackHasCrossedLine
-                          ? "live-round-overlay-track-gate-door live-round-overlay-track-gate-door-sealed"
-                          : "live-round-overlay-track-gate-door"
-                      }
-                      style={{ height: `${liveGateHeightPercent}%` }}
-                    >
-                      <i />
-                      <i />
-                      <i />
-                    </span>
-                    <span
-                      className={
-                        liveTrackHasCrossedLine
-                          ? "live-round-overlay-track-gate-sensor live-round-overlay-track-gate-sensor-sealed"
-                          : "live-round-overlay-track-gate-sensor"
+                          ? "live-round-overlay-dam-door live-round-overlay-dam-door-sealed"
+                          : "live-round-overlay-dam-door"
                       }
                     />
-                  </div>
-                  <div className="live-round-overlay-track-refuge" style={{ opacity: liveSafeZoneOpacity }}>
-                    <span className="live-round-overlay-track-refuge-ground" />
-                    <span className="live-round-overlay-track-refuge-building live-round-overlay-track-refuge-building-tall" />
-                    <span className="live-round-overlay-track-refuge-building live-round-overlay-track-refuge-building-mid" />
-                    <span className="live-round-overlay-track-refuge-building live-round-overlay-track-refuge-building-small" />
-                    <span className="live-round-overlay-track-refuge-beacon" />
-                  </div>
-                </div>
+                    <path d={`M -20 ${liveGateDoorY + 20} H 20 M -20 ${liveGateDoorY + 40} H 20 M -20 ${liveGateDoorY + 60} H 20`} className="live-round-overlay-dam-door-slats" />
+                    <circle
+                      cx="0"
+                      cy="82"
+                      r="9"
+                      className={
+                        liveTrackHasCrossedLine
+                          ? "live-round-overlay-dam-sensor live-round-overlay-dam-sensor-sealed"
+                          : "live-round-overlay-dam-sensor"
+                      }
+                    />
+                    <rect x="-38" y="12" width="76" height="26" rx="13" className="live-round-overlay-dam-badge" />
+                    <text x="0" y="30" textAnchor="middle" className="live-round-overlay-dam-badge-text">
+                      {displayedThreshold}
+                    </text>
+                  </g>
+
+                  <g opacity={liveSafeZoneOpacity} filter={`url(#${liveSafeGlowId})`}>
+                    <ellipse cx="860" cy="142" rx="84" ry="18" className="live-round-overlay-dam-refuge-glow" />
+                  </g>
+                  <g className="live-round-overlay-dam-refuge" opacity={0.42 + liveSafeZoneOpacity * 0.58}>
+                    <path d="M 776 148 Q 842 126 934 148" className="live-round-overlay-dam-refuge-ground" />
+                    <rect x="810" y="98" width="20" height="40" rx="5" className="live-round-overlay-dam-refuge-building" />
+                    <rect x="840" y="84" width="24" height="54" rx="5" className="live-round-overlay-dam-refuge-building live-round-overlay-dam-refuge-building-tall" />
+                    <rect x="874" y="104" width="18" height="34" rx="5" className="live-round-overlay-dam-refuge-building" />
+                    <path d="M 928 138 L 944 102 L 960 138 Z" className="live-round-overlay-dam-refuge-tree" />
+                    <circle cx="948" cy="88" r="8" className="live-round-overlay-dam-refuge-beacon" />
+                  </g>
+                </svg>
               </div>
 
               <div className="live-round-overlay-track-scale">
