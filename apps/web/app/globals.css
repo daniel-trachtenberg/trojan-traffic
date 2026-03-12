@@ -883,13 +883,10 @@ body {
 
 .live-round-overlay-track-lane {
   position: relative;
-  height: 4.15rem;
+  height: 4.55rem;
   border-radius: 1.5rem;
   border: 1px solid rgb(255 255 255 / 10%);
-  background:
-    radial-gradient(circle at 18% 50%, rgb(82 131 255 / 9%), transparent 32%),
-    radial-gradient(circle at 84% 42%, rgb(124 229 160 / 10%), transparent 34%),
-    linear-gradient(180deg, rgb(18 22 32 / 94%), rgb(8 11 17 / 92%));
+  background: linear-gradient(180deg, rgb(18 21 30 / 96%), rgb(8 11 17 / 94%));
   box-shadow:
     inset 0 0 0 1px rgb(255 255 255 / 4%),
     0 0.7rem 1.5rem rgb(0 0 0 / 18%);
@@ -899,155 +896,264 @@ body {
 .live-round-overlay-track-lane::before {
   content: "";
   position: absolute;
-  inset: 0.34rem;
+  inset: 0.18rem;
   border-radius: 1.18rem;
   border: 1px solid rgb(255 255 255 / 5%);
-  background: linear-gradient(180deg, rgb(255 255 255 / 3%), rgb(255 255 255 / 0%));
+  background: linear-gradient(180deg, rgb(255 255 255 / 2%), rgb(255 255 255 / 0%));
   box-shadow:
     inset 0 0 0 1px rgb(0 0 0 / 20%),
-    inset 0 -0.6rem 1rem rgb(0 0 0 / 16%);
+    inset 0 -0.5rem 0.9rem rgb(0 0 0 / 18%);
 }
 
-.live-round-overlay-dam-svg {
+.live-round-overlay-train-svg {
   position: absolute;
   inset: 0;
   z-index: 1;
   width: 100%;
   height: 100%;
   overflow: visible;
+  filter: drop-shadow(0 0.7rem 1.2rem rgb(0 0 0 / 14%));
 }
 
-.live-round-overlay-dam-svg-sealed {
-  filter: saturate(1.08);
+.live-round-overlay-train-svg-falling {
+  filter: saturate(0.9) brightness(0.94);
 }
 
-.live-round-overlay-dam-grid-line {
+.live-round-overlay-train-danger-glow {
+  fill: rgb(194 58 53 / 30%);
+  filter: blur(3px);
+}
+
+.live-round-overlay-train-safe-glow {
+  fill: rgb(124 229 160 / 24%);
+  filter: blur(3px);
+}
+
+.live-round-overlay-train-ground {
+  fill: rgb(128 123 132 / 96%);
+}
+
+.live-round-overlay-train-ground-ridge {
   fill: none;
-  stroke: rgb(255 255 255 / 8%);
-  stroke-width: 1;
+  stroke: rgb(255 255 255 / 16%);
+  stroke-width: 6;
+  stroke-linecap: round;
 }
 
-.live-round-overlay-dam-wave {
-  transform-box: fill-box;
-  transform-origin: center;
+.live-round-overlay-train-bridge-arch {
+  opacity: 0.94;
 }
 
-.live-round-overlay-dam-wave-back {
-  fill: rgb(222 244 255 / 32%);
-  animation: live-round-dam-wave-shift 6s linear infinite;
-}
-
-.live-round-overlay-dam-wave-front {
-  fill: rgb(255 255 255 / 18%);
-  animation: live-round-dam-wave-shift 4s linear infinite reverse;
-}
-
-.live-round-overlay-dam-foam {
+.live-round-overlay-train-track-bed {
   fill: none;
-  stroke: rgb(255 255 255 / 74%);
+  stroke: rgb(58 49 43 / 92%);
+  stroke-width: 20;
+  stroke-linecap: round;
+}
+
+.live-round-overlay-train-cliff-face {
+  fill: none;
+  stroke: rgb(255 196 154 / 48%);
+  stroke-width: 9;
+  stroke-linecap: round;
+}
+
+.live-round-overlay-train-sleeper {
+  fill: rgb(145 105 64 / 94%);
+}
+
+.live-round-overlay-train-rails {
+  fill: none;
+  stroke: rgb(222 227 239 / 92%);
+  stroke-width: 6.4;
+  stroke-linecap: round;
+}
+
+.live-round-overlay-train-broken-rail {
+  fill: none;
+  stroke: rgb(244 204 176 / 62%);
+  stroke-width: 5;
+  stroke-linecap: round;
+}
+
+.live-round-overlay-train-ledge-warning {
+  fill: none;
+  stroke: rgb(255 171 110 / 88%);
+  stroke-width: 4;
+  stroke-linecap: round;
+  stroke-dasharray: 10 10;
+}
+
+.live-round-overlay-train-threshold-post {
+  fill: none;
+  stroke: rgb(244 241 215 / 72%);
+  stroke-width: 4;
+  stroke-linecap: round;
+}
+
+.live-round-overlay-train-threshold-light {
+  fill: rgb(139 237 176 / 92%);
+  filter: drop-shadow(0 0 0.65rem rgb(139 237 176 / 34%));
+}
+
+.live-round-overlay-train-threshold-light-core {
+  fill: rgb(255 252 236 / 96%);
+}
+
+.live-round-overlay-train-motion-line {
+  fill: none;
+  stroke: rgb(255 255 255 / 22%);
+  stroke-width: 2.6;
+  stroke-linecap: round;
+}
+
+.live-round-overlay-train-brake-block {
+  fill: rgb(246 181 65 / 96%);
+  stroke: rgb(255 255 255 / 18%);
+  stroke-width: 2;
+}
+
+.live-round-overlay-train-brake-block-top {
+  fill: none;
+  stroke: rgb(88 51 19 / 84%);
   stroke-width: 3;
   stroke-linecap: round;
-  opacity: 0.72;
 }
 
-.live-round-overlay-dam-spill {
+.live-round-overlay-train-brake-block-glow {
+  fill: rgb(255 230 164 / 94%);
+}
+
+.live-round-overlay-train-group {
+  transition:
+    transform 180ms linear,
+    filter 180ms linear;
+}
+
+.live-round-overlay-train-group-hard-stop {
+  filter: drop-shadow(0 0 0.9rem rgb(255 214 110 / 22%));
+}
+
+.live-round-overlay-train-shadow {
+  fill: rgb(0 0 0 / 28%);
+}
+
+.live-round-overlay-train-headlight {
+  mix-blend-mode: screen;
+}
+
+.live-round-overlay-train-smoke {
+  animation: live-round-train-smoke-rise 2.6s ease-out infinite;
+}
+
+.live-round-overlay-train-smoke-a {
+  animation-delay: 0ms;
+}
+
+.live-round-overlay-train-smoke-b {
+  animation-delay: 420ms;
+}
+
+.live-round-overlay-train-smoke-c {
+  animation-delay: 210ms;
+}
+
+.live-round-overlay-train-engine,
+.live-round-overlay-train-cab,
+.live-round-overlay-train-car,
+.live-round-overlay-train-stack,
+.live-round-overlay-train-cowcatcher {
+  stroke: rgb(14 19 27 / 36%);
+  stroke-width: 2.5;
+}
+
+.live-round-overlay-train-engine {
+  fill: rgb(236 240 244 / 96%);
+}
+
+.live-round-overlay-train-cab {
+  fill: rgb(246 196 95 / 96%);
+}
+
+.live-round-overlay-train-car {
+  fill: rgb(182 202 228 / 86%);
+}
+
+.live-round-overlay-train-stack {
+  fill: rgb(228 233 238 / 94%);
+}
+
+.live-round-overlay-train-cowcatcher {
+  fill: rgb(234 239 243 / 94%);
+}
+
+.live-round-overlay-train-lamp {
+  fill: rgb(255 241 175 / 96%);
+  stroke: rgb(96 63 20 / 42%);
+  stroke-width: 2;
+}
+
+.live-round-overlay-train-roof-line {
   fill: none;
+  stroke: rgb(23 29 40 / 44%);
+  stroke-width: 4;
   stroke-linecap: round;
-  stroke-linejoin: round;
 }
 
-.live-round-overlay-dam-spill-main {
-  stroke: rgb(146 215 255 / 96%);
-  animation: live-round-dam-spill-pulse 1.3s ease-in-out infinite;
+.live-round-overlay-train-trim {
+  fill: rgb(25 31 43 / 24%);
 }
 
-.live-round-overlay-dam-spill-accent {
-  stroke: rgb(255 255 255 / 84%);
-  animation: live-round-dam-spill-pulse 1.6s ease-in-out infinite;
+.live-round-overlay-train-coupler {
+  fill: none;
+  stroke: rgb(26 31 42 / 74%);
+  stroke-width: 4.4;
+  stroke-linecap: round;
 }
 
-.live-round-overlay-dam-splash {
-  fill: rgb(212 240 255 / 84%);
-  animation: live-round-dam-splash-float 1.4s ease-in-out infinite;
+.live-round-overlay-train-window {
+  fill: rgb(21 27 39 / 80%);
 }
 
-.live-round-overlay-dam-tower {
-  fill: rgb(41 49 67 / 96%);
+.live-round-overlay-train-wheel {
+  fill: rgb(31 36 45 / 96%);
   stroke: rgb(255 255 255 / 12%);
   stroke-width: 2;
 }
 
-.live-round-overlay-dam-beam {
-  fill: rgb(122 137 166 / 78%);
+.live-round-overlay-train-wheel-small {
+  fill: rgb(46 53 63 / 96%);
 }
 
-.live-round-overlay-dam-door {
-  fill: rgb(124 138 163 / 96%);
-  stroke: rgb(255 255 255 / 16%);
-  stroke-width: 2;
-  transition: fill 220ms ease;
+.live-round-overlay-train-wheel-core {
+  fill: rgb(245 245 239 / 90%);
 }
 
-.live-round-overlay-dam-door-sealed {
-  fill: rgb(194 148 42 / 96%);
-}
-
-.live-round-overlay-dam-door-slats {
+.live-round-overlay-train-wheel-spokes {
   fill: none;
-  stroke: rgb(255 255 255 / 20%);
-  stroke-width: 2;
+  stroke: rgb(246 248 250 / 64%);
+  stroke-width: 2.2;
   stroke-linecap: round;
 }
 
-.live-round-overlay-dam-sensor {
-  fill: rgb(255 138 76 / 92%);
-  animation: live-round-dam-sensor-pulse 1.7s ease-in-out infinite;
-}
-
-.live-round-overlay-dam-sensor-sealed {
-  fill: rgb(124 229 160 / 92%);
-}
-
-.live-round-overlay-dam-badge {
-  fill: rgb(8 12 22 / 92%);
-  stroke: rgb(255 244 207 / 22%);
-  stroke-width: 2;
-}
-
-.live-round-overlay-dam-badge-text {
-  fill: #f7e9b3;
-  font-size: 16px;
-  font-weight: 700;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-}
-
-.live-round-overlay-dam-refuge-glow {
-  fill: rgb(124 229 160 / 42%);
-}
-
-.live-round-overlay-dam-refuge-ground {
+.live-round-overlay-train-sparks {
   fill: none;
-  stroke: rgb(154 241 184 / 64%);
-  stroke-width: 8;
+  stroke: rgb(255 193 78 / 96%);
+  stroke-width: 4;
   stroke-linecap: round;
+  animation: live-round-train-sparks-flicker 0.4s steps(2, end) infinite;
 }
 
-.live-round-overlay-dam-refuge-building {
-  fill: rgb(185 255 198 / 92%);
+.live-round-overlay-train-sparks-soft {
+  stroke: rgb(255 228 157 / 76%);
+  stroke-width: 3;
 }
 
-.live-round-overlay-dam-refuge-building-tall {
-  fill: rgb(255 230 142 / 94%);
-}
-
-.live-round-overlay-dam-refuge-tree {
-  fill: rgb(124 229 160 / 82%);
-}
-
-.live-round-overlay-dam-refuge-beacon {
-  fill: rgb(255 227 132 / 96%);
-  animation: live-round-dam-beacon-pulse 1.9s ease-in-out infinite;
+.live-round-overlay-train-canyon-haze {
+  fill: none;
+  stroke: rgb(255 179 134 / 18%);
+  stroke-width: 22;
+  stroke-linecap: round;
 }
 
 .live-round-overlay-track-scene {
@@ -1872,61 +1978,30 @@ body {
   }
 }
 
-@keyframes live-round-dam-wave-shift {
+@keyframes live-round-train-smoke-rise {
   0% {
-    transform: translateX(-24px);
+    opacity: 0;
+    transform: translateY(8px) scale(0.72);
+  }
+
+  18% {
+    opacity: 0.52;
   }
 
   100% {
-    transform: translateX(24px);
+    opacity: 0;
+    transform: translateY(-34px) translateX(10px) scale(1.12);
   }
 }
 
-@keyframes live-round-dam-spill-pulse {
+@keyframes live-round-train-sparks-flicker {
   0%,
   100% {
-    opacity: 0.7;
+    opacity: 0.5;
   }
 
   50% {
     opacity: 1;
-  }
-}
-
-@keyframes live-round-dam-splash-float {
-  0%,
-  100% {
-    transform: translateY(0);
-  }
-
-  50% {
-    transform: translateY(-4px);
-  }
-}
-
-@keyframes live-round-dam-sensor-pulse {
-  0%,
-  100% {
-    opacity: 0.62;
-    transform: scale(0.92);
-  }
-
-  50% {
-    opacity: 1;
-    transform: scale(1.08);
-  }
-}
-
-@keyframes live-round-dam-beacon-pulse {
-  0%,
-  100% {
-    opacity: 0.44;
-    transform: scale(0.9);
-  }
-
-  50% {
-    opacity: 0.96;
-    transform: scale(1.12);
   }
 }
 
@@ -2941,11 +3016,8 @@ body {
 
 @media (prefers-reduced-motion: reduce) {
   .live-round-overlay-count strong,
-  .live-round-overlay-dam-wave,
-  .live-round-overlay-dam-spill,
-  .live-round-overlay-dam-splash,
-  .live-round-overlay-dam-sensor,
-  .live-round-overlay-dam-refuge-beacon,
+  .live-round-overlay-train-smoke,
+  .live-round-overlay-train-sparks,
   .live-round-overlay-track-water-wave,
   .live-round-overlay-track-spill-stream,
   .live-round-overlay-track-gate-sensor,
@@ -2958,7 +3030,7 @@ body {
   }
 
   .market-live-track-progress,
-  .live-round-overlay-dam-svg,
+  .live-round-overlay-train-svg,
   .live-round-overlay-track-zone,
   .live-round-overlay-track-water-fill,
   .live-round-overlay-track-spill,

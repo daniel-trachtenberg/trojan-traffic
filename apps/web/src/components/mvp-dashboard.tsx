@@ -97,7 +97,6 @@ const SUCCESS_TOAST_DURATION_MS = 4200;
 const ERROR_TOAST_DURATION_MS = 6200;
 const MAX_VISIBLE_TOASTS = 4;
 const RESULT_SPOTLIGHT_WINDOW_MS = 10_000;
-const LIVE_TRACK_LINE_PROGRESS = 0.68;
 const SESSION_SELECT_COLUMNS = "id,mode_seconds,threshold,starts_at,ends_at,status,final_count,resolved_at";
 const SCREEN_CONFETTI_COLORS = ["#ffcc00", "#f8fafc", "#f59e0b", "#ef4444", "#22c55e", "#60a5fa"];
 const SCREEN_CONFETTI_PIECES = Array.from({ length: 120 }, (_, index) => ({
@@ -191,6 +190,10 @@ function formatReadableDuration(milliseconds: number) {
 
 function clamp(value: number, min: number, max: number) {
   return Math.min(Math.max(value, min), max);
+}
+
+function interpolate(start: number, end: number, ratio: number) {
+  return start + (end - start) * clamp(ratio, 0, 1);
 }
 
 function getSessionReferenceTime(session: SessionRow) {
@@ -526,6 +529,8 @@ export function MvpDashboard({
   const nextToastIdRef = useRef(0);
   const toastsRef = useRef<ToastRecord[]>([]);
   const toastTimeoutsRef = useRef(new Map<number, ReturnType<typeof setTimeout>>());
+  const liveTrainStopXRef = useRef<number | null>(null);
+  const liveTrainStopSessionIdRef = useRef<string | null>(null);
 
   const sessionLookup = new Map(sessions.map((session) => [session.id, session]));
   const predictionBySession = new Map(predictions.map((prediction) => [prediction.session_id, prediction]));
@@ -663,40 +668,161 @@ export function MvpDashboard({
         minute: "2-digit"
       })
     : null;
+  const selectedSessionId = selectedSession?.id ?? null;
   const livePeopleCount = null as number | null;
   const livePeopleCountDisplay = `${livePeopleCount ?? 0}`.padStart(2, "0");
   const selectedRoundCountdown =
     selectedEndsAtMs !== null ? formatCountdown(selectedEndsAtMs - nowMs) : "00:00";
   const liveSceneId = useId().replace(/:/g, "");
-  const liveGateProgress =
-    livePeopleCount !== null && displayedThreshold > 0 ? clamp(livePeopleCount / displayedThreshold, 0, 1) : 0;
+  const liveCountValue = livePeopleCount ?? 0;
+  const liveCountRatio = displayedThreshold > 0 ? liveCountValue / displayedThreshold : 0;
   const liveTrackHasCrossedLine = livePeopleCount !== null && livePeopleCount >= displayedThreshold;
+  const liveRoundDurationMs = Math.max(displayedModeSeconds * 1000, 1);
+  const liveRoundRemainingMs = selectedEndsAtMs !== null ? Math.max(selectedEndsAtMs - nowMs, 0) : liveRoundDurationMs;
+  const liveElapsedRatio = clamp(1 - liveRoundRemainingMs / liveRoundDurationMs, 0, 1);
   const liveSceneWidth = 1000;
-  const liveSceneHeight = 180;
-  const liveGateX = LIVE_TRACK_LINE_PROGRESS * liveSceneWidth;
-  const liveReservoirRight = liveGateX - 38;
-  const liveWaterSurfaceY = 88 - liveGateProgress * 10;
-  const liveGateDoorHeight = 36 + liveGateProgress * 84;
-  const liveGateDoorY = 150 - liveGateDoorHeight;
-  const liveSpillLength = liveTrackHasCrossedLine ? 24 : 128 + (1 - liveGateProgress) * 156;
-  const liveSpillOpacity = liveTrackHasCrossedLine ? 0 : 0.28 + (1 - liveGateProgress) * 0.48;
-  const liveSpillStrokeWidth = liveTrackHasCrossedLine ? 8 : 18 + (1 - liveGateProgress) * 18;
-  const liveSafeZoneOpacity = 0.24 + liveGateProgress * 0.72;
-  const liveDangerZoneOpacity = 0.34 + (1 - liveGateProgress) * 0.42;
-  const liveSpillStartX = liveGateX + 34;
-  const liveSpillEndX = liveSpillStartX + liveSpillLength;
-  const liveSpillPath = `M ${liveSpillStartX} 114 C ${liveSpillStartX + liveSpillLength * 0.18} ${92 - (1 - liveGateProgress) * 18}, ${liveSpillStartX + liveSpillLength * 0.58} ${122 + (1 - liveGateProgress) * 10}, ${liveSpillEndX} 108`;
-  const liveSpillAccentPath = `M ${liveSpillStartX} 102 C ${liveSpillStartX + liveSpillLength * 0.22} ${88 - (1 - liveGateProgress) * 12}, ${liveSpillStartX + liveSpillLength * 0.6} 112, ${liveSpillEndX} 101`;
-  const liveWaterClipId = `${liveSceneId}-water-clip`;
-  const liveGridPatternId = `${liveSceneId}-grid`;
-  const livePanelGradientId = `${liveSceneId}-panel-gradient`;
-  const liveWaterGradientId = `${liveSceneId}-water-gradient`;
-  const liveDangerGradientId = `${liveSceneId}-danger-gradient`;
-  const liveSafeGradientId = `${liveSceneId}-safe-gradient`;
-  const liveLeakGlowId = `${liveSceneId}-leak-glow`;
-  const liveSafeGlowId = `${liveSceneId}-safe-glow`;
+  const liveSceneHeight = 200;
+  const liveTrackStartX = 28;
+  const liveTrackY = 82;
+  const liveTrainLength = 188;
+  const liveTrainFrontStartX = 148;
+  const liveCliffEdgeX = 952;
+  const liveSafeStopFrontX = liveCliffEdgeX - 32;
+  const liveRunoutFrontX = 1118;
+  const liveBridgeTopY = liveTrackY + 30;
+  const liveBridgeBottomY = 200;
+  const liveBridgeEndX = liveCliffEdgeX - 14;
+  const liveBridgeArchCenters = [132, 336, 540, 744];
+  const liveBridgeArchRadius = 54;
+  const liveBaseTrainFrontX = interpolate(liveTrainFrontStartX, liveRunoutFrontX, liveElapsedRatio);
+  const liveBrakeObjectSlots = Math.min(Math.max(displayedThreshold, 4), 7);
+  const liveBrakeFill =
+    displayedThreshold > 0
+      ? clamp((liveCountValue / displayedThreshold) * liveBrakeObjectSlots, 0, liveBrakeObjectSlots)
+      : 0;
+  const liveBrakeObjectXs = Array.from(
+    { length: liveBrakeObjectSlots },
+    (_, index) => liveSafeStopFrontX - 242 + index * 36
+  );
+  const liveBrakeDistanceNeeded = liveRunoutFrontX - liveSafeStopFrontX;
+  const liveBrakeDistancePerObject = liveBrakeDistanceNeeded / liveBrakeObjectSlots;
+  const liveBrakeObjects = liveBrakeObjectXs.map((x, index) => {
+    const slotFill = clamp(liveBrakeFill - index, 0, 1);
+    const engageStart = x - 96;
+    const engageEnd = x + 26;
+    const engageRatio = clamp((liveBaseTrainFrontX - engageStart) / (engageEnd - engageStart), 0, 1);
+    const engageEase = 1 - Math.pow(1 - engageRatio, 3);
+
+    return {
+      x,
+      slotFill,
+      engageRatio,
+      brakeDistance: slotFill * engageEase * liveBrakeDistancePerObject
+    };
+  });
+  const liveBrakeDistanceApplied = liveBrakeObjects.reduce(
+    (total, block) => total + block.brakeDistance,
+    0
+  );
+  const liveBrakeCoverage = clamp(liveBrakeDistanceApplied / liveBrakeDistanceNeeded, 0, 1);
+  const liveComputedTrainFrontX = liveBaseTrainFrontX - liveBrakeDistanceApplied;
+  const liveHardStopTriggerRatio = 1.3;
+  const liveOverkillRatio = Math.max(liveCountRatio - liveHardStopTriggerRatio, 0);
+  const liveHardStopRatio = clamp(liveOverkillRatio / 0.4, 0, 1);
+  const liveTrainFrontX =
+    liveTrainStopXRef.current !== null
+      ? liveTrainStopXRef.current
+      : liveComputedTrainFrontX;
+  const liveTrainBodyX = liveTrainFrontX - liveTrainLength;
+  const liveFallProgress = clamp((liveTrainFrontX - liveCliffEdgeX) / 92, 0, 1);
+  const liveTrainTranslateY = liveFallProgress * 116;
+  const liveTrainRotation = liveFallProgress * 60;
+  const liveTrainDistanceTravelled = Math.max(liveTrainFrontX - liveTrainFrontStartX, 0);
+  const liveWheelRotation = (liveTrainDistanceTravelled / (Math.PI * 28)) * 360;
+  const liveTrainHasHardStopped = liveTrainStopXRef.current !== null;
+  const liveSpeedRatio = liveTrainHasHardStopped
+    ? 0
+    : clamp(
+        1 - liveBrakeCoverage * 0.82 - liveHardStopRatio * 0.24,
+        liveFallProgress > 0 ? 0.2 : 0.04,
+        1
+      );
+  const liveSparkOpacity = clamp(
+    (liveBrakeCoverage * 0.72 + liveHardStopRatio * 0.5) * (0.32 + liveSpeedRatio * 0.78),
+    0,
+    1
+  );
+  const liveSmokeOpacity = clamp(0.18 + liveSpeedRatio * 0.46 + liveFallProgress * 0.1, 0.18, 0.74);
+  const liveMotionLineOpacity = clamp(
+    liveSpeedRatio * (1 - liveBrakeCoverage * 0.25) * (1 - liveFallProgress * 0.55) * 0.58,
+    0,
+    0.58
+  );
+  const liveHeadlightOpacity = clamp(0.22 + liveSpeedRatio * 0.26 - liveFallProgress * 0.12, 0.18, 0.6);
+  const liveDangerZoneOpacity = clamp(
+    0.26 + (1 - Math.min(liveCountRatio, 1)) * 0.36 + liveFallProgress * 0.28,
+    0.24,
+    0.88
+  );
+  const liveSafeZoneOpacity = clamp(0.08 + liveBrakeCoverage * 0.5 + liveHardStopRatio * 0.16, 0.08, 0.82);
+  const liveThresholdLightOpacity = clamp(
+    0.22 + liveBrakeCoverage * 0.54 + liveHardStopRatio * 0.22,
+    0.22,
+    0.86
+  );
+  const liveDangerZoneCenterX = liveCliffEdgeX + 10;
+  const liveSafeZoneCenterX = liveSafeStopFrontX - 20;
+  const liveSceneClipId = `${liveSceneId}-clip`;
+  const liveSkyGradientId = `${liveSceneId}-sky-gradient`;
+  const liveCanyonGradientId = `${liveSceneId}-canyon-gradient`;
+  const liveAbyssGradientId = `${liveSceneId}-abyss-gradient`;
+  const liveTrackPatternId = `${liveSceneId}-track-pattern`;
+  const liveSmokeGradientId = `${liveSceneId}-smoke-gradient`;
+  const liveHeadlightGradientId = `${liveSceneId}-headlight-gradient`;
   const liveTrackStateLabel =
-    livePeopleCount === null ? "Counter ready" : liveTrackHasCrossedLine ? "Gate sealed" : "Sealing";
+    livePeopleCount === null
+      ? "Counter ready"
+      : liveTrainHasHardStopped
+        ? "Emergency stop"
+        : liveTrackHasCrossedLine
+          ? "Safe stop"
+          : "Runaway";
+
+  useEffect(() => {
+    if (!showLiveRoundCard || !selectedSessionId) {
+      liveTrainStopSessionIdRef.current = null;
+      liveTrainStopXRef.current = null;
+      return;
+    }
+
+    if (liveTrainStopSessionIdRef.current !== selectedSessionId) {
+      liveTrainStopSessionIdRef.current = selectedSessionId;
+      liveTrainStopXRef.current = null;
+    }
+
+    if (livePeopleCount === null || displayedThreshold <= 0) {
+      liveTrainStopXRef.current = null;
+      return;
+    }
+
+    if (liveCountRatio >= liveHardStopTriggerRatio) {
+      if (liveTrainStopXRef.current === null) {
+        liveTrainStopXRef.current = liveComputedTrainFrontX;
+      }
+      return;
+    }
+
+    liveTrainStopXRef.current = null;
+  }, [
+    displayedThreshold,
+    liveComputedTrainFrontX,
+    liveCountRatio,
+    liveHardStopTriggerRatio,
+    livePeopleCount,
+    selectedSessionId,
+    showLiveRoundCard
+  ]);
+
   const selectedWinningSide = selectedSession ? getWinningSide(selectedSession) : null;
   const selectedResultTone =
     selectedPrediction?.was_correct === true
@@ -1722,175 +1848,272 @@ export function MvpDashboard({
               <div className="live-round-overlay-track-lane">
                 <svg
                   viewBox={`0 0 ${liveSceneWidth} ${liveSceneHeight}`}
+                  preserveAspectRatio="none"
                   className={
-                    liveTrackHasCrossedLine
-                      ? "live-round-overlay-dam-svg live-round-overlay-dam-svg-sealed"
-                      : "live-round-overlay-dam-svg"
+                    liveFallProgress > 0 ? "live-round-overlay-train-svg live-round-overlay-train-svg-falling" : "live-round-overlay-train-svg"
                   }
                   aria-hidden="true"
                 >
                   <defs>
-                    <linearGradient id={livePanelGradientId} x1="0%" y1="0%" x2="100%" y2="100%">
-                      <stop offset="0%" stopColor="rgb(23 30 46)" />
-                      <stop offset="52%" stopColor="rgb(11 15 25)" />
-                      <stop offset="100%" stopColor="rgb(18 25 20)" />
+                    <linearGradient id={liveSkyGradientId} x1="0%" y1="0%" x2="100%" y2="100%">
+                      <stop offset="0%" stopColor="rgb(33 40 53)" />
+                      <stop offset="100%" stopColor="rgb(13 18 27)" />
                     </linearGradient>
-                    <linearGradient id={liveWaterGradientId} x1="0%" y1="0%" x2="0%" y2="100%">
-                      <stop offset="0%" stopColor="rgb(172 232 255)" />
-                      <stop offset="52%" stopColor="rgb(62 152 255)" />
-                      <stop offset="100%" stopColor="rgb(12 59 173)" />
+                    <linearGradient id={liveCanyonGradientId} x1="0%" y1="0%" x2="0%" y2="100%">
+                      <stop offset="0%" stopColor="rgb(132 78 61)" />
+                      <stop offset="100%" stopColor="rgb(28 14 20)" />
                     </linearGradient>
-                    <linearGradient id={liveDangerGradientId} x1="0%" y1="0%" x2="100%" y2="0%">
-                      <stop offset="0%" stopColor="rgb(123 23 33)" />
-                      <stop offset="100%" stopColor="rgb(123 23 33 / 0)" />
+                    <linearGradient id={liveAbyssGradientId} x1="0%" y1="0%" x2="0%" y2="100%">
+                      <stop offset="0%" stopColor="rgb(25 32 44 / 92%)" />
+                      <stop offset="45%" stopColor="rgb(14 18 28 / 96%)" />
+                      <stop offset="100%" stopColor="rgb(5 7 12 / 100%)" />
                     </linearGradient>
-                    <linearGradient id={liveSafeGradientId} x1="0%" y1="0%" x2="100%" y2="0%">
-                      <stop offset="0%" stopColor="rgb(37 82 52 / 0)" />
-                      <stop offset="100%" stopColor="rgb(104 230 154)" />
+                    <linearGradient id={liveSmokeGradientId} x1="0%" y1="0%" x2="0%" y2="100%">
+                      <stop offset="0%" stopColor="rgb(255 255 255 / 92%)" />
+                      <stop offset="100%" stopColor="rgb(255 255 255 / 0%)" />
                     </linearGradient>
-                    <pattern
-                      id={liveGridPatternId}
-                      width="40"
-                      height="40"
-                      patternUnits="userSpaceOnUse"
-                    >
-                      <path d="M 40 0 L 0 0 0 40" className="live-round-overlay-dam-grid-line" />
-                    </pattern>
-                    <clipPath id={liveWaterClipId}>
-                      <rect x="26" y="24" width={liveReservoirRight - 2} height="132" rx="30" />
+                    <linearGradient id={liveHeadlightGradientId} x1="0%" y1="0%" x2="100%" y2="0%">
+                      <stop offset="0%" stopColor="rgb(255 246 201 / 64%)" />
+                      <stop offset="40%" stopColor="rgb(255 215 112 / 22%)" />
+                      <stop offset="100%" stopColor="rgb(255 215 112 / 0%)" />
+                    </linearGradient>
+                    <clipPath id={liveSceneClipId}>
+                      <rect x="8" y="10" width="984" height="180" rx="30" />
                     </clipPath>
-                    <filter id={liveLeakGlowId}>
-                      <feGaussianBlur stdDeviation="7" result="blur" />
-                      <feMerge>
-                        <feMergeNode in="blur" />
-                        <feMergeNode in="SourceGraphic" />
-                      </feMerge>
-                    </filter>
-                    <filter id={liveSafeGlowId}>
-                      <feGaussianBlur stdDeviation="10" result="blur" />
-                      <feMerge>
-                        <feMergeNode in="blur" />
-                        <feMergeNode in="SourceGraphic" />
-                      </feMerge>
-                    </filter>
+                    <pattern id={liveTrackPatternId} width="32" height="32" patternUnits="userSpaceOnUse">
+                      <rect x="10" y="0" width="12" height="32" className="live-round-overlay-train-sleeper" />
+                    </pattern>
                   </defs>
 
-                  <rect x="18" y="16" width="964" height="148" rx="34" fill={`url(#${livePanelGradientId})`} />
-                  <rect x="18" y="16" width="964" height="148" rx="34" fill={`url(#${liveGridPatternId})`} opacity="0.18" />
-                  <rect
-                    x="26"
-                    y="24"
-                    width={liveReservoirRight - 2}
-                    height="132"
-                    rx="30"
-                    fill={`url(#${liveDangerGradientId})`}
-                    opacity={liveDangerZoneOpacity}
-                  />
-                  <rect
-                    x={liveGateX + 24}
-                    y="24"
-                    width={liveSceneWidth - liveGateX - 50}
-                    height="132"
-                    rx="30"
-                    fill={`url(#${liveSafeGradientId})`}
-                    opacity={liveSafeZoneOpacity}
-                  />
-
-                  <g clipPath={`url(#${liveWaterClipId})`}>
+                  <g clipPath={`url(#${liveSceneClipId})`}>
+                    <rect x="8" y="10" width="984" height="180" rx="30" fill={`url(#${liveSkyGradientId})`} />
                     <rect
-                      x="26"
-                      y={liveWaterSurfaceY}
-                      width={liveReservoirRight - 2}
-                      height={160 - liveWaterSurfaceY}
-                      rx="26"
-                      fill={`url(#${liveWaterGradientId})`}
+                      x="8"
+                      y={liveBridgeTopY - 2}
+                      width="984"
+                      height={liveSceneHeight - liveBridgeTopY + 2}
+                      fill={`url(#${liveAbyssGradientId})`}
+                    />
+                    <ellipse
+                      cx={liveDangerZoneCenterX}
+                      cy={liveBridgeTopY + 52}
+                      rx="146"
+                      ry="74"
+                      className="live-round-overlay-train-danger-glow"
+                      opacity={liveDangerZoneOpacity}
+                    />
+                    <ellipse
+                      cx={liveSafeZoneCenterX}
+                      cy={liveBridgeTopY + 18}
+                      rx="108"
+                      ry="42"
+                      className="live-round-overlay-train-safe-glow"
+                      opacity={liveSafeZoneOpacity}
                     />
                     <path
-                      d="M -160 0 C -90 22, -10 -18, 70 0 S 230 22 310 0 S 470 -18 550 0 S 710 22 790 0 S 950 -18 1030 0 S 1190 22 1270 0 V 88 H -160 Z"
-                      transform={`translate(0 ${liveWaterSurfaceY - 4})`}
-                      className="live-round-overlay-dam-wave live-round-overlay-dam-wave-back"
+                      d={`M 8 ${liveBridgeBottomY} V ${liveBridgeTopY} H ${liveBridgeEndX - 24} L ${liveBridgeEndX} ${liveBridgeTopY + 10} V ${liveBridgeBottomY} H 8 Z`}
+                      className="live-round-overlay-train-ground"
                     />
                     <path
-                      d="M -180 0 C -110 18, -20 -14, 60 0 S 220 18 300 0 S 460 -14 540 0 S 700 18 780 0 S 940 -14 1020 0 S 1180 18 1260 0 V 76 H -180 Z"
-                      transform={`translate(0 ${liveWaterSurfaceY + 4})`}
-                      className="live-round-overlay-dam-wave live-round-overlay-dam-wave-front"
+                      d={`M 8 ${liveBridgeTopY + 10} H ${liveBridgeEndX - 20} L ${liveBridgeEndX} ${liveBridgeTopY + 18}`}
+                      className="live-round-overlay-train-ground-ridge"
+                    />
+                    {liveBridgeArchCenters.map((centerX) => (
+                      <path
+                        key={centerX}
+                        d={`M ${centerX - liveBridgeArchRadius} ${liveBridgeBottomY} V ${liveBridgeTopY + liveBridgeArchRadius + 12} A ${liveBridgeArchRadius} ${liveBridgeArchRadius} 0 0 1 ${centerX + liveBridgeArchRadius} ${liveBridgeTopY + liveBridgeArchRadius + 12} V ${liveBridgeBottomY} Z`}
+                        className="live-round-overlay-train-bridge-arch"
+                        fill={`url(#${liveAbyssGradientId})`}
+                      />
+                    ))}
+                    <path
+                      d={`M ${liveBridgeEndX - 4} ${liveBridgeTopY + 8} L ${liveCliffEdgeX + 28} 54 L ${liveSceneWidth} 32 L ${liveSceneWidth} ${liveSceneHeight} H ${liveCliffEdgeX + 68} C ${liveCliffEdgeX + 36} 182, ${liveCliffEdgeX + 12} 168, ${liveBridgeEndX - 4} ${liveBridgeTopY + 8} Z`}
+                      fill={`url(#${liveCanyonGradientId})`}
                     />
                     <path
-                      d={`M 28 ${liveWaterSurfaceY + 8} H ${liveReservoirRight - 12}`}
-                      className="live-round-overlay-dam-foam"
+                      d={`M ${liveBridgeEndX - 4} ${liveBridgeTopY + 8} L ${liveCliffEdgeX + 24} 56 L ${liveCliffEdgeX + 52} 200`}
+                      className="live-round-overlay-train-cliff-face"
                     />
-                  </g>
-
-                  <path
-                    d={liveSpillPath}
-                    className="live-round-overlay-dam-spill live-round-overlay-dam-spill-main"
-                    style={{ opacity: liveSpillOpacity, strokeWidth: liveSpillStrokeWidth }}
-                    filter={`url(#${liveLeakGlowId})`}
-                  />
-                  <path
-                    d={liveSpillAccentPath}
-                    className="live-round-overlay-dam-spill live-round-overlay-dam-spill-accent"
-                    style={{ opacity: liveSpillOpacity * 0.82, strokeWidth: liveSpillStrokeWidth * 0.48 }}
-                  />
-                  <circle
-                    cx={liveSpillEndX + 10}
-                    cy="106"
-                    r={8 + (1 - liveGateProgress) * 6}
-                    className="live-round-overlay-dam-splash"
-                    style={{ opacity: liveSpillOpacity * 0.78 }}
-                  />
-
-                  <g transform={`translate(${liveGateX} 0)`}>
-                    <rect x="-60" y="36" width="22" height="112" rx="11" className="live-round-overlay-dam-tower" />
-                    <rect x="38" y="36" width="22" height="112" rx="11" className="live-round-overlay-dam-tower" />
-                    <rect x="-44" y="54" width="88" height="8" rx="4" className="live-round-overlay-dam-beam" />
+                    <path
+                      d={`M ${liveTrackStartX - 4} ${liveTrackY + 44} H ${liveCliffEdgeX - 18}`}
+                      className="live-round-overlay-train-track-bed"
+                    />
                     <rect
-                      x="-28"
-                      y={liveGateDoorY}
-                      width="56"
-                      height={liveGateDoorHeight}
-                      rx="16"
-                      className={
-                        liveTrackHasCrossedLine
-                          ? "live-round-overlay-dam-door live-round-overlay-dam-door-sealed"
-                          : "live-round-overlay-dam-door"
-                      }
+                      x={liveTrackStartX}
+                      y={liveTrackY - 4}
+                      width={liveCliffEdgeX - liveTrackStartX - 20}
+                      height="38"
+                      fill={`url(#${liveTrackPatternId})`}
+                      opacity="0.92"
                     />
-                    <path d={`M -20 ${liveGateDoorY + 20} H 20 M -20 ${liveGateDoorY + 40} H 20 M -20 ${liveGateDoorY + 60} H 20`} className="live-round-overlay-dam-door-slats" />
-                    <circle
-                      cx="0"
-                      cy="82"
-                      r="9"
-                      className={
-                        liveTrackHasCrossedLine
-                          ? "live-round-overlay-dam-sensor live-round-overlay-dam-sensor-sealed"
-                          : "live-round-overlay-dam-sensor"
-                      }
+                    <path
+                      d={`M ${liveTrackStartX} ${liveTrackY + 2} H ${liveCliffEdgeX - 22} M ${liveTrackStartX} ${liveTrackY + 26} H ${liveCliffEdgeX - 26}`}
+                      className="live-round-overlay-train-rails"
                     />
-                    <rect x="-38" y="12" width="76" height="26" rx="13" className="live-round-overlay-dam-badge" />
-                    <text x="0" y="30" textAnchor="middle" className="live-round-overlay-dam-badge-text">
-                      {displayedThreshold}
-                    </text>
-                  </g>
+                    <path
+                      d={`M ${liveCliffEdgeX - 34} ${liveTrackY + 2} L ${liveCliffEdgeX - 2} ${liveTrackY - 10} M ${liveCliffEdgeX - 38} ${liveTrackY + 26} L ${liveCliffEdgeX - 6} ${liveTrackY + 16}`}
+                      className="live-round-overlay-train-broken-rail"
+                    />
+                    <path
+                      d={`M ${liveCliffEdgeX - 42} ${liveTrackY + 12} L ${liveCliffEdgeX + 2} ${liveTrackY + 6}`}
+                      className="live-round-overlay-train-ledge-warning"
+                    />
 
-                  <g opacity={liveSafeZoneOpacity} filter={`url(#${liveSafeGlowId})`}>
-                    <ellipse cx="860" cy="142" rx="84" ry="18" className="live-round-overlay-dam-refuge-glow" />
-                  </g>
-                  <g className="live-round-overlay-dam-refuge" opacity={0.42 + liveSafeZoneOpacity * 0.58}>
-                    <path d="M 776 148 Q 842 126 934 148" className="live-round-overlay-dam-refuge-ground" />
-                    <rect x="810" y="98" width="20" height="40" rx="5" className="live-round-overlay-dam-refuge-building" />
-                    <rect x="840" y="84" width="24" height="54" rx="5" className="live-round-overlay-dam-refuge-building live-round-overlay-dam-refuge-building-tall" />
-                    <rect x="874" y="104" width="18" height="34" rx="5" className="live-round-overlay-dam-refuge-building" />
-                    <path d="M 928 138 L 944 102 L 960 138 Z" className="live-round-overlay-dam-refuge-tree" />
-                    <circle cx="948" cy="88" r="8" className="live-round-overlay-dam-refuge-beacon" />
+                    <g transform={`translate(${liveSafeStopFrontX + 6} ${liveTrackY - 2})`}>
+                      <path d="M 0 32 V -28" className="live-round-overlay-train-threshold-post" />
+                      <circle
+                        cx="0"
+                        cy="-34"
+                        r="9"
+                        className="live-round-overlay-train-threshold-light"
+                        opacity={liveThresholdLightOpacity}
+                      />
+                      <circle cx="0" cy="-34" r="3.5" className="live-round-overlay-train-threshold-light-core" />
+                    </g>
+
+                    <g opacity={liveMotionLineOpacity}>
+                      <path
+                        d={`M ${liveTrainBodyX - 54} ${liveTrackY - 16} H ${liveTrainBodyX - 10}`}
+                        className="live-round-overlay-train-motion-line"
+                      />
+                      <path
+                        d={`M ${liveTrainBodyX - 78} ${liveTrackY + 2} H ${liveTrainBodyX - 18}`}
+                        className="live-round-overlay-train-motion-line"
+                      />
+                      <path
+                        d={`M ${liveTrainBodyX - 50} ${liveTrackY + 18} H ${liveTrainBodyX - 6}`}
+                        className="live-round-overlay-train-motion-line"
+                      />
+                    </g>
+
+                    {liveBrakeObjects.map((block) =>
+                      block.slotFill > 0.02 ? (
+                        <g
+                          key={block.x}
+                          transform={`translate(${block.x} ${liveTrackY + 8})`}
+                          opacity={0.18 + block.slotFill * 0.82}
+                        >
+                          <path
+                            d={`M -12 10 L -4 ${-8 - block.slotFill * 10} H 10 L 4 10 Z`}
+                            className="live-round-overlay-train-brake-block"
+                          />
+                          <path
+                            d={`M -7 3 H 6`}
+                            className="live-round-overlay-train-brake-block-top"
+                          />
+                          <circle
+                            cx="0"
+                            cy={-6 - block.slotFill * 8}
+                            r={1.4 + block.slotFill * 1.6}
+                            className="live-round-overlay-train-brake-block-glow"
+                            opacity={0.24 + block.engageRatio * 0.62}
+                          />
+                        </g>
+                      ) : null
+                    )}
+
+                    <g
+                      transform={`translate(${liveTrainBodyX} ${liveTrackY - 74 + liveTrainTranslateY}) rotate(${liveTrainRotation} 94 72)`}
+                      className={
+                        liveTrainHasHardStopped
+                          ? "live-round-overlay-train-group live-round-overlay-train-group-hard-stop"
+                          : "live-round-overlay-train-group"
+                      }
+                    >
+                      <ellipse
+                        cx="88"
+                        cy="110"
+                        rx="80"
+                        ry="10"
+                        className="live-round-overlay-train-shadow"
+                        opacity={0.24 - liveFallProgress * 0.08}
+                      />
+                      <path
+                        d="M 164 68 L 246 48 L 246 88 Z"
+                        fill={`url(#${liveHeadlightGradientId})`}
+                        className="live-round-overlay-train-headlight"
+                        opacity={liveHeadlightOpacity}
+                      />
+
+                      <g opacity={liveSmokeOpacity}>
+                        <circle
+                          cx="120"
+                          cy="20"
+                          r="13"
+                          fill={`url(#${liveSmokeGradientId})`}
+                          className="live-round-overlay-train-smoke live-round-overlay-train-smoke-a"
+                        />
+                        <circle
+                          cx="134"
+                          cy="4"
+                          r="10"
+                          fill={`url(#${liveSmokeGradientId})`}
+                          className="live-round-overlay-train-smoke live-round-overlay-train-smoke-b"
+                        />
+                        <circle
+                          cx="108"
+                          cy="-2"
+                          r="8"
+                          fill={`url(#${liveSmokeGradientId})`}
+                          className="live-round-overlay-train-smoke live-round-overlay-train-smoke-c"
+                        />
+                      </g>
+
+                      <rect x="12" y="58" width="42" height="22" rx="6" className="live-round-overlay-train-car" />
+                      <path d="M 44 80 H 92 V 28 H 116 V 80 Z" className="live-round-overlay-train-cab" />
+                      <path
+                        d="M 82 80 H 146 C 154 80 160 74 160 66 V 58 C 160 50 154 44 146 44 H 88 C 80 44 76 50 76 58 V 70 C 76 76 78 80 82 80 Z"
+                        className="live-round-overlay-train-engine"
+                      />
+                      <rect x="112" y="22" width="16" height="24" rx="4" className="live-round-overlay-train-stack" />
+                      <path d="M 150 80 L 166 54 H 174 L 162 80 Z" className="live-round-overlay-train-cowcatcher" />
+                      <circle cx="164" cy="60" r="6" className="live-round-overlay-train-lamp" />
+                      <path d="M 18 58 H 48 M 58 54 H 104 M 116 48 H 148" className="live-round-overlay-train-roof-line" />
+                      <rect x="58" y="38" width="10" height="12" rx="2.5" className="live-round-overlay-train-window" />
+                      <rect x="72" y="38" width="10" height="12" rx="2.5" className="live-round-overlay-train-window" />
+                      <rect x="92" y="54" width="46" height="8" rx="4" className="live-round-overlay-train-trim" />
+                      <path d="M 28 86 H 144" className="live-round-overlay-train-coupler" />
+
+                      <circle cx="32" cy="94" r="11" className="live-round-overlay-train-wheel live-round-overlay-train-wheel-small" />
+                      <g transform={`rotate(${liveWheelRotation} 32 94)`}>
+                        <path d="M 32 84 V 104 M 22 94 H 42 M 25 87 L 39 101 M 39 87 L 25 101" className="live-round-overlay-train-wheel-spokes" />
+                      </g>
+                      <circle cx="32" cy="94" r="4" className="live-round-overlay-train-wheel-core" />
+                      <circle cx="84" cy="96" r="14" className="live-round-overlay-train-wheel" />
+                      <g transform={`rotate(${liveWheelRotation} 84 96)`}>
+                        <path d="M 84 82 V 110 M 70 96 H 98 M 74 86 L 94 106 M 94 86 L 74 106" className="live-round-overlay-train-wheel-spokes" />
+                      </g>
+                      <circle cx="84" cy="96" r="5" className="live-round-overlay-train-wheel-core" />
+                      <circle cx="134" cy="96" r="14" className="live-round-overlay-train-wheel" />
+                      <g transform={`rotate(${liveWheelRotation} 134 96)`}>
+                        <path d="M 134 82 V 110 M 120 96 H 148 M 124 86 L 144 106 M 144 86 L 124 106" className="live-round-overlay-train-wheel-spokes" />
+                      </g>
+                      <circle cx="134" cy="96" r="5" className="live-round-overlay-train-wheel-core" />
+
+                      <g style={{ opacity: liveSparkOpacity }}>
+                        <path
+                          d="M 80 108 L 64 122 M 82 108 L 58 114 M 134 108 L 150 124 M 136 108 L 158 114"
+                          className="live-round-overlay-train-sparks"
+                        />
+                        <path
+                          d="M 82 116 L 72 126 M 136 116 L 148 126"
+                          className="live-round-overlay-train-sparks live-round-overlay-train-sparks-soft"
+                        />
+                      </g>
+                    </g>
+
+                    <path
+                      d={`M ${liveCliffEdgeX + 12} 112 C ${liveCliffEdgeX + 54} 154, ${liveCliffEdgeX + 118} 180, ${liveSceneWidth} 194`}
+                      className="live-round-overlay-train-canyon-haze"
+                    />
                   </g>
                 </svg>
               </div>
 
               <div className="live-round-overlay-track-scale">
-                <span>Pressure</span>
+                <span>Full speed</span>
                 <span>Threshold</span>
-                <span>Safe</span>
+                <span>Cliff edge</span>
               </div>
             </div>
           </div>
