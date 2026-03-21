@@ -425,7 +425,7 @@ export function AdminConsole({
           </label>
 
           <label>
-            Threshold
+            Over / Under Threshold
             <input
               type="number"
               min={1}
@@ -471,6 +471,11 @@ export function AdminConsole({
               disabled={submitting}
             />
           </label>
+
+          <div className="admin-form-note admin-form-wide">
+            <strong>Bet types:</strong> over and under use this threshold line, while exact and range
+            bets are entered by each player when betting opens.
+          </div>
 
           <div className="admin-form-note admin-form-wide">
             <strong>Region snapshot:</strong> this session will use the overlay currently shown on the feed.

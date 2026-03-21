@@ -11,7 +11,7 @@ import {
 } from "@/lib/betting-region";
 import { getBrowserSupabaseClient } from "@/lib/supabase/client";
 
-type PredictionSide = "over" | "under" | "exact";
+type PredictionSide = "over" | "under" | "exact" | "range";
 
 type SessionState = "upcoming" | "open" | "live" | "resolving" | "resolved" | "cancelled";
 
@@ -32,6 +32,8 @@ type PredictionRow = {
   side: PredictionSide;
   wager_tokens: number;
   exact_value: number | null;
+  range_min: number | null;
+  range_max: number | null;
   was_correct: boolean | null;
   token_delta: number | null;
   resolved_at: string | null;
@@ -169,6 +171,14 @@ function formatCountdown(milliseconds: number) {
   return `${minutes.toString().padStart(2, "0")}:${seconds.toString().padStart(2, "0")}`;
 }
 
+function getDefaultRangeMin(threshold: number) {
+  return String(Math.max(0, threshold - 1));
+}
+
+function getDefaultRangeMax(threshold: number) {
+  return String(threshold + 1);
+}
+
 function formatReadableDuration(milliseconds: number) {
   const safeMilliseconds = Math.max(milliseconds, 0);
   const totalMinutes = Math.floor(safeMilliseconds / 60_000);
@@ -221,6 +231,14 @@ function getWinningSide(session: SessionRow): PredictionSide | null {
 function formatPredictionLabel(prediction: PredictionRow, session: SessionRow | null) {
   if (prediction.side === "exact") {
     return prediction.exact_value !== null ? `EXACT ${prediction.exact_value}` : "EXACT";
+  }
+
+  if (prediction.side === "range") {
+    if (prediction.range_min !== null && prediction.range_max !== null) {
+      return `RANGE ${prediction.range_min}-${prediction.range_max}`;
+    }
+
+    return "RANGE";
   }
 
   if (!session) {
@@ -359,12 +377,20 @@ function getPredictionHistoryNote(prediction: PredictionRow, session: SessionRow
       return `You nailed the exact count at ${session.final_count} people.`;
     }
 
+    if (prediction.side === "range") {
+      return `Final count of ${session.final_count} landed inside your ${prediction.range_min ?? "?"}-${prediction.range_max ?? "?"} range.`;
+    }
+
     return `${prediction.side.toUpperCase()} cleared the ${session.threshold} line with ${session.final_count} people.`;
   }
 
   if (prediction.was_correct === false && session.final_count !== null) {
     if (prediction.side === "exact") {
       return `You called ${prediction.exact_value ?? "?"}, but ${session.final_count} people crossed the line.`;
+    }
+
+    if (prediction.side === "range") {
+      return `You called ${prediction.range_min ?? "?"}-${prediction.range_max ?? "?"}, but ${session.final_count} people crossed the line.`;
     }
 
     if (session.final_count === session.threshold) {
@@ -537,6 +563,8 @@ export function MvpDashboard({
   const [wagerBySession, setWagerBySession] = useState<Record<string, string>>({});
   const [sideBySession, setSideBySession] = useState<Record<string, PredictionSide>>({});
   const [exactValueBySession, setExactValueBySession] = useState<Record<string, string>>({});
+  const [rangeMinBySession, setRangeMinBySession] = useState<Record<string, string>>({});
+  const [rangeMaxBySession, setRangeMaxBySession] = useState<Record<string, string>>({});
   const [openRightPanel, setOpenRightPanel] = useState<"account" | "leaderboard" | "admin" | null>(
     null
   );
@@ -602,6 +630,12 @@ export function MvpDashboard({
   const selectedSide = selectedSession ? (sideBySession[selectedSession.id] ?? "over") : "over";
   const selectedExactValue = selectedSession
     ? (exactValueBySession[selectedSession.id] ?? String(selectedSession.threshold ?? DEFAULT_EXACT_VALUE))
+    : DEFAULT_EXACT_VALUE;
+  const selectedRangeMin = selectedSession
+    ? (rangeMinBySession[selectedSession.id] ?? getDefaultRangeMin(selectedSession.threshold))
+    : DEFAULT_EXACT_VALUE;
+  const selectedRangeMax = selectedSession
+    ? (rangeMaxBySession[selectedSession.id] ?? getDefaultRangeMax(selectedSession.threshold))
     : DEFAULT_EXACT_VALUE;
   const canConfigureSelected = Boolean(selectedSession && selectedState === "open" && selectedPrediction === null);
   const showBettingControls = Boolean(selectedSession && selectedState === "open");
@@ -1235,7 +1269,9 @@ export function MvpDashboard({
 
     const predictionResponse = await supabase
       .from("predictions")
-      .select("id,session_id,side,wager_tokens,exact_value,was_correct,token_delta,resolved_at,placed_at")
+      .select(
+        "id,session_id,side,wager_tokens,exact_value,range_min,range_max,was_correct,token_delta,resolved_at,placed_at"
+      )
       .eq("user_id", activeUser.id)
       .order("placed_at", { ascending: false });
     if (predictionResponse.error) {
@@ -1646,9 +1682,21 @@ export function MvpDashboard({
     const side = sideBySession[session.id] ?? "over";
     const exactValueRaw = exactValueBySession[session.id] ?? String(session.threshold);
     const exactValue = Number.parseInt(exactValueRaw, 10);
+    const rangeMinRaw = rangeMinBySession[session.id] ?? getDefaultRangeMin(session.threshold);
+    const rangeMaxRaw = rangeMaxBySession[session.id] ?? getDefaultRangeMax(session.threshold);
+    const rangeMin = Number.parseInt(rangeMinRaw, 10);
+    const rangeMax = Number.parseInt(rangeMaxRaw, 10);
 
     if (side === "exact" && (!Number.isFinite(exactValue) || exactValue < 0)) {
       setError("Exact bets need a whole-number count of zero or more.");
+      return;
+    }
+
+    if (
+      side === "range" &&
+      (!Number.isFinite(rangeMin) || !Number.isFinite(rangeMax) || rangeMin < 0 || rangeMax < rangeMin)
+    ) {
+      setError("Range bets need whole-number bounds with a minimum that is not above the maximum.");
       return;
     }
 
@@ -1659,7 +1707,9 @@ export function MvpDashboard({
       p_session_id: session.id,
       p_side: side,
       p_wager_tokens: wagerTokens,
-      p_exact_value: side === "exact" ? exactValue : null
+      p_exact_value: side === "exact" ? exactValue : null,
+      p_range_min: side === "range" ? rangeMin : null,
+      p_range_max: side === "range" ? rangeMax : null
     });
 
     if (predictionResponse.error) {
@@ -1709,6 +1759,20 @@ export function MvpDashboard({
     setExactValueBySession((current) => ({
       ...current,
       [sessionId]: nextExactValue
+    }));
+  }
+
+  function updateSelectedRangeMin(sessionId: string, nextRangeMin: string) {
+    setRangeMinBySession((current) => ({
+      ...current,
+      [sessionId]: nextRangeMin
+    }));
+  }
+
+  function updateSelectedRangeMax(sessionId: string, nextRangeMax: string) {
+    setRangeMaxBySession((current) => ({
+      ...current,
+      [sessionId]: nextRangeMax
     }));
   }
 
@@ -2254,6 +2318,31 @@ export function MvpDashboard({
                       {selectedExactValue ? `Call ${selectedExactValue}` : "Name the final count"}
                     </span>
                   </button>
+
+                  <button
+                    type="button"
+                    className={
+                      hasSelectedSession && selectedSide === "range"
+                        ? "market-choice-card market-choice-range active"
+                        : "market-choice-card market-choice-range"
+                    }
+                    onClick={() => {
+                      if (selectedSession) {
+                        updateSelectedSide(selectedSession.id, "range");
+                      }
+                    }}
+                    disabled={!canConfigureSelected}
+                  >
+                    <span className="market-choice-icon" aria-hidden="true">
+                      ≈
+                    </span>
+                    <span className="market-choice-title">Range</span>
+                    <span className="market-choice-subtitle">
+                      {selectedRangeMin && selectedRangeMax
+                        ? `${selectedRangeMin} to ${selectedRangeMax}`
+                        : "Pick a min and max"}
+                    </span>
+                  </button>
                 </div>
 
                 {hasSelectedSession && selectedSide === "exact" ? (
@@ -2275,6 +2364,51 @@ export function MvpDashboard({
                           onChange={(event) => {
                             if (selectedSession) {
                               updateSelectedExactValue(selectedSession.id, event.target.value);
+                            }
+                          }}
+                          disabled={!canConfigureSelected}
+                        />
+                      </label>
+                    </div>
+                  </div>
+                ) : null}
+
+                {hasSelectedSession && selectedSide === "range" ? (
+                  <div className="market-config-card">
+                    <div className="market-config-header">
+                      <span className="market-config-label">Inclusive range</span>
+                      <span className="market-config-hint">Whole numbers, zero or higher</span>
+                    </div>
+
+                    <div className="market-config-field-grid">
+                      <label className="market-config-field">
+                        <span>Minimum</span>
+                        <input
+                          type="number"
+                          min={0}
+                          step={1}
+                          inputMode="numeric"
+                          value={selectedRangeMin}
+                          onChange={(event) => {
+                            if (selectedSession) {
+                              updateSelectedRangeMin(selectedSession.id, event.target.value);
+                            }
+                          }}
+                          disabled={!canConfigureSelected}
+                        />
+                      </label>
+
+                      <label className="market-config-field">
+                        <span>Maximum</span>
+                        <input
+                          type="number"
+                          min={0}
+                          step={1}
+                          inputMode="numeric"
+                          value={selectedRangeMax}
+                          onChange={(event) => {
+                            if (selectedSession) {
+                              updateSelectedRangeMax(selectedSession.id, event.target.value);
                             }
                           }}
                           disabled={!canConfigureSelected}
