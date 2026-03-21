@@ -2483,7 +2483,7 @@ export function MvpDashboard({
                 <span className="market-live-summary-kicker">Round live</span>
                 <strong className="market-live-summary-headline">
                   {selectedPrediction
-                    ? `${selectedPrediction.side.toUpperCase()} · ${selectedPrediction.wager_tokens} tokens`
+                    ? `${formatPredictionLabel(selectedPrediction, selectedSession)} · ${selectedPrediction.wager_tokens} tokens`
                     : "Watching this round"}
                 </strong>
                 <div className="market-live-summary-grid">
@@ -2524,7 +2524,7 @@ export function MvpDashboard({
                     <span>{selectedPrediction ? "Your pick" : "Winning side"}</span>
                     <strong>
                       {selectedPrediction
-                        ? selectedPrediction.side.toUpperCase()
+                        ? formatPredictionLabel(selectedPrediction, selectedSession)
                         : selectedWinningSide
                           ? selectedWinningSide.toUpperCase()
                           : "Pending"}
@@ -2581,7 +2581,7 @@ export function MvpDashboard({
 
           {selectedPrediction && !showLiveRoundCard && !showResolvedRoundCard ? (
             <p className="session-result compact-result selection-summary">
-              Locked in: <strong>{selectedPrediction.side.toUpperCase()}</strong> ·{" "}
+              Locked in: <strong>{formatPredictionLabel(selectedPrediction, selectedSession)}</strong> ·{" "}
               {selectedPrediction.wager_tokens} tokens
               {selectedPrediction.resolved_at && selectedPrediction.was_correct === null
                 ? " · Cancelled"
