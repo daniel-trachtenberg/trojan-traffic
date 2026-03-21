@@ -11,7 +11,7 @@ import {
 } from "@/lib/betting-region";
 import { getBrowserSupabaseClient } from "@/lib/supabase/client";
 
-type PredictionSide = "over" | "under";
+type PredictionSide = "over" | "under" | "exact" | "range";
 
 type SessionState = "upcoming" | "open" | "live" | "resolving" | "resolved" | "cancelled";
 
@@ -31,6 +31,9 @@ type PredictionRow = {
   session_id: string;
   side: PredictionSide;
   wager_tokens: number;
+  exact_value: number | null;
+  range_min: number | null;
+  range_max: number | null;
   was_correct: boolean | null;
   token_delta: number | null;
   resolved_at: string | null;
@@ -88,6 +91,7 @@ type StandbyMetaItem = {
 type PredictionHistoryTone = "win" | "loss" | "pending" | "cancelled";
 
 const DEFAULT_WAGER = "10";
+const DEFAULT_EXACT_VALUE = "0";
 const WAGER_STEPS = [1, 5, 10, 20];
 const BETTING_OPEN_WINDOW_MS = 5 * 60 * 1000;
 const DAILY_CLAIM_TIMEZONE = "America/Los_Angeles";
@@ -167,6 +171,14 @@ function formatCountdown(milliseconds: number) {
   return `${minutes.toString().padStart(2, "0")}:${seconds.toString().padStart(2, "0")}`;
 }
 
+function getDefaultRangeMin(threshold: number) {
+  return String(Math.max(0, threshold - 1));
+}
+
+function getDefaultRangeMax(threshold: number) {
+  return String(threshold + 1);
+}
+
 function formatReadableDuration(milliseconds: number) {
   const safeMilliseconds = Math.max(milliseconds, 0);
   const totalMinutes = Math.floor(safeMilliseconds / 60_000);
@@ -214,6 +226,26 @@ function getWinningSide(session: SessionRow): PredictionSide | null {
   }
 
   return null;
+}
+
+function formatPredictionLabel(prediction: PredictionRow, session: SessionRow | null) {
+  if (prediction.side === "exact") {
+    return prediction.exact_value !== null ? `EXACT ${prediction.exact_value}` : "EXACT";
+  }
+
+  if (prediction.side === "range") {
+    if (prediction.range_min !== null && prediction.range_max !== null) {
+      return `RANGE ${prediction.range_min}-${prediction.range_max}`;
+    }
+
+    return "RANGE";
+  }
+
+  if (!session) {
+    return prediction.side.toUpperCase();
+  }
+
+  return `${prediction.side.toUpperCase()} ${session.threshold}`;
 }
 
 function formatTokenDelta(tokenDelta: number | null) {
@@ -341,10 +373,26 @@ function getPredictionHistoryNote(prediction: PredictionRow, session: SessionRow
   }
 
   if (prediction.was_correct === true && session.final_count !== null) {
+    if (prediction.side === "exact") {
+      return `You nailed the exact count at ${session.final_count} people.`;
+    }
+
+    if (prediction.side === "range") {
+      return `Final count of ${session.final_count} landed inside your ${prediction.range_min ?? "?"}-${prediction.range_max ?? "?"} range.`;
+    }
+
     return `${prediction.side.toUpperCase()} cleared the ${session.threshold} line with ${session.final_count} people.`;
   }
 
   if (prediction.was_correct === false && session.final_count !== null) {
+    if (prediction.side === "exact") {
+      return `You called ${prediction.exact_value ?? "?"}, but ${session.final_count} people crossed the line.`;
+    }
+
+    if (prediction.side === "range") {
+      return `You called ${prediction.range_min ?? "?"}-${prediction.range_max ?? "?"}, but ${session.final_count} people crossed the line.`;
+    }
+
     if (session.final_count === session.threshold) {
       return `Final count landed exactly on the ${session.threshold} line.`;
     }
@@ -514,6 +562,9 @@ export function MvpDashboard({
   const [displayName, setDisplayName] = useState("");
   const [wagerBySession, setWagerBySession] = useState<Record<string, string>>({});
   const [sideBySession, setSideBySession] = useState<Record<string, PredictionSide>>({});
+  const [exactValueBySession, setExactValueBySession] = useState<Record<string, string>>({});
+  const [rangeMinBySession, setRangeMinBySession] = useState<Record<string, string>>({});
+  const [rangeMaxBySession, setRangeMaxBySession] = useState<Record<string, string>>({});
   const [openRightPanel, setOpenRightPanel] = useState<"account" | "leaderboard" | "admin" | null>(
     null
   );
@@ -577,6 +628,15 @@ export function MvpDashboard({
     : "Soon";
   const selectedWager = selectedSession ? (wagerBySession[selectedSession.id] ?? DEFAULT_WAGER) : DEFAULT_WAGER;
   const selectedSide = selectedSession ? (sideBySession[selectedSession.id] ?? "over") : "over";
+  const selectedExactValue = selectedSession
+    ? (exactValueBySession[selectedSession.id] ?? String(selectedSession.threshold ?? DEFAULT_EXACT_VALUE))
+    : DEFAULT_EXACT_VALUE;
+  const selectedRangeMin = selectedSession
+    ? (rangeMinBySession[selectedSession.id] ?? getDefaultRangeMin(selectedSession.threshold))
+    : DEFAULT_EXACT_VALUE;
+  const selectedRangeMax = selectedSession
+    ? (rangeMaxBySession[selectedSession.id] ?? getDefaultRangeMax(selectedSession.threshold))
+    : DEFAULT_EXACT_VALUE;
   const canConfigureSelected = Boolean(selectedSession && selectedState === "open" && selectedPrediction === null);
   const showBettingControls = Boolean(selectedSession && selectedState === "open");
   const dailyClaimState = getDailyClaimState(streaks?.last_login_date ?? null, nowMs);
@@ -848,12 +908,15 @@ export function MvpDashboard({
     const settledAtCopy = selectedEndsAtLabel ? `Round closed at ${selectedEndsAtLabel}.` : "Round closed.";
     const exactLineHit =
       selectedSession.final_count !== null && selectedSession.final_count === selectedSession.threshold;
+    const selectedPredictionLabel = selectedPrediction
+      ? formatPredictionLabel(selectedPrediction, selectedSession)
+      : null;
 
     if (selectedPrediction?.resolved_at && selectedPrediction.was_correct === null) {
       return {
         eyebrow: "Round cancelled",
         headline: "Entry voided",
-        copy: `The ${displayedModeSeconds}s round was cancelled after betting closed. Your ${selectedPrediction.side.toUpperCase()} entry will not count.`,
+        copy: `The ${displayedModeSeconds}s round was cancelled after betting closed. Your ${selectedPredictionLabel ?? "bet"} will not count.`,
         footer: settledAtCopy,
         secondaryLabel: "Payout",
         secondaryValue: "Voided"
@@ -864,7 +927,7 @@ export function MvpDashboard({
       return {
         eyebrow: "Round settled",
         headline: "You won",
-        copy: `Final count hit ${finalCountLabel}. Your ${selectedPrediction.side.toUpperCase()} pick cleared the line and paid ${formatTokenDelta(selectedPrediction.token_delta)} tokens.`,
+        copy: `Final count hit ${finalCountLabel}. Your ${selectedPredictionLabel ?? "bet"} paid ${formatTokenDelta(selectedPrediction.token_delta)} tokens.`,
         footer: settledAtCopy,
         secondaryLabel: "Token swing",
         secondaryValue: formatTokenDelta(selectedPrediction.token_delta)
@@ -875,7 +938,7 @@ export function MvpDashboard({
       return {
         eyebrow: "Round settled",
         headline: "You lost",
-        copy: `Final count landed at ${finalCountLabel}. Your ${selectedPrediction.side.toUpperCase()} call missed the line and cost ${Math.abs(selectedPrediction.token_delta ?? 0)} tokens.`,
+        copy: `Final count landed at ${finalCountLabel}. Your ${selectedPredictionLabel ?? "bet"} missed and cost ${Math.abs(selectedPrediction.token_delta ?? 0)} tokens.`,
         footer: settledAtCopy,
         secondaryLabel: "Token swing",
         secondaryValue: formatTokenDelta(selectedPrediction.token_delta)
@@ -886,7 +949,7 @@ export function MvpDashboard({
       return {
         eyebrow: "Round finished",
         headline: "Result syncing",
-        copy: `Final count posted at ${finalCountLabel}. Your ${selectedPrediction.side.toUpperCase()} entry is waiting for settlement.`,
+        copy: `Final count posted at ${finalCountLabel}. Your ${selectedPredictionLabel ?? "bet"} is waiting for settlement.`,
         footer: "Payout should land automatically in a moment.",
         secondaryLabel: "Status",
         secondaryValue: "Settling"
@@ -1206,7 +1269,9 @@ export function MvpDashboard({
 
     const predictionResponse = await supabase
       .from("predictions")
-      .select("id,session_id,side,wager_tokens,was_correct,token_delta,resolved_at,placed_at")
+      .select(
+        "id,session_id,side,wager_tokens,exact_value,range_min,range_max,was_correct,token_delta,resolved_at,placed_at"
+      )
       .eq("user_id", activeUser.id)
       .order("placed_at", { ascending: false });
     if (predictionResponse.error) {
@@ -1615,13 +1680,36 @@ export function MvpDashboard({
     }
 
     const side = sideBySession[session.id] ?? "over";
+    const exactValueRaw = exactValueBySession[session.id] ?? String(session.threshold);
+    const exactValue = Number.parseInt(exactValueRaw, 10);
+    const rangeMinRaw = rangeMinBySession[session.id] ?? getDefaultRangeMin(session.threshold);
+    const rangeMaxRaw = rangeMaxBySession[session.id] ?? getDefaultRangeMax(session.threshold);
+    const rangeMin = Number.parseInt(rangeMinRaw, 10);
+    const rangeMax = Number.parseInt(rangeMaxRaw, 10);
+
+    if (side === "exact" && (!Number.isFinite(exactValue) || exactValue < 0)) {
+      setError("Exact bets need a whole-number count of zero or more.");
+      return;
+    }
+
+    if (
+      side === "range" &&
+      (!Number.isFinite(rangeMin) || !Number.isFinite(rangeMax) || rangeMin < 0 || rangeMax < rangeMin)
+    ) {
+      setError("Range bets need whole-number bounds with a minimum that is not above the maximum.");
+      return;
+    }
+
     setError(null);
     setNotice(null);
 
     const predictionResponse = await supabase.rpc("place_prediction", {
       p_session_id: session.id,
       p_side: side,
-      p_wager_tokens: wagerTokens
+      p_wager_tokens: wagerTokens,
+      p_exact_value: side === "exact" ? exactValue : null,
+      p_range_min: side === "range" ? rangeMin : null,
+      p_range_max: side === "range" ? rangeMax : null
     });
 
     if (predictionResponse.error) {
@@ -1664,6 +1752,27 @@ export function MvpDashboard({
     setSideBySession((current) => ({
       ...current,
       [sessionId]: nextSide
+    }));
+  }
+
+  function updateSelectedExactValue(sessionId: string, nextExactValue: string) {
+    setExactValueBySession((current) => ({
+      ...current,
+      [sessionId]: nextExactValue
+    }));
+  }
+
+  function updateSelectedRangeMin(sessionId: string, nextRangeMin: string) {
+    setRangeMinBySession((current) => ({
+      ...current,
+      [sessionId]: nextRangeMin
+    }));
+  }
+
+  function updateSelectedRangeMax(sessionId: string, nextRangeMax: string) {
+    setRangeMaxBySession((current) => ({
+      ...current,
+      [sessionId]: nextRangeMax
     }));
   }
 
@@ -2166,12 +2275,6 @@ export function MvpDashboard({
                     <span className="market-choice-subtitle">Below {displayedThreshold}</span>
                   </button>
 
-                  <div className="market-center-card">
-                    <span className="market-center-label">Threshold</span>
-                    <strong>{displayedThreshold}</strong>
-                    <span>{displayedModeSeconds}s window</span>
-                  </div>
-
                   <button
                     type="button"
                     className={
@@ -2192,7 +2295,128 @@ export function MvpDashboard({
                     <span className="market-choice-title">Over</span>
                     <span className="market-choice-subtitle">{displayedThreshold} or more</span>
                   </button>
+
+                  <button
+                    type="button"
+                    className={
+                      hasSelectedSession && selectedSide === "exact"
+                        ? "market-choice-card market-choice-exact active"
+                        : "market-choice-card market-choice-exact"
+                    }
+                    onClick={() => {
+                      if (selectedSession) {
+                        updateSelectedSide(selectedSession.id, "exact");
+                      }
+                    }}
+                    disabled={!canConfigureSelected}
+                  >
+                    <span className="market-choice-icon" aria-hidden="true">
+                      =
+                    </span>
+                    <span className="market-choice-title">Exact</span>
+                    <span className="market-choice-subtitle">
+                      {selectedExactValue ? `Call ${selectedExactValue}` : "Name the final count"}
+                    </span>
+                  </button>
+
+                  <button
+                    type="button"
+                    className={
+                      hasSelectedSession && selectedSide === "range"
+                        ? "market-choice-card market-choice-range active"
+                        : "market-choice-card market-choice-range"
+                    }
+                    onClick={() => {
+                      if (selectedSession) {
+                        updateSelectedSide(selectedSession.id, "range");
+                      }
+                    }}
+                    disabled={!canConfigureSelected}
+                  >
+                    <span className="market-choice-icon" aria-hidden="true">
+                      ≈
+                    </span>
+                    <span className="market-choice-title">Range</span>
+                    <span className="market-choice-subtitle">
+                      {selectedRangeMin && selectedRangeMax
+                        ? `${selectedRangeMin} to ${selectedRangeMax}`
+                        : "Pick a min and max"}
+                    </span>
+                  </button>
                 </div>
+
+                {hasSelectedSession && selectedSide === "exact" ? (
+                  <div className="market-config-card">
+                    <div className="market-config-header">
+                      <span className="market-config-label">Exact count</span>
+                      <span className="market-config-hint">Whole number, zero or higher</span>
+                    </div>
+
+                    <div className="market-config-field-grid">
+                      <label className="market-config-field">
+                        <span>Your call</span>
+                        <input
+                          type="number"
+                          min={0}
+                          step={1}
+                          inputMode="numeric"
+                          value={selectedExactValue}
+                          onChange={(event) => {
+                            if (selectedSession) {
+                              updateSelectedExactValue(selectedSession.id, event.target.value);
+                            }
+                          }}
+                          disabled={!canConfigureSelected}
+                        />
+                      </label>
+                    </div>
+                  </div>
+                ) : null}
+
+                {hasSelectedSession && selectedSide === "range" ? (
+                  <div className="market-config-card">
+                    <div className="market-config-header">
+                      <span className="market-config-label">Inclusive range</span>
+                      <span className="market-config-hint">Whole numbers, zero or higher</span>
+                    </div>
+
+                    <div className="market-config-field-grid">
+                      <label className="market-config-field">
+                        <span>Minimum</span>
+                        <input
+                          type="number"
+                          min={0}
+                          step={1}
+                          inputMode="numeric"
+                          value={selectedRangeMin}
+                          onChange={(event) => {
+                            if (selectedSession) {
+                              updateSelectedRangeMin(selectedSession.id, event.target.value);
+                            }
+                          }}
+                          disabled={!canConfigureSelected}
+                        />
+                      </label>
+
+                      <label className="market-config-field">
+                        <span>Maximum</span>
+                        <input
+                          type="number"
+                          min={0}
+                          step={1}
+                          inputMode="numeric"
+                          value={selectedRangeMax}
+                          onChange={(event) => {
+                            if (selectedSession) {
+                              updateSelectedRangeMax(selectedSession.id, event.target.value);
+                            }
+                          }}
+                          disabled={!canConfigureSelected}
+                        />
+                      </label>
+                    </div>
+                  </div>
+                ) : null}
 
                 <div className="market-metrics-row">
                   <div className="market-metric">
@@ -2259,7 +2483,7 @@ export function MvpDashboard({
                 <span className="market-live-summary-kicker">Round live</span>
                 <strong className="market-live-summary-headline">
                   {selectedPrediction
-                    ? `${selectedPrediction.side.toUpperCase()} · ${selectedPrediction.wager_tokens} tokens`
+                    ? `${formatPredictionLabel(selectedPrediction, selectedSession)} · ${selectedPrediction.wager_tokens} tokens`
                     : "Watching this round"}
                 </strong>
                 <div className="market-live-summary-grid">
@@ -2300,7 +2524,7 @@ export function MvpDashboard({
                     <span>{selectedPrediction ? "Your pick" : "Winning side"}</span>
                     <strong>
                       {selectedPrediction
-                        ? selectedPrediction.side.toUpperCase()
+                        ? formatPredictionLabel(selectedPrediction, selectedSession)
                         : selectedWinningSide
                           ? selectedWinningSide.toUpperCase()
                           : "Pending"}
@@ -2357,7 +2581,7 @@ export function MvpDashboard({
 
           {selectedPrediction && !showLiveRoundCard && !showResolvedRoundCard ? (
             <p className="session-result compact-result selection-summary">
-              Locked in: <strong>{selectedPrediction.side.toUpperCase()}</strong> ·{" "}
+              Locked in: <strong>{formatPredictionLabel(selectedPrediction, selectedSession)}</strong> ·{" "}
               {selectedPrediction.wager_tokens} tokens
               {selectedPrediction.resolved_at && selectedPrediction.was_correct === null
                 ? " · Cancelled"
@@ -2639,9 +2863,7 @@ export function MvpDashboard({
                         {predictions.map((prediction) => {
                           const session = sessionLookup.get(prediction.session_id) ?? null;
                           const historyStatus = getPredictionHistoryStatus(prediction, session, nowMs);
-                          const marketLabel = session
-                            ? `${prediction.side.toUpperCase()} ${session.threshold}`
-                            : prediction.side.toUpperCase();
+                          const marketLabel = formatPredictionLabel(prediction, session);
                           const finalCountLabel =
                             session?.final_count !== null && session?.final_count !== undefined
                               ? `${session.final_count}`
