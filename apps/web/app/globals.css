@@ -611,7 +611,7 @@ body {
 
 .market-choice-grid {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(108px, 0.82fr) minmax(0, 1fr);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 0.46rem;
 }
 
@@ -650,6 +650,11 @@ body {
   background: rgb(255 204 0 / 7%);
 }
 
+.market-choice-exact.active {
+  border-color: rgb(96 165 250 / 40%);
+  background: rgb(96 165 250 / 8%);
+}
+
 .market-choice-icon {
   width: 2.05rem;
   height: 2.05rem;
@@ -670,6 +675,10 @@ body {
 
 .market-choice-over .market-choice-icon {
   color: #f6ecbd;
+}
+
+.market-choice-exact .market-choice-icon {
+  color: #d7e7ff;
 }
 
 .market-choice-title {
@@ -712,6 +721,59 @@ body {
 .market-center-card span:last-child {
   font-size: 0.69rem;
   color: var(--muted);
+}
+
+.market-config-card {
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 0.82rem 0.9rem 0.9rem;
+  background: rgb(255 255 255 / 2.5%);
+  display: grid;
+  gap: 0.72rem;
+}
+
+.market-config-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.35rem 0.75rem;
+}
+
+.market-config-label {
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
+
+.market-config-hint {
+  font-size: 0.68rem;
+  color: var(--muted);
+}
+
+.market-config-field-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.62rem;
+}
+
+.market-config-field {
+  display: grid;
+  gap: 0.34rem;
+  font-size: 0.72rem;
+  color: var(--muted);
+}
+
+.market-config-field input {
+  width: 100%;
+  min-width: 0;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: rgb(255 255 255 / 3%);
+  color: var(--text);
+  padding: 0.78rem 0.86rem;
+  font: inherit;
+  font-size: 0.96rem;
 }
 
 .market-metrics-row {
