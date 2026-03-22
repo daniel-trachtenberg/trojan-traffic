@@ -2430,7 +2430,7 @@ export function MvpDashboard({
                       <span className="market-config-hint">Whole number, zero or higher</span>
                     </div>
 
-                    <div className="market-config-field-grid">
+                    <div className="market-config-field-grid market-config-field-grid-single">
                       <label className="market-config-field">
                         <span>Your call</span>
                         <input

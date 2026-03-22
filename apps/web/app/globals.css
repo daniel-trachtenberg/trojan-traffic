@@ -766,6 +766,10 @@ body {
   gap: 0.62rem;
 }
 
+.market-config-field-grid-single {
+  grid-template-columns: minmax(0, 1fr);
+}
+
 .market-config-field {
   display: grid;
   gap: 0.34rem;
