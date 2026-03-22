@@ -1,14 +1,9 @@
+import defaultBettingRegionConfig from "@/config/betting-region.json";
+
 export type RegionPoint = {
   x: number;
   y: number;
 };
-
-export const DEFAULT_BETTING_REGION: RegionPoint[] = [
-  { x: 0.78, y: 0.45 },
-  { x: 0.9, y: 0.45 },
-  { x: 0.9, y: 0.55 },
-  { x: 0.78, y: 0.55 }
-];
 
 function clampCoordinate(value: number) {
   return Math.min(Math.max(value, 0), 1);
@@ -34,3 +29,7 @@ export function bettingRegionsEqual(left: RegionPoint[], right: RegionPoint[]) {
     );
   });
 }
+
+export const DEFAULT_BETTING_REGION: RegionPoint[] = normalizeBettingRegion(
+  defaultBettingRegionConfig.points as RegionPoint[]
+);

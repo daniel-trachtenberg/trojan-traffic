@@ -1,76 +1,97 @@
-import { promises as fs } from "node:fs";
-import path from "node:path";
+import "server-only";
+
+import { createClient } from "@supabase/supabase-js";
 import { z } from "zod";
 import {
   DEFAULT_BETTING_REGION,
   normalizeBettingRegion,
   type RegionPoint
 } from "@/lib/betting-region";
+import { getPublicEnvironment } from "@/lib/env";
 
 const pointSchema = z.object({
   x: z.number().min(0).max(1),
   y: z.number().min(0).max(1)
 });
 
-const regionFileSchema = z.object({
-  points: z.array(pointSchema).length(4),
-  updatedAt: z.string().optional()
+const regionRecordSchema = z.object({
+  points: z.array(pointSchema).length(4)
 });
 
 export const regionPayloadSchema = z.object({
   points: z.array(pointSchema).length(4)
 });
 
-function getRegionConfigPath() {
-  const workspacePath = path.join(
-    process.cwd(),
-    "apps",
-    "web",
-    "src",
-    "config",
-    "betting-region.json"
-  );
-  const localPath = path.join(
-    process.cwd(),
-    "src",
-    "config",
-    "betting-region.json"
-  );
+function createRegionSupabaseClient(accessToken?: string) {
+  const env = getPublicEnvironment();
+  if (!env.NEXT_PUBLIC_SUPABASE_URL || !env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+    return null;
+  }
 
-  return process.cwd().endsWith(path.join("apps", "web"))
-    ? localPath
-    : workspacePath;
+  return createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.NEXT_PUBLIC_SUPABASE_ANON_KEY, {
+    auth: {
+      persistSession: false,
+      autoRefreshToken: false
+    },
+    global: accessToken
+      ? {
+          headers: {
+            Authorization: `Bearer ${accessToken}`
+          }
+        }
+      : undefined
+  });
 }
 
 export async function readStoredBettingRegion() {
-  const filePath = getRegionConfigPath();
+  const supabase = createRegionSupabaseClient();
+  if (!supabase) {
+    return DEFAULT_BETTING_REGION;
+  }
 
   try {
-    const raw = await fs.readFile(filePath, "utf8");
-    const parsed = regionFileSchema.parse(JSON.parse(raw));
+    const response = await supabase
+      .from("betting_regions")
+      .select("points")
+      .eq("id", 1)
+      .maybeSingle();
+
+    if (response.error || !response.data) {
+      return DEFAULT_BETTING_REGION;
+    }
+
+    const parsed = regionRecordSchema.parse(response.data);
     return normalizeBettingRegion(parsed.points);
   } catch {
     return DEFAULT_BETTING_REGION;
   }
 }
 
-export async function writeStoredBettingRegion(points: RegionPoint[]) {
-  const normalizedPoints = normalizeBettingRegion(points);
-  const filePath = getRegionConfigPath();
+export async function writeStoredBettingRegion(points: RegionPoint[], accessToken: string) {
+  const supabase = createRegionSupabaseClient(accessToken);
+  if (!supabase) {
+    throw new Error("Supabase environment is not configured.");
+  }
 
-  await fs.mkdir(path.dirname(filePath), { recursive: true });
-  await fs.writeFile(
-    filePath,
-    `${JSON.stringify(
+  const normalizedPoints = normalizeBettingRegion(points);
+  const response = await supabase
+    .from("betting_regions")
+    .upsert(
       {
-        updatedAt: new Date().toISOString(),
+        id: 1,
         points: normalizedPoints
       },
-      null,
-      2
-    )}\n`,
-    "utf8"
-  );
+      {
+        onConflict: "id"
+      }
+    )
+    .select("points")
+    .single();
 
-  return normalizedPoints;
+  if (response.error) {
+    throw new Error(response.error.message);
+  }
+
+  const parsed = regionRecordSchema.parse(response.data);
+  return normalizeBettingRegion(parsed.points);
 }

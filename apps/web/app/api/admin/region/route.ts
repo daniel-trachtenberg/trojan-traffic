@@ -11,23 +11,29 @@ export async function GET() {
       points: await readStoredBettingRegion()
     },
     {
-      status: 200
+      status: 200,
+      headers: {
+        "Cache-Control": "no-store, max-age=0"
+      }
     }
   );
 }
 
 export async function POST(request: Request) {
   try {
-    await requireAdminRequest(request);
+    const { accessToken } = await requireAdminRequest(request);
     const payload = regionPayloadSchema.parse(await request.json());
-    const points = await writeStoredBettingRegion(payload.points);
+    const points = await writeStoredBettingRegion(payload.points, accessToken);
 
     return Response.json(
       {
         points
       },
       {
-        status: 200
+        status: 200,
+        headers: {
+          "Cache-Control": "no-store, max-age=0"
+        }
       }
     );
   } catch (error) {

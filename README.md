@@ -220,7 +220,8 @@ echo 'REGION_EDITOR_ENABLED=true' >> apps/web/.env.local
 
 When enabled, the web app exposes draggable region handles and a save panel. The editor should
 normally remain disabled and only be turned on temporarily when an admin needs to reposition the
-betting region.
+betting region. Saved region updates are stored in Supabase so they work on both local and deployed
+environments.
 
 ### 3) Run vision service
 

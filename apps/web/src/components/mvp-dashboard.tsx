@@ -1389,6 +1389,34 @@ export function MvpDashboard({
   }, [initialRegion]);
 
   useEffect(() => {
+    let cancelled = false;
+
+    async function refreshStoredRegion() {
+      try {
+        const response = await fetch("/api/admin/region", {
+          cache: "no-store"
+        });
+        const payload = (await response.json()) as { points?: RegionPoint[] } | undefined;
+        if (!response.ok || !payload?.points || cancelled) {
+          return;
+        }
+
+        const normalizedRegion = normalizeBettingRegion(payload.points);
+        setRegionPoints(normalizedRegion);
+        setSavedRegionPoints(normalizedRegion);
+      } catch {
+        // Keep the seeded default region if the live fetch fails.
+      }
+    }
+
+    void refreshStoredRegion();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
     const timer = setInterval(() => {
       setNowMs(Date.now());
     }, 250);

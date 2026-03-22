@@ -19,11 +19,11 @@ Admin users can enable region edit mode from the admin console whenever they nee
 adjust the polygon on the live feed.
 
 When edit mode is enabled, draggable corner handles appear on the feed and save/reset controls stay
-available outside the admin modal. Saving writes the polygon to
-`apps/web/src/config/betting-region.json`.
+available outside the admin modal. Saving persists the polygon in Supabase so the same region is
+served in local and deployed environments.
 
-This currently updates the web overlay region only. The vision backend ROI is still configured
-separately.
+This updates the web overlay region that the product displays. The vision backend still uses each
+session's own saved `region_polygon` when automatic counting runs.
 
 ## Included
 
