@@ -9,6 +9,13 @@ import {
   normalizeBettingRegion,
   type RegionPoint
 } from "@/lib/betting-region";
+import {
+  formatPayoutMultiplier,
+  getPredictionGrossPayoutTokens,
+  getPredictionNetWinTokens,
+  getPredictionPayoutMultiplierBps,
+  getRangeWidth
+} from "@/lib/prediction-payouts";
 import { getBrowserSupabaseClient } from "@/lib/supabase/client";
 
 type PredictionSide = "over" | "under" | "exact" | "range";
@@ -31,6 +38,7 @@ type PredictionRow = {
   session_id: string;
   side: PredictionSide;
   wager_tokens: number;
+  payout_multiplier_bps: number | null;
   exact_value: number | null;
   range_min: number | null;
   range_max: number | null;
@@ -252,6 +260,14 @@ function formatPredictionLabel(prediction: PredictionRow, session: SessionRow | 
 function formatTokenDelta(tokenDelta: number | null) {
   const safeTokenDelta = tokenDelta ?? 0;
   return safeTokenDelta > 0 ? `+${safeTokenDelta}` : `${safeTokenDelta}`;
+}
+
+function getStoredPredictionPayoutMultiplierBps(prediction: PredictionRow) {
+  return (
+    prediction.payout_multiplier_bps ??
+    getPredictionPayoutMultiplierBps(prediction.side, prediction.range_min, prediction.range_max) ??
+    20000
+  );
 }
 
 function formatShortDateTime(value: string) {
@@ -638,6 +654,38 @@ export function MvpDashboard({
   const selectedRangeMax = selectedSession
     ? (rangeMaxBySession[selectedSession.id] ?? getDefaultRangeMax(selectedSession.threshold))
     : DEFAULT_EXACT_VALUE;
+  const selectedConfiguredWager = Number.parseInt(selectedWager, 10);
+  const selectedConfiguredRangeMin = Number.parseInt(selectedRangeMin, 10);
+  const selectedConfiguredRangeMax = Number.parseInt(selectedRangeMax, 10);
+  const selectedPricingSide = selectedPrediction?.side ?? selectedSide;
+  const selectedPricingWager =
+    selectedPrediction?.wager_tokens ??
+    (Number.isFinite(selectedConfiguredWager) && selectedConfiguredWager > 0 ? selectedConfiguredWager : null);
+  const selectedPricingRangeMin =
+    selectedPrediction?.range_min ??
+    (Number.isFinite(selectedConfiguredRangeMin) ? selectedConfiguredRangeMin : null);
+  const selectedPricingRangeMax =
+    selectedPrediction?.range_max ??
+    (Number.isFinite(selectedConfiguredRangeMax) ? selectedConfiguredRangeMax : null);
+  const selectedPricingRangeWidth = getRangeWidth(selectedPricingRangeMin, selectedPricingRangeMax);
+  const selectedPricingMultiplierBps =
+    selectedPrediction?.payout_multiplier_bps ??
+    getPredictionPayoutMultiplierBps(selectedPricingSide, selectedPricingRangeMin, selectedPricingRangeMax);
+  const selectedPricingGrossPayout =
+    selectedPricingWager !== null
+      ? getPredictionGrossPayoutTokens(selectedPricingWager, selectedPricingMultiplierBps)
+      : null;
+  const selectedPricingNetWin =
+    selectedPricingWager !== null
+      ? getPredictionNetWinTokens(selectedPricingWager, selectedPricingMultiplierBps)
+      : null;
+  const selectedPricingLabel = selectedPrediction ? "Locked Odds" : "Odds";
+  const selectedPricingNote =
+    selectedPricingWager === null || selectedPricingMultiplierBps === null || selectedPricingGrossPayout === null
+      ? "Set a valid wager to preview the payout."
+      : selectedPricingSide === "range" && selectedPricingRangeWidth !== null
+        ? `${selectedPricingWager} in, ${selectedPricingGrossPayout} back. Covers ${selectedPricingRangeWidth} exact counts.`
+        : `${selectedPricingWager} in, ${selectedPricingGrossPayout} back. Profit +${selectedPricingNetWin ?? 0}.`;
   const canConfigureSelected = Boolean(selectedSession && selectedState === "open" && selectedPrediction === null);
   const showBettingControls = Boolean(selectedSession && selectedState === "open");
   const dailyClaimState = getDailyClaimState(streaks?.last_login_date ?? null, nowMs);
@@ -1272,7 +1320,7 @@ export function MvpDashboard({
     const predictionResponse = await supabase
       .from("predictions")
       .select(
-        "id,session_id,side,wager_tokens,exact_value,range_min,range_max,was_correct,token_delta,resolved_at,placed_at"
+        "id,session_id,side,wager_tokens,payout_multiplier_bps,exact_value,range_min,range_max,was_correct,token_delta,resolved_at,placed_at"
       )
       .eq("user_id", activeUser.id)
       .order("placed_at", { ascending: false });
@@ -2426,6 +2474,11 @@ export function MvpDashboard({
                     <strong>{sessionMetricValue}</strong>
                     <span className="market-metric-note">{sessionMetricNote}</span>
                   </div>
+                  <div className="market-metric">
+                    <span className="market-metric-label">{selectedPricingLabel}</span>
+                    <strong>{formatPayoutMultiplier(selectedPricingMultiplierBps)}</strong>
+                    <span className="market-metric-note">{selectedPricingNote}</span>
+                  </div>
                 </div>
 
                 <div className="stake-toolbar">
@@ -2485,7 +2538,7 @@ export function MvpDashboard({
                 <span className="market-live-summary-kicker">Round live</span>
                 <strong className="market-live-summary-headline">
                   {selectedPrediction
-                    ? `${formatPredictionLabel(selectedPrediction, selectedSession)} · ${selectedPrediction.wager_tokens} tokens`
+                    ? `${formatPredictionLabel(selectedPrediction, selectedSession)} · ${selectedPrediction.wager_tokens} tokens · ${formatPayoutMultiplier(getStoredPredictionPayoutMultiplierBps(selectedPrediction))}`
                     : "Watching this round"}
                 </strong>
                 <div className="market-live-summary-grid">
@@ -2584,7 +2637,8 @@ export function MvpDashboard({
           {selectedPrediction && !showLiveRoundCard && !showResolvedRoundCard ? (
             <p className="session-result compact-result selection-summary">
               Locked in: <strong>{formatPredictionLabel(selectedPrediction, selectedSession)}</strong> ·{" "}
-              {selectedPrediction.wager_tokens} tokens
+              {selectedPrediction.wager_tokens} tokens ·{" "}
+              {formatPayoutMultiplier(getStoredPredictionPayoutMultiplierBps(selectedPrediction))}
               {selectedPrediction.resolved_at && selectedPrediction.was_correct === null
                 ? " · Cancelled"
                 : selectedPrediction.was_correct !== null
