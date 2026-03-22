@@ -82,11 +82,14 @@ class AutomaticCountingWorker:
         self, sessions: Sequence[PendingSessionRecord]
     ) -> list[str]:
         launched_session_ids: list[str] = []
+        current_time = datetime.now(UTC)
 
         for session in sessions:
             if session.resolved_at is not None or session.final_count is not None:
                 continue
             if session.status in {"resolved", "cancelled"}:
+                continue
+            if session.starts_at < current_time:
                 continue
 
             with self._active_jobs_lock:

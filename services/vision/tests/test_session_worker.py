@@ -19,10 +19,11 @@ def make_settings() -> Settings:
 
 
 def test_worker_avoids_duplicate_in_process_jobs() -> None:
+    starts_at = datetime.now(UTC) + timedelta(seconds=1)
     session = PendingSessionRecord(
         id="session-123",
-        starts_at=datetime.now(UTC),
-        ends_at=datetime.now(UTC) + timedelta(seconds=30),
+        starts_at=starts_at,
+        ends_at=starts_at + timedelta(seconds=30),
         status="scheduled",
         camera_feed_url="https://cs9.pixelcaster.com/live/usc-tommy.stream/playlist.m3u8",
         region_polygon=[
@@ -76,3 +77,34 @@ def test_worker_avoids_duplicate_in_process_jobs() -> None:
 
     assert counted_sessions == ["session-123"]
     assert resolved_sessions == [("session-123", 3)]
+
+
+def test_worker_skips_sessions_that_have_already_started() -> None:
+    session = PendingSessionRecord(
+        id="session-live",
+        starts_at=datetime.now(UTC) - timedelta(seconds=5),
+        ends_at=datetime.now(UTC) + timedelta(seconds=25),
+        status="scheduled",
+        camera_feed_url="https://cs9.pixelcaster.com/live/usc-tommy.stream/playlist.m3u8",
+        region_polygon=[
+            SessionRegionPoint(x=0.4, y=0.4),
+            SessionRegionPoint(x=0.6, y=0.4),
+            SessionRegionPoint(x=0.6, y=0.6),
+            SessionRegionPoint(x=0.4, y=0.6),
+        ],
+    )
+
+    counted_sessions: list[str] = []
+    worker = AutomaticCountingWorker(
+        settings=make_settings(),
+        session_fetcher=lambda **_: [session],
+        count_runner=lambda session_id, request, *, settings, stop_event: (
+            counted_sessions.append(session_id)
+        ),
+        session_resolver=lambda *_: 0,
+    )
+
+    launched = worker._launch_due_sessions([session])
+
+    assert launched == []
+    assert counted_sessions == []

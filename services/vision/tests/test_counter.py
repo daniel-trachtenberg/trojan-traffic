@@ -160,6 +160,19 @@ def test_run_counting_session_rejects_starting_after_end_for_live_mode() -> None
         run_counting_session("session-123", payload, settings=make_settings())
 
 
+def test_run_counting_session_rejects_live_mode_after_start_time() -> None:
+    starts_at = datetime.now(UTC) - timedelta(seconds=2)
+    payload = CountSessionRequest(
+        feed_url="https://cs9.pixelcaster.com/live/usc-tommy.stream/playlist.m3u8",
+        starts_at=starts_at,
+        ends_at=starts_at + timedelta(seconds=30),
+        region=[Point(x=0.1, y=0.1), Point(x=0.3, y=0.1), Point(x=0.2, y=0.3)],
+    )
+
+    with pytest.raises(ValueError, match="must begin before the session window starts"):
+        run_counting_session("session-late", payload, settings=make_settings())
+
+
 def test_run_counting_session_returns_stopped_status_when_stop_requested() -> None:
     starts_at = datetime(2026, 3, 21, 12, 0, tzinfo=UTC)
     ends_at = starts_at + timedelta(seconds=30)

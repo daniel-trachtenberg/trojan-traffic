@@ -655,8 +655,14 @@ def run_counting_session(
     if payload.ends_at <= payload.starts_at:
         raise ValueError("Session end time must be after start time.")
 
-    if frame_observations is None and payload.ends_at <= resolved_now_provider():
-        raise ValueError("Session must be counted before its end time.")
+    if frame_observations is None:
+        current_time = resolved_now_provider()
+        if payload.ends_at <= current_time:
+            raise ValueError("Session must be counted before its end time.")
+        if current_time > payload.starts_at:
+            raise ValueError(
+                "Automatic counting must begin before the session window starts."
+            )
 
     counter = PolygonCrossingCounter(
         polygon=payload.region,
