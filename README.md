@@ -185,6 +185,18 @@ supabase/migrations      # Database schema and server-side logic
 
 ---
 
+## Deployment
+
+Production deployment is split by workload:
+
+- `apps/web` deploys to Vercel
+- `services/vision` deploys to Render as a single-instance private Docker service
+
+Deployment setup, environment variables, and smoke-test steps live in
+[`DEPLOYMENT.md`](./DEPLOYMENT.md).
+
+---
+
 ## Quick Start
 
 ### 1) Install Node dependencies

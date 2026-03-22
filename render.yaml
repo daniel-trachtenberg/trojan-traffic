@@ -1,0 +1,40 @@
+services:
+  - type: pserv
+    name: trojan-traffic-vision
+    runtime: docker
+    rootDir: services/vision
+    dockerfilePath: ./services/vision/Dockerfile
+    dockerContext: ./services/vision
+    numInstances: 1
+    autoDeployTrigger: off
+    previews:
+      generation: off
+    envVars:
+      - key: PORT
+        value: "10000"
+      - key: APP_NAME
+        value: trojan-traffic-vision
+      - key: LOG_LEVEL
+        value: INFO
+      - key: ENABLE_LIVE_DETECTIONS
+        value: "false"
+      - key: ENABLE_AUTO_COUNT_WORKER
+        value: "true"
+      - key: AUTO_COUNT_POLL_INTERVAL_MS
+        value: "1000"
+      - key: AUTO_COUNT_SESSION_LOOKAHEAD_MS
+        value: "20000"
+      - key: COUNT_ENTRY_CONFIRM_FRAMES
+        value: "2"
+      - key: COUNT_EXIT_CONFIRM_FRAMES
+        value: "2"
+      - key: COUNT_REGION_PADDING_X
+        value: "0.04"
+      - key: COUNT_REGION_PADDING_Y
+        value: "0.06"
+      - key: CORS_ORIGINS
+        sync: false
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
