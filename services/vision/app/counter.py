@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from subprocess import PIPE, Popen, TimeoutExpired, run
 from threading import Event, Lock
+from time import sleep
 from typing import BinaryIO
 from uuid import uuid4
 
@@ -58,6 +59,21 @@ class TrackObservation:
 class FrameObservation:
     observed_at: datetime
     tracks: tuple[TrackObservation, ...]
+
+
+@dataclass(frozen=True)
+class ScanBounds:
+    left: float
+    top: float
+    right: float
+    bottom: float
+
+    def to_frame_bounds(self, *, frame_width: int, frame_height: int) -> tuple[int, int, int, int]:
+        left = max(0, min(int(frame_width * self.left), frame_width - 2))
+        top = max(0, min(int(frame_height * self.top), frame_height - 2))
+        right = max(left + 2, min(int(frame_width * self.right), frame_width))
+        bottom = max(top + 2, min(int(frame_height * self.bottom), frame_height))
+        return left, top, right, bottom
 
 
 @dataclass
@@ -148,6 +164,25 @@ def is_point_inside_polygon(point: Point, polygon: Sequence[Point]) -> bool:
     return is_inside
 
 
+def get_region_scan_bounds(
+    region: Sequence[Point],
+    *,
+    padding_x: float,
+    padding_y: float,
+) -> ScanBounds:
+    min_x = min(point.x for point in region)
+    max_x = max(point.x for point in region)
+    min_y = min(point.y for point in region)
+    max_y = max(point.y for point in region)
+
+    return ScanBounds(
+        left=max(0.0, min_x - max(padding_x, 0.0)),
+        top=max(0.0, min_y - max(padding_y, 0.0)),
+        right=min(1.0, max_x + max(padding_x, 0.0)),
+        bottom=min(1.0, max_y + max(padding_y, 0.0)),
+    )
+
+
 @dataclass(frozen=True)
 class StreamGeometry:
     width: int
@@ -213,8 +248,23 @@ class LiveSessionTrackSource:
         self._frame_index = 0
         self._tracks: dict[str, TrackState] = {}
         self._stream_process: Popen[bytes] | None = None
+        self._scan_bounds = get_region_scan_bounds(
+            payload.region,
+            padding_x=settings.count_region_padding_x,
+            padding_y=settings.count_region_padding_y,
+        )
 
     def iter_observations(self) -> Iterator[FrameObservation]:
+        while not self._stop_event.is_set():
+            now = datetime.now(UTC)
+            if now >= self._payload.starts_at:
+                break
+
+            sleep(min((self._payload.starts_at - now).total_seconds(), 0.25))
+
+        if self._stop_event.is_set() or datetime.now(UTC) >= self._payload.ends_at:
+            return
+
         geometry = self._probe_stream_geometry()
         if geometry is None:
             raise RuntimeError("Could not read stream geometry for counting session.")
@@ -415,10 +465,15 @@ class LiveSessionTrackSource:
     def _detect_tracks(self, frame: np.ndarray) -> list[TrackObservation]:
         frame_height, frame_width = frame.shape[:2]
         self._frame_index += 1
+        roi_left, roi_top, roi_right, roi_bottom = self._scan_bounds.to_frame_bounds(
+            frame_width=frame_width,
+            frame_height=frame_height,
+        )
+        roi_frame = frame[roi_top:roi_bottom, roi_left:roi_right]
 
         with self._model_handle.lock:
             results = self._model_handle.model.predict(
-                source=frame,
+                source=roi_frame,
                 conf=self._settings.detection_confidence,
                 iou=self._settings.detection_nms_iou,
                 imgsz=max(self._settings.detection_model_input_size, 320),
@@ -439,10 +494,10 @@ class LiveSessionTrackSource:
         raw_detections: list[RawDetection] = []
         confidences = boxes.conf.cpu().tolist() if boxes.conf is not None else [0.0] * len(boxes)
         for index, (x1, y1, x2, y2) in enumerate(boxes.xyxy.cpu().tolist()):
-            x1 = max(0.0, min(float(x1), float(frame_width)))
-            y1 = max(0.0, min(float(y1), float(frame_height)))
-            x2 = max(0.0, min(float(x2), float(frame_width)))
-            y2 = max(0.0, min(float(y2), float(frame_height)))
+            x1 = max(0.0, min(float(x1), float(roi_right - roi_left))) + roi_left
+            y1 = max(0.0, min(float(y1), float(roi_bottom - roi_top))) + roi_top
+            x2 = max(0.0, min(float(x2), float(roi_right - roi_left))) + roi_left
+            y2 = max(0.0, min(float(y2), float(roi_bottom - roi_top))) + roi_top
 
             width = max(0.0, x2 - x1)
             height = max(0.0, y2 - y1)

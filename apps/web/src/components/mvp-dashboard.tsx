@@ -93,6 +93,7 @@ type PredictionHistoryTone = "win" | "loss" | "pending" | "cancelled";
 const DEFAULT_WAGER = "10";
 const DEFAULT_EXACT_VALUE = "0";
 const WAGER_STEPS = [1, 5, 10, 20];
+const HUMAN_OVERLAY_PREVIEW_ENABLED = false;
 const BETTING_OPEN_WINDOW_MS = 5 * 60 * 1000;
 const DAILY_CLAIM_TIMEZONE = "America/Los_Angeles";
 const DAILY_CLAIM_START_HOUR = 8;
@@ -1056,7 +1057,8 @@ export function MvpDashboard({
   const hasUnsavedRegionChanges = !bettingRegionsEqual(regionPoints, savedRegionPoints);
   const canEditRegion = isAdmin && isRegionEditModeEnabled;
   const showRegionEditDock = isAdmin && (isRegionEditModeEnabled || hasUnsavedRegionChanges);
-  const visionApiBaseUrl = visionApiUrl ? visionApiUrl.replace(/\/+$/, "") : null;
+  const activeVisionApiUrl = HUMAN_OVERLAY_PREVIEW_ENABLED ? visionApiUrl : undefined;
+  const visionApiBaseUrl = activeVisionApiUrl ? activeVisionApiUrl.replace(/\/+$/, "") : null;
   const liveFrameUrl =
     visionApiBaseUrl && liveDetections?.frame_id
       ? `${visionApiBaseUrl}/detections/live/frame.jpg?frame_id=${encodeURIComponent(
@@ -1431,12 +1433,12 @@ export function MvpDashboard({
   }, [supabase, user]);
 
   useEffect(() => {
-    if (!visionApiUrl) {
+    if (!activeVisionApiUrl) {
       setLiveDetections(null);
       return;
     }
 
-    const endpoint = `${visionApiUrl.replace(/\/+$/, "")}/detections/live`;
+    const endpoint = `${activeVisionApiUrl.replace(/\/+$/, "")}/detections/live`;
     let isMounted = true;
     let timeoutId: ReturnType<typeof setTimeout> | null = null;
     let activeController: AbortController | null = null;
@@ -1523,7 +1525,7 @@ export function MvpDashboard({
         clearTimeout(timeoutId);
       }
     };
-  }, [visionApiUrl]);
+  }, [activeVisionApiUrl]);
 
   useEffect(() => {
     if (isAdmin) {
@@ -1903,7 +1905,7 @@ export function MvpDashboard({
         region={regionPoints}
         fullScreen
         personBoxes={livePersonBoxes}
-        statusMessage={visionApiUrl ? liveFeedStatusMessage : null}
+        statusMessage={activeVisionApiUrl ? liveFeedStatusMessage : null}
         regionEditorEnabled={canEditRegion}
         onRegionChange={canEditRegion ? setRegionPoints : null}
       />

@@ -26,8 +26,8 @@ python -m pip install --upgrade pip setuptools wheel
 python -m pip install -e ".[dev]"
 ```
 
-`ffmpeg` and `ffprobe` are required for live detections because the service reads the HLS stream
-continuously and tracks people across successive frames.
+`ffmpeg` and `ffprobe` are required for automatic counting because the service reads the HLS stream
+during round windows and tracks people across successive frames.
 
 ## Current endpoints
 
@@ -40,10 +40,13 @@ continuously and tracks people across successive frames.
 The run endpoint now processes a real counting session. It tracks people over time and counts
 confirmed outside-to-inside crossings of the yellow polygon using each tracked box's bottom-center
 "footpoint" so the count matches the ground region instead of box-center overlap.
+It waits until the game window opens before running the model and scans a padded crop around the
+yellow region instead of the full camera view.
 
 The resolve endpoint requires `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` in `.env`.
 
-The live detections endpoint requires `ENABLE_LIVE_DETECTIONS=true` and uses `CAMERA_PLAYLIST_URL`.
+The live detections preview is disabled by default so the frontend stays on the smoother HLS feed
+instead of switching to detector frames.
 
 ## Automatic settlement worker
 
@@ -63,6 +66,8 @@ Relevant settings:
 - `AUTO_COUNT_SESSION_LOOKAHEAD_MS=20000`
 - `COUNT_ENTRY_CONFIRM_FRAMES=2`
 - `COUNT_EXIT_CONFIRM_FRAMES=2`
+- `COUNT_REGION_PADDING_X=0.04`
+- `COUNT_REGION_PADDING_Y=0.06`
 
 ## Model choice
 

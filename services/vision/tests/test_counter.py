@@ -9,6 +9,7 @@ from app.counter import (
     Point,
     PolygonCrossingCounter,
     TrackObservation,
+    get_region_scan_bounds,
     run_counting_session,
 )
 from app.settings import Settings
@@ -100,6 +101,24 @@ def test_polygon_crossing_counter_does_not_count_track_that_starts_inside() -> N
         )
         == 1
     )
+
+
+def test_get_region_scan_bounds_adds_padding_around_polygon() -> None:
+    bounds = get_region_scan_bounds(
+        [
+            Point(x=0.45, y=0.44),
+            Point(x=0.59, y=0.44),
+            Point(x=0.61, y=0.58),
+            Point(x=0.46, y=0.57),
+        ],
+        padding_x=0.04,
+        padding_y=0.06,
+    )
+
+    assert bounds.left == pytest.approx(0.41)
+    assert bounds.top == pytest.approx(0.38)
+    assert bounds.right == pytest.approx(0.65)
+    assert bounds.bottom == pytest.approx(0.64)
 
 
 def test_run_counting_session_counts_only_in_window_crossings() -> None:

@@ -12,6 +12,7 @@ from app.settings import get_settings
 from app.supabase import resolve_session_in_supabase
 
 settings = get_settings()
+LIVE_DETECTION_PREVIEW_ENABLED = False
 
 app = FastAPI(
     title=settings.app_name,
@@ -73,7 +74,7 @@ class LiveDetectionsResponse(BaseModel):
 @app.on_event("startup")
 def startup_event() -> None:
     global person_detector, session_worker
-    if settings.enable_live_detections:
+    if LIVE_DETECTION_PREVIEW_ENABLED and settings.enable_live_detections:
         person_detector = LivePersonDetector(
             source_url=str(settings.camera_playlist_url),
             model_name=settings.detection_model_name,
