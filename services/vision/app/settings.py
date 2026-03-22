@@ -28,6 +28,11 @@ class Settings(BaseSettings):
     detection_min_track_hits: int = 1
     detection_max_boxes: int = 24
     detection_reconnect_delay_ms: int = 1200
+    enable_auto_count_worker: bool = True
+    auto_count_poll_interval_ms: int = 1000
+    auto_count_session_lookahead_ms: int = 20000
+    count_entry_confirm_frames: int = 2
+    count_exit_confirm_frames: int = 2
     cors_origins: str = "*"
     supabase_url: HttpUrl | None = None
     supabase_service_role_key: str | None = None

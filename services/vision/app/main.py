@@ -7,6 +7,7 @@ from pydantic import BaseModel, Field
 
 from app.counter import CountSessionRequest, CountSessionResult, run_counting_session
 from app.detector import LivePersonDetector
+from app.session_worker import AutomaticCountingWorker
 from app.settings import get_settings
 from app.supabase import resolve_session_in_supabase
 
@@ -34,6 +35,7 @@ app.add_middleware(
 )
 
 person_detector: LivePersonDetector | None = None
+session_worker: AutomaticCountingWorker | None = None
 
 
 class ResolveSessionRequest(BaseModel):
@@ -70,35 +72,44 @@ class LiveDetectionsResponse(BaseModel):
 
 @app.on_event("startup")
 def startup_event() -> None:
-    global person_detector
-    if not settings.enable_live_detections:
-        return
+    global person_detector, session_worker
+    if settings.enable_live_detections:
+        person_detector = LivePersonDetector(
+            source_url=str(settings.camera_playlist_url),
+            model_name=settings.detection_model_name,
+            confidence=settings.detection_confidence,
+            interval_ms=settings.detection_interval_ms,
+            stream_max_width=settings.detection_stream_max_width,
+            model_input_size=settings.detection_model_input_size,
+            nms_iou=settings.detection_nms_iou,
+            region_left=settings.detection_region_left,
+            region_top=settings.detection_region_top,
+            region_right=settings.detection_region_right,
+            region_bottom=settings.detection_region_bottom,
+            min_box_area_ratio=settings.detection_min_box_area_ratio,
+            min_box_height_ratio=settings.detection_min_box_height_ratio,
+            min_box_aspect_ratio=settings.detection_min_box_aspect_ratio,
+            max_box_aspect_ratio=settings.detection_max_box_aspect_ratio,
+            min_track_hits=settings.detection_min_track_hits,
+            reconnect_delay_ms=settings.detection_reconnect_delay_ms,
+            max_boxes=settings.detection_max_boxes,
+        )
+        person_detector.start()
 
-    person_detector = LivePersonDetector(
-        source_url=str(settings.camera_playlist_url),
-        model_name=settings.detection_model_name,
-        confidence=settings.detection_confidence,
-        interval_ms=settings.detection_interval_ms,
-        stream_max_width=settings.detection_stream_max_width,
-        model_input_size=settings.detection_model_input_size,
-        nms_iou=settings.detection_nms_iou,
-        region_left=settings.detection_region_left,
-        region_top=settings.detection_region_top,
-        region_right=settings.detection_region_right,
-        region_bottom=settings.detection_region_bottom,
-        min_box_area_ratio=settings.detection_min_box_area_ratio,
-        min_box_height_ratio=settings.detection_min_box_height_ratio,
-        min_box_aspect_ratio=settings.detection_min_box_aspect_ratio,
-        max_box_aspect_ratio=settings.detection_max_box_aspect_ratio,
-        min_track_hits=settings.detection_min_track_hits,
-        reconnect_delay_ms=settings.detection_reconnect_delay_ms,
-        max_boxes=settings.detection_max_boxes,
-    )
-    person_detector.start()
+    if (
+        settings.enable_auto_count_worker
+        and settings.supabase_url
+        and settings.supabase_service_role_key
+    ):
+        session_worker = AutomaticCountingWorker(settings=settings)
+        session_worker.start()
 
 
 @app.on_event("shutdown")
 def shutdown_event() -> None:
+    if session_worker is not None:
+        session_worker.stop()
+
     if person_detector is None:
         return
 

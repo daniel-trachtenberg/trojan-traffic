@@ -32,17 +32,37 @@ continuously and tracks people across successive frames.
 ## Current endpoints
 
 - `GET /health`: health check
-- `POST /sessions/{session_id}/run`: run a stub counting session with typed payload
+- `POST /sessions/{session_id}/run`: run a counting session with typed payload
 - `GET /detections/live`: latest detector metadata, frame ID, frame geometry, and person boxes
 - `GET /detections/live/frame.jpg`: the exact JPEG frame that the latest boxes were produced from
 - `POST /sessions/{session_id}/resolve`: write final count into Supabase via `resolve_session` RPC
 
-The run endpoint is intentionally scaffold-level. It validates timing and payload shape but returns a
-placeholder count so the web app and DB integration can be built in parallel.
+The run endpoint now processes a real counting session. It tracks people over time and counts
+confirmed outside-to-inside crossings of the yellow polygon using each tracked box's bottom-center
+"footpoint" so the count matches the ground region instead of box-center overlap.
 
 The resolve endpoint requires `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` in `.env`.
 
 The live detections endpoint requires `ENABLE_LIVE_DETECTIONS=true` and uses `CAMERA_PLAYLIST_URL`.
+
+## Automatic settlement worker
+
+When `ENABLE_AUTO_COUNT_WORKER=true`, the service also starts a background worker that polls
+Supabase for unresolved sessions that are about to start or are already live. For each due session,
+it uses that session's own `camera_feed_url` and `region_polygon`, counts crossings during the
+session window, and then settles bets automatically through the existing `resolve_session` RPC.
+
+The worker intentionally only deduplicates jobs inside the current service instance. It does not
+take over manual admin controls, so unresolved sessions can still be handled manually if a count
+job stops early.
+
+Relevant settings:
+
+- `ENABLE_AUTO_COUNT_WORKER=true`
+- `AUTO_COUNT_POLL_INTERVAL_MS=1000`
+- `AUTO_COUNT_SESSION_LOOKAHEAD_MS=20000`
+- `COUNT_ENTRY_CONFIRM_FRAMES=2`
+- `COUNT_EXIT_CONFIRM_FRAMES=2`
 
 ## Model choice
 
