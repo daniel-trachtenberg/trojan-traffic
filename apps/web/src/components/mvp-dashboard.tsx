@@ -1099,9 +1099,9 @@ export function MvpDashboard({
               ];
   const standbyActionLabel =
     !user && !selectedSession
-      ? "Create Account to Be Ready"
+      ? "Sign In / Sign Up"
       : !user && hasSelectedSession
-        ? "Sign In or Create Account"
+        ? "Sign In / Sign Up to Join"
         : null;
   const hasUnsavedRegionChanges = !bettingRegionsEqual(regionPoints, savedRegionPoints);
   const canEditRegion = isAdmin && isRegionEditModeEnabled;
