@@ -19,6 +19,7 @@ import {
 import { getBrowserSupabaseClient } from "@/lib/supabase/client";
 
 type PredictionSide = "over" | "under" | "exact" | "range";
+type AuthMode = "sign-in" | "sign-up" | "forgot-password";
 
 type SessionState = "upcoming" | "open" | "live" | "resolving" | "resolved" | "cancelled";
 
@@ -573,7 +574,7 @@ export function MvpDashboard({
   const [nowMs, setNowMs] = useState(() => Date.now());
   const [toasts, setToasts] = useState<ToastRecord[]>([]);
   const [isRefreshing, startTransition] = useTransition();
-  const [authMode, setAuthMode] = useState<"sign-in" | "sign-up">("sign-in");
+  const [authMode, setAuthMode] = useState<AuthMode>("sign-in");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [displayName, setDisplayName] = useState("");
@@ -1119,20 +1120,30 @@ export function MvpDashboard({
       : 16 / 9;
   const liveFeedStatusMessage = getDetectorStatusMessage(liveDetections, Boolean(liveFrameUrl));
   const livePersonBoxes = liveDetections?.boxes ?? [];
-  const authModalTitle = authIntentSessionId
+  const authModalTitle = authMode === "forgot-password"
+    ? "Reset Your Password"
+    : authIntentSessionId
     ? authMode === "sign-in"
       ? "Sign In to Join This Round"
       : "Create an Account to Join This Round"
     : authMode === "sign-in"
       ? "Sign In"
       : "Create Your Account";
-  const authModalHint = authIntentSessionId
+  const authModalHint = authMode === "forgot-password"
+    ? "Enter your account email and we’ll send a secure reset link."
+    : authIntentSessionId
     ? authMode === "sign-in"
       ? "Sign in first, then your bet will be submitted automatically."
       : "Create your account first, then your bet will be submitted automatically."
     : authMode === "sign-in"
       ? "Sign in to place bets and track tokens."
       : "Create an account to track tokens and be ready for the next round.";
+  const authSubmitLabel =
+    authMode === "sign-in"
+      ? "Sign In"
+      : authMode === "sign-up"
+        ? "Create Account"
+        : "Send Reset Link";
 
   function dismissToast(toastId: number) {
     const activeTimeout = toastTimeoutsRef.current.get(toastId);
@@ -1624,10 +1635,28 @@ export function MvpDashboard({
 
     setError(null);
     setNotice(null);
+    const normalizedEmail = email.trim();
+
+    if (authMode === "forgot-password") {
+      const redirectTo = new URL("/reset-password", window.location.origin).toString();
+      const resetResponse = await supabase.auth.resetPasswordForEmail(normalizedEmail, {
+        redirectTo
+      });
+
+      if (resetResponse.error) {
+        setError(resetResponse.error.message);
+        return;
+      }
+
+      setPassword("");
+      setAuthMode("sign-in");
+      setNotice(`Password reset link sent to ${normalizedEmail}.`);
+      return;
+    }
 
     if (authMode === "sign-up") {
       const signUpResponse = await supabase.auth.signUp({
-        email,
+        email: normalizedEmail,
         password,
         options: {
           data: {
@@ -1660,7 +1689,7 @@ export function MvpDashboard({
     }
 
     const signInResponse = await supabase.auth.signInWithPassword({
-      email,
+      email: normalizedEmail,
       password
     });
 
@@ -1811,6 +1840,8 @@ export function MvpDashboard({
   function closeAuthModal() {
     setShowAuthModal(false);
     setAuthIntentSessionId(null);
+    setAuthMode("sign-in");
+    setPassword("");
   }
 
   function openAuthModal(mode: "sign-in" | "sign-up", sessionId: string | null = null) {
@@ -3090,55 +3121,111 @@ export function MvpDashboard({
             </p>
 
             <form className="auth-form auth-modal-form" onSubmit={handleAuthSubmit}>
-              <div className="mode-row">
-                <button
-                  type="button"
-                  className={authMode === "sign-in" ? "mode-button active" : "mode-button"}
-                  onClick={() => setAuthMode("sign-in")}
-                >
-                  Sign In
-                </button>
-                <button
-                  type="button"
-                  className={authMode === "sign-up" ? "mode-button active" : "mode-button"}
-                  onClick={() => setAuthMode("sign-up")}
-                >
-                  Sign Up
-                </button>
-              </div>
+              {authMode === "forgot-password" ? (
+                <div className="auth-helper-row">
+                  <button
+                    type="button"
+                    className="auth-inline-action"
+                    onClick={() => setAuthMode("sign-in")}
+                  >
+                    Back to Sign In
+                  </button>
+                  <button
+                    type="button"
+                    className="auth-inline-action"
+                    onClick={() => setAuthMode("sign-up")}
+                  >
+                    Need an account?
+                  </button>
+                </div>
+              ) : (
+                <div className="mode-row">
+                  <button
+                    type="button"
+                    className={authMode === "sign-in" ? "mode-button active" : "mode-button"}
+                    onClick={() => setAuthMode("sign-in")}
+                  >
+                    Sign In
+                  </button>
+                  <button
+                    type="button"
+                    className={authMode === "sign-up" ? "mode-button active" : "mode-button"}
+                    onClick={() => setAuthMode("sign-up")}
+                  >
+                    Sign Up
+                  </button>
+                </div>
+              )}
               <label>
                 Email
                 <input
                   required
                   type="email"
+                  autoComplete="email"
                   value={email}
                   onChange={(event) => setEmail(event.target.value)}
                 />
               </label>
-              <label>
-                Password
-                <input
-                  required
-                  minLength={6}
-                  type="password"
-                  value={password}
-                  onChange={(event) => setPassword(event.target.value)}
-                />
-              </label>
+              {authMode === "forgot-password" ? (
+                <p className="hint auth-helper-note">
+                  We’ll send the reset link to this inbox and you can choose a new password there.
+                </p>
+              ) : (
+                <>
+                  <label>
+                    Password
+                    <input
+                      required
+                      minLength={6}
+                      type="password"
+                      autoComplete={authMode === "sign-up" ? "new-password" : "current-password"}
+                      value={password}
+                      onChange={(event) => setPassword(event.target.value)}
+                    />
+                  </label>
+                  {authMode === "sign-in" ? (
+                    <div className="auth-helper-row">
+                      <span className="hint auth-helper-note">Forgot your password?</span>
+                      <button
+                        type="button"
+                        className="auth-inline-action"
+                        onClick={() => {
+                          setPassword("");
+                          setAuthMode("forgot-password");
+                        }}
+                      >
+                        Send reset link
+                      </button>
+                    </div>
+                  ) : null}
+                </>
+              )}
               {authMode === "sign-up" ? (
                 <label>
                   Display Name
                   <input
                     required
                     minLength={2}
+                    autoComplete="nickname"
                     value={displayName}
                     onChange={(event) => setDisplayName(event.target.value)}
                   />
                 </label>
               ) : null}
-              <button type="submit" className="primary-button">
-                {authMode === "sign-in" ? "Sign In" : "Create Account"}
-              </button>
+              <div className="auth-submit-stack">
+                <button type="submit" className="primary-button">
+                  {authSubmitLabel}
+                </button>
+                {authMode === "forgot-password" ? (
+                  <button
+                    type="button"
+                    className="secondary-button"
+                    onClick={() => setAuthMode("sign-in")}
+                  >
+                    Cancel
+                  </button>
+                ) : null}
+              </div>
             </form>
           </section>
         </div>

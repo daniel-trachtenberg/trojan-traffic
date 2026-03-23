@@ -2275,6 +2275,14 @@ body {
   margin: 0;
 }
 
+.auth-helper-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+
 .auth-form label {
   display: grid;
   gap: 0.18rem;
@@ -2290,6 +2298,31 @@ body {
   font: inherit;
   background: rgb(9 11 16 / 80%);
   color: var(--text);
+}
+
+.auth-inline-action {
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: #fff0ba;
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.auth-inline-action:hover {
+  text-decoration: underline;
+}
+
+.auth-helper-note {
+  margin: 0;
+  font-size: 0.76rem;
+}
+
+.auth-submit-stack {
+  display: grid;
+  gap: 0.52rem;
 }
 
 .mode-row {
@@ -2312,6 +2345,82 @@ body {
   border-color: rgb(153 0 0 / 60%);
   background: rgb(153 0 0 / 24%);
   color: var(--text);
+}
+
+.reset-password-page {
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: grid;
+  place-items: center;
+  padding: 1.5rem;
+  background:
+    radial-gradient(circle at top, rgb(255 204 0 / 10%), transparent 32%),
+    linear-gradient(180deg, rgb(11 13 20 / 96%) 0%, rgb(15 17 22 / 100%) 100%);
+}
+
+.reset-password-card {
+  width: min(460px, 100%);
+  display: grid;
+  gap: 1rem;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  padding: 1.25rem;
+  background: rgb(16 18 26 / 96%);
+  box-shadow: 0 25px 65px rgb(0 0 0 / 38%);
+}
+
+.reset-password-header {
+  display: grid;
+  gap: 0.4rem;
+}
+
+.reset-password-header h1 {
+  margin: 0;
+  font-size: clamp(1.65rem, 3vw, 2.1rem);
+  line-height: 1.02;
+}
+
+.reset-password-copy {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.92rem;
+  line-height: 1.55;
+}
+
+.reset-password-status {
+  margin: 0;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  padding: 0.78rem 0.88rem;
+  font-size: 0.84rem;
+  line-height: 1.45;
+}
+
+.reset-password-status-error {
+  border-color: rgb(239 68 68 / 32%);
+  background: rgb(127 29 29 / 22%);
+  color: #ffd8d8;
+}
+
+.reset-password-status-success {
+  border-color: rgb(34 197 94 / 28%);
+  background: rgb(22 101 52 / 22%);
+  color: #d9ffe4;
+}
+
+.reset-password-status-neutral {
+  background: rgb(255 255 255 / 4%);
+  color: var(--muted);
+}
+
+.reset-password-actions {
+  display: grid;
+  gap: 0.6rem;
+}
+
+.reset-password-link {
+  text-decoration: none;
+  text-align: center;
 }
 
 .stake-toolbar {
