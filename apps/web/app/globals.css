@@ -439,6 +439,10 @@ body {
   width: min(920px, 100%);
 }
 
+.public-profile-modal {
+  width: min(920px, 100%);
+}
+
 .admin-modal {
   width: min(960px, 100%);
 }
@@ -2802,6 +2806,17 @@ body {
   gap: 0.82rem;
 }
 
+.public-profile-status-card {
+  margin: 0;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 0.9rem;
+  background: rgb(255 255 255 / 4%);
+  color: var(--muted);
+  font-size: 0.84rem;
+  line-height: 1.5;
+}
+
 .account-empty-state {
   display: grid;
   gap: 0.26rem;
@@ -3098,15 +3113,55 @@ body {
 }
 
 .leaderboard li {
-  display: flex;
-  justify-content: space-between;
-  gap: 0.52rem;
-  font-size: 0.8rem;
   color: #dde4f3;
 }
 
-.leaderboard span:last-child {
+.leaderboard-entry-button {
+  width: 100%;
+  border: 1px solid transparent;
+  border-radius: 14px;
+  padding: 0.44rem 0.56rem 0.48rem 0.34rem;
+  background: transparent;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.72rem;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    border-color 140ms ease,
+    background 140ms ease,
+    transform 140ms ease;
+}
+
+.leaderboard-entry-button:hover,
+.leaderboard-entry-button:focus-visible {
+  border-color: var(--line);
+  background: rgb(255 255 255 / 4%);
+  transform: translateY(-1px);
+}
+
+.leaderboard-entry-copy {
+  min-width: 0;
+  display: grid;
+  gap: 0.14rem;
+}
+
+.leaderboard-entry-name {
+  font-size: 0.8rem;
+  color: #dde4f3;
+  font-weight: 620;
+}
+
+.leaderboard-entry-meta {
+  font-size: 0.72rem;
+  color: var(--muted);
+}
+
+.leaderboard-entry-score {
   color: var(--usc-gold);
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
 }
 
 .toast-stack {

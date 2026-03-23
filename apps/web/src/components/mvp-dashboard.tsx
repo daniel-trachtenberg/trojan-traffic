@@ -63,6 +63,27 @@ type ProfileRow = {
   tier: string;
 };
 
+type PublicProfileSummaryRow = {
+  rank: number;
+  user_id: string;
+  display_name: string;
+  tier: string;
+  token_balance: number;
+  correct_predictions: number;
+  total_predictions: number;
+  settled_predictions: number;
+};
+
+type PublicPredictionHistoryRow = PredictionRow & {
+  mode_seconds: number;
+  threshold: number;
+  starts_at: string;
+  ends_at: string;
+  status: string;
+  final_count: number | null;
+  session_resolved_at: string | null;
+};
+
 type StreakRow = {
   login_streak: number;
   prediction_streak: number;
@@ -75,6 +96,13 @@ type BalanceRow = {
 
 type AdminRow = {
   user_id: string;
+};
+
+type PublicProfileContext = {
+  user_id: string;
+  display_name: string;
+  tier: string;
+  rank: number | null;
 };
 
 type MvpDashboardProps = {
@@ -555,6 +583,106 @@ function getDetectorStatusMessage(
   return "Detector reconnecting...";
 }
 
+type PredictionHistoryListProps = {
+  predictions: PredictionRow[];
+  sessionLookup: Map<string, SessionRow>;
+  nowMs: number;
+  emptyKicker: string;
+  emptyTitle: string;
+  emptyCopy: string;
+};
+
+function PredictionHistoryList({
+  predictions,
+  sessionLookup,
+  nowMs,
+  emptyKicker,
+  emptyTitle,
+  emptyCopy
+}: PredictionHistoryListProps) {
+  if (predictions.length === 0) {
+    return (
+      <div className="account-empty-state">
+        <p className="account-section-kicker">{emptyKicker}</p>
+        <h3 className="account-section-title">{emptyTitle}</h3>
+        <p className="account-section-copy">{emptyCopy}</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="account-history-list">
+      {predictions.map((prediction) => {
+        const session = sessionLookup.get(prediction.session_id) ?? null;
+        const historyStatus = getPredictionHistoryStatus(prediction, session, nowMs);
+        const marketLabel = formatPredictionLabel(prediction, session);
+        const finalCountLabel =
+          session?.final_count !== null && session?.final_count !== undefined
+            ? `${session.final_count}`
+            : "Pending";
+        const netLabel =
+          prediction.resolved_at && prediction.was_correct === null
+            ? "Voided"
+            : prediction.was_correct === null
+              ? "Pending"
+              : formatTokenDelta(prediction.token_delta);
+
+        return (
+          <article
+            className={`bet-history-card bet-history-card-${historyStatus.tone}`}
+            key={prediction.id}
+          >
+            <div className="bet-history-card-header">
+              <div className="bet-history-card-title-block">
+                <p className="bet-history-card-kicker">
+                  {session ? `${session.mode_seconds}s round` : "Round"} · Placed{" "}
+                  {formatShortDateTime(prediction.placed_at)}
+                </p>
+                <strong className="bet-history-card-title">{marketLabel}</strong>
+              </div>
+              <span className={`bet-history-status bet-history-status-${historyStatus.tone}`}>
+                {historyStatus.label}
+              </span>
+            </div>
+
+            <div className="bet-history-stat-row">
+              <div className="bet-history-stat-card">
+                <span>Stake</span>
+                <strong>{prediction.wager_tokens}</strong>
+              </div>
+              <div className="bet-history-stat-card">
+                <span>Final count</span>
+                <strong>{finalCountLabel}</strong>
+              </div>
+              <div className="bet-history-stat-card">
+                <span>Round result</span>
+                <strong>{getResolvedMarketResultLabel(session)}</strong>
+              </div>
+              <div className="bet-history-stat-card">
+                <span>Net</span>
+                <strong className={`bet-history-net bet-history-net-${historyStatus.tone}`}>
+                  {netLabel}
+                </strong>
+              </div>
+            </div>
+
+            <div className="bet-history-card-footer">
+              <p>{getPredictionHistoryNote(prediction, session, nowMs)}</p>
+              <span>
+                {prediction.resolved_at
+                  ? `Settled ${formatShortDateTime(prediction.resolved_at)}`
+                  : session?.starts_at
+                    ? `Round start ${formatShortDateTime(session.starts_at)}`
+                    : "Waiting for round details"}
+              </span>
+            </div>
+          </article>
+        );
+      })}
+    </div>
+  );
+}
+
 export function MvpDashboard({
   hlsUrl,
   initialRegion,
@@ -586,6 +714,11 @@ export function MvpDashboard({
   const [openRightPanel, setOpenRightPanel] = useState<"account" | "leaderboard" | "admin" | null>(
     null
   );
+  const [publicProfileContext, setPublicProfileContext] = useState<PublicProfileContext | null>(null);
+  const [publicProfileSummary, setPublicProfileSummary] = useState<PublicProfileSummaryRow | null>(null);
+  const [publicProfilePredictions, setPublicProfilePredictions] = useState<PublicPredictionHistoryRow[]>([]);
+  const [isPublicProfileLoading, setIsPublicProfileLoading] = useState(false);
+  const [publicProfileError, setPublicProfileError] = useState<string | null>(null);
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [authIntentSessionId, setAuthIntentSessionId] = useState<string | null>(null);
   const [liveDetections, setLiveDetections] = useState<LiveDetectionsResponse | null>(null);
@@ -600,6 +733,7 @@ export function MvpDashboard({
   const toastTimeoutsRef = useRef(new Map<number, ReturnType<typeof setTimeout>>());
   const liveTrainStopXRef = useRef<number | null>(null);
   const liveTrainStopSessionIdRef = useRef<string | null>(null);
+  const publicProfileLoadIdRef = useRef(0);
 
   const sessionLookup = new Map(sessions.map((session) => [session.id, session]));
   const predictionBySession = new Map(predictions.map((prediction) => [prediction.session_id, prediction]));
@@ -779,6 +913,43 @@ export function MvpDashboard({
       })
     : null;
   const selectedSessionId = selectedSession?.id ?? null;
+  const publicProfileDisplayName =
+    publicProfileSummary?.display_name ?? publicProfileContext?.display_name ?? "Public Profile";
+  const publicProfileTier = publicProfileSummary?.tier ?? publicProfileContext?.tier ?? "Trader";
+  const publicProfileRank = publicProfileSummary?.rank ?? publicProfileContext?.rank ?? null;
+  const publicProfileTotalPredictions =
+    publicProfileSummary?.total_predictions ?? publicProfilePredictions.length;
+  const publicProfileCorrectPredictions =
+    publicProfileSummary?.correct_predictions ??
+    publicProfilePredictions.filter((prediction) => prediction.was_correct === true).length;
+  const publicProfileSettledPredictions =
+    publicProfileSummary?.settled_predictions ??
+    publicProfilePredictions.filter((prediction) => prediction.was_correct !== null).length;
+  const publicProfileHitRateLabel =
+    publicProfileSettledPredictions > 0
+      ? `${Math.round((publicProfileCorrectPredictions / publicProfileSettledPredictions) * 100)}%`
+      : "--";
+  const publicProfileHistoryCountLabel =
+    isPublicProfileLoading && !publicProfileSummary
+      ? "Loading..."
+      : publicProfileSummary && publicProfileSummary.total_predictions > publicProfilePredictions.length
+        ? `Latest ${publicProfilePredictions.length} of ${publicProfileSummary.total_predictions} bets`
+        : `${publicProfileTotalPredictions} bets`;
+  const publicProfileSessionRows = mergeSessionRows(
+    publicProfilePredictions.map((prediction) => ({
+      id: prediction.session_id,
+      mode_seconds: prediction.mode_seconds,
+      threshold: prediction.threshold,
+      starts_at: prediction.starts_at,
+      ends_at: prediction.ends_at,
+      status: prediction.status,
+      final_count: prediction.final_count,
+      resolved_at: prediction.session_resolved_at
+    }))
+  );
+  const publicProfileSessionLookup = new Map(
+    publicProfileSessionRows.map((session) => [session.id, session])
+  );
   const livePeopleCount = null as number | null;
   const livePeopleCountDisplay = `${livePeopleCount ?? 0}`.padStart(2, "0");
   const selectedRoundCountdown =
@@ -1844,6 +2015,15 @@ export function MvpDashboard({
     setPassword("");
   }
 
+  function closePublicProfile() {
+    publicProfileLoadIdRef.current += 1;
+    setPublicProfileContext(null);
+    setPublicProfileSummary(null);
+    setPublicProfilePredictions([]);
+    setPublicProfileError(null);
+    setIsPublicProfileLoading(false);
+  }
+
   function openAuthModal(mode: "sign-in" | "sign-up", sessionId: string | null = null) {
     if (!supabase) {
       setError(`Configure Supabase before ${mode === "sign-in" ? "signing in" : "creating an account"}.`);
@@ -1855,6 +2035,77 @@ export function MvpDashboard({
     setAuthIntentSessionId(sessionId);
     setAuthMode(mode);
     setShowAuthModal(true);
+  }
+
+  async function handleOpenPublicProfile(entry: LeaderboardRow) {
+    if (!supabase) {
+      setError("Configure Supabase before opening public bettor profiles.");
+      return;
+    }
+
+    const nextLoadId = publicProfileLoadIdRef.current + 1;
+    publicProfileLoadIdRef.current = nextLoadId;
+    setPublicProfileContext({
+      user_id: entry.user_id,
+      display_name: entry.display_name,
+      tier: entry.tier,
+      rank: entry.rank
+    });
+    setPublicProfileSummary(null);
+    setPublicProfilePredictions([]);
+    setPublicProfileError(null);
+    setIsPublicProfileLoading(true);
+
+    try {
+      const [profileResponse, historyResponse] = await Promise.all([
+        supabase.rpc("get_public_profile", {
+          p_user_id: entry.user_id
+        }),
+        supabase.rpc("get_public_prediction_history", {
+          p_user_id: entry.user_id,
+          p_limit: 40
+        })
+      ]);
+
+      if (publicProfileLoadIdRef.current !== nextLoadId) {
+        return;
+      }
+
+      if (profileResponse.error) {
+        throw new Error(profileResponse.error.message);
+      }
+
+      if (historyResponse.error) {
+        throw new Error(historyResponse.error.message);
+      }
+
+      const nextSummary = Array.isArray(profileResponse.data)
+        ? ((profileResponse.data[0] as PublicProfileSummaryRow | undefined) ?? null)
+        : null;
+
+      if (!nextSummary) {
+        throw new Error("This bettor profile is not available right now.");
+      }
+
+      setPublicProfileSummary(nextSummary);
+      setPublicProfilePredictions(
+        Array.isArray(historyResponse.data)
+          ? (historyResponse.data as PublicPredictionHistoryRow[])
+          : []
+      );
+    } catch (profileError) {
+      if (publicProfileLoadIdRef.current !== nextLoadId) {
+        return;
+      }
+
+      const message =
+        profileError instanceof Error ? profileError.message : "Failed to load this bettor profile.";
+      setPublicProfileError(message);
+    } finally {
+      if (publicProfileLoadIdRef.current === nextLoadId) {
+        setIsPublicProfileLoading(false);
+      }
+    }
   }
 
   function updateSelectedSide(sessionId: string, nextSide: PredictionSide) {
@@ -2972,89 +3223,14 @@ export function MvpDashboard({
                         {loading ? "Refreshing..." : `${predictions.length} bets`}
                       </span>
                     </div>
-
-                    {predictions.length > 0 ? (
-                      <div className="account-history-list">
-                        {predictions.map((prediction) => {
-                          const session = sessionLookup.get(prediction.session_id) ?? null;
-                          const historyStatus = getPredictionHistoryStatus(prediction, session, nowMs);
-                          const marketLabel = formatPredictionLabel(prediction, session);
-                          const finalCountLabel =
-                            session?.final_count !== null && session?.final_count !== undefined
-                              ? `${session.final_count}`
-                              : "Pending";
-                          const netLabel =
-                            prediction.resolved_at && prediction.was_correct === null
-                              ? "Voided"
-                              : prediction.was_correct === null
-                                ? "Pending"
-                                : formatTokenDelta(prediction.token_delta);
-
-                          return (
-                            <article
-                              className={`bet-history-card bet-history-card-${historyStatus.tone}`}
-                              key={prediction.id}
-                            >
-                              <div className="bet-history-card-header">
-                                <div className="bet-history-card-title-block">
-                                  <p className="bet-history-card-kicker">
-                                    {session ? `${session.mode_seconds}s round` : "Round"} · Placed{" "}
-                                    {formatShortDateTime(prediction.placed_at)}
-                                  </p>
-                                  <strong className="bet-history-card-title">{marketLabel}</strong>
-                                </div>
-                                <span
-                                  className={`bet-history-status bet-history-status-${historyStatus.tone}`}
-                                >
-                                  {historyStatus.label}
-                                </span>
-                              </div>
-
-                              <div className="bet-history-stat-row">
-                                <div className="bet-history-stat-card">
-                                  <span>Stake</span>
-                                  <strong>{prediction.wager_tokens}</strong>
-                                </div>
-                                <div className="bet-history-stat-card">
-                                  <span>Final count</span>
-                                  <strong>{finalCountLabel}</strong>
-                                </div>
-                                <div className="bet-history-stat-card">
-                                  <span>Round result</span>
-                                  <strong>{getResolvedMarketResultLabel(session)}</strong>
-                                </div>
-                                <div className="bet-history-stat-card">
-                                  <span>Net</span>
-                                  <strong className={`bet-history-net bet-history-net-${historyStatus.tone}`}>
-                                    {netLabel}
-                                  </strong>
-                                </div>
-                              </div>
-
-                              <div className="bet-history-card-footer">
-                                <p>{getPredictionHistoryNote(prediction, session, nowMs)}</p>
-                                <span>
-                                  {prediction.resolved_at
-                                    ? `Settled ${formatShortDateTime(prediction.resolved_at)}`
-                                    : session?.starts_at
-                                      ? `Round start ${formatShortDateTime(session.starts_at)}`
-                                      : "Waiting for round details"}
-                                </span>
-                              </div>
-                            </article>
-                          );
-                        })}
-                      </div>
-                    ) : (
-                      <div className="account-empty-state">
-                        <p className="account-section-kicker">No bets yet</p>
-                        <h3 className="account-section-title">Your history will land here</h3>
-                        <p className="account-section-copy">
-                          Place a round and this panel will start tracking your side, stake, final count,
-                          and payout.
-                        </p>
-                      </div>
-                    )}
+                    <PredictionHistoryList
+                      predictions={predictions}
+                      sessionLookup={sessionLookup}
+                      nowMs={nowMs}
+                      emptyKicker="No bets yet"
+                      emptyTitle="Your history will land here"
+                      emptyCopy="Place a round and this panel will start tracking your side, stake, final count, and payout."
+                    />
                   </section>
                 </div>
               ) : (
@@ -3081,16 +3257,132 @@ export function MvpDashboard({
                 <ol className="leaderboard modal-leaderboard">
                   {leaderboard.slice(0, 15).map((entry) => (
                     <li key={entry.user_id}>
-                      <span>
-                        #{entry.rank} {entry.display_name}
-                      </span>
-                      <span>{entry.token_balance}</span>
+                      <button
+                        type="button"
+                        className="leaderboard-entry-button"
+                        onClick={() => void handleOpenPublicProfile(entry)}
+                        aria-label={`Open ${entry.display_name}'s betting profile`}
+                      >
+                        <span className="leaderboard-entry-copy">
+                          <span className="leaderboard-entry-name">
+                            #{entry.rank} {entry.display_name}
+                          </span>
+                          <span className="leaderboard-entry-meta">
+                            {entry.correct_predictions} correct picks · {entry.tier}
+                          </span>
+                        </span>
+                        <span className="leaderboard-entry-score">{entry.token_balance}</span>
+                      </button>
                     </li>
                   ))}
                 </ol>
                 {leaderboard.length === 0 ? <p className="hint">No leaderboard entries yet.</p> : null}
               </>
             )}
+          </section>
+        </div>
+      ) : null}
+
+      {publicProfileContext ? (
+        <div className="center-modal-backdrop" onClick={closePublicProfile} role="presentation">
+          <section
+            className="center-modal account-modal public-profile-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-label={`${publicProfileDisplayName} betting profile`}
+            onClick={(event) => event.stopPropagation()}
+          >
+            <header className="widget-header center-modal-header">
+              <h2>{publicProfileDisplayName}</h2>
+              <button
+                type="button"
+                className="panel-close-button"
+                onClick={closePublicProfile}
+                aria-label="Close public profile"
+              >
+                ×
+              </button>
+            </header>
+
+            <div className="account-panel">
+              <section className="account-hero">
+                <div className="account-hero-copy">
+                  <p className="account-kicker">
+                    {publicProfileRank !== null
+                      ? `Public betting profile · Rank #${publicProfileRank}`
+                      : "Public betting profile"}
+                  </p>
+                  <h3 className="account-name">{publicProfileDisplayName}</h3>
+                  <p className="account-subtitle">
+                    {user && publicProfileContext.user_id === user.id
+                      ? `${publicProfileTier} bettor · This is you`
+                      : `${publicProfileTier} bettor`}
+                  </p>
+                  <div className="account-badge-row">
+                    <span className="account-badge">{publicProfileCorrectPredictions} correct picks</span>
+                    <span className="account-badge">{publicProfileTotalPredictions} bets tracked</span>
+                    <span className="account-badge">Hit rate {publicProfileHitRateLabel}</span>
+                  </div>
+                </div>
+
+                <div className="account-actions">
+                  <button type="button" className="secondary-button" onClick={closePublicProfile}>
+                    Close Profile
+                  </button>
+                </div>
+              </section>
+
+              <section className="account-stat-grid">
+                <article className="account-stat-card">
+                  <span>Leaderboard rank</span>
+                  <strong>{publicProfileRank !== null ? `#${publicProfileRank}` : "--"}</strong>
+                  <p>Ranked by live token balance, then correct picks.</p>
+                </article>
+                <article className="account-stat-card">
+                  <span>Token balance</span>
+                  <strong>{publicProfileSummary?.token_balance ?? "--"}</strong>
+                  <p>Current bankroll visible to the whole market.</p>
+                </article>
+                <article className="account-stat-card">
+                  <span>Bets tracked</span>
+                  <strong>{publicProfileTotalPredictions}</strong>
+                  <p>Every visible ticket from this bettor.</p>
+                </article>
+                <article className="account-stat-card">
+                  <span>Hit rate</span>
+                  <strong>{publicProfileHitRateLabel}</strong>
+                  <p>{publicProfileSettledPredictions} settled picks on record.</p>
+                </article>
+              </section>
+
+              <section className="account-history-section">
+                <div className="account-history-header">
+                  <div>
+                    <p className="account-section-kicker">Public history</p>
+                    <h3 className="account-section-title">{publicProfileDisplayName}&rsquo;s recent bets</h3>
+                    <p className="account-section-copy">
+                      Open positions and settled rounds both stay visible here, Polymarket-style.
+                    </p>
+                  </div>
+                  <span className="account-history-count">{publicProfileHistoryCountLabel}</span>
+                </div>
+
+                {publicProfileError ? (
+                  <p className="public-profile-status-card">{publicProfileError}</p>
+                ) : isPublicProfileLoading && !publicProfileSummary ? (
+                  <p className="public-profile-status-card">Loading recent activity...</p>
+                ) : (
+                  <PredictionHistoryList
+                    predictions={publicProfilePredictions}
+                    sessionLookup={publicProfileSessionLookup}
+                    nowMs={nowMs}
+                    emptyKicker="No public bets yet"
+                    emptyTitle="This bettor has not opened a position yet"
+                    emptyCopy="Once they place a round, their market history will show up here."
+                  />
+                )}
+              </section>
+            </div>
           </section>
         </div>
       ) : null}
