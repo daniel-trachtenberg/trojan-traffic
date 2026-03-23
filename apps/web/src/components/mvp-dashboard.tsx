@@ -3254,6 +3254,9 @@ export function MvpDashboard({
               )
             ) : (
               <>
+                <p className="leaderboard-panel-note">
+                  Tap any bettor to open their public profile and recent betting history.
+                </p>
                 <ol className="leaderboard modal-leaderboard">
                   {leaderboard.slice(0, 15).map((entry) => (
                     <li key={entry.user_id}>
@@ -3263,15 +3266,17 @@ export function MvpDashboard({
                         onClick={() => void handleOpenPublicProfile(entry)}
                         aria-label={`Open ${entry.display_name}'s betting profile`}
                       >
+                        <span className="leaderboard-entry-rank">#{entry.rank}</span>
                         <span className="leaderboard-entry-copy">
-                          <span className="leaderboard-entry-name">
-                            #{entry.rank} {entry.display_name}
-                          </span>
+                          <span className="leaderboard-entry-name">{entry.display_name}</span>
                           <span className="leaderboard-entry-meta">
                             {entry.correct_predictions} correct picks · {entry.tier}
                           </span>
                         </span>
-                        <span className="leaderboard-entry-score">{entry.token_balance}</span>
+                        <span className="leaderboard-entry-score-shell">
+                          <span className="leaderboard-entry-score-label">Bankroll</span>
+                          <span className="leaderboard-entry-score">{entry.token_balance}</span>
+                        </span>
                       </button>
                     </li>
                   ))}
@@ -3293,7 +3298,7 @@ export function MvpDashboard({
             onClick={(event) => event.stopPropagation()}
           >
             <header className="widget-header center-modal-header">
-              <h2>{publicProfileDisplayName}</h2>
+              <h2>Public Profile</h2>
               <button
                 type="button"
                 className="panel-close-button"
@@ -3323,12 +3328,6 @@ export function MvpDashboard({
                     <span className="account-badge">{publicProfileTotalPredictions} bets tracked</span>
                     <span className="account-badge">Hit rate {publicProfileHitRateLabel}</span>
                   </div>
-                </div>
-
-                <div className="account-actions">
-                  <button type="button" className="secondary-button" onClick={closePublicProfile}>
-                    Close Profile
-                  </button>
                 </div>
               </section>
 
@@ -3361,7 +3360,7 @@ export function MvpDashboard({
                     <p className="account-section-kicker">Public history</p>
                     <h3 className="account-section-title">{publicProfileDisplayName}&rsquo;s recent bets</h3>
                     <p className="account-section-copy">
-                      Open positions and settled rounds both stay visible here, Polymarket-style.
+                      Open positions and settled rounds stay visible together in one clean tape.
                     </p>
                   </div>
                   <span className="account-history-count">{publicProfileHistoryCountLabel}</span>
