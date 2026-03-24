@@ -4279,11 +4279,11 @@ body {
     padding:
       calc(0.8rem + env(safe-area-inset-top))
       0.8rem
-      0.8rem;
+      0.45rem;
     overflow: hidden;
     display: flex;
     flex-direction: column;
-    justify-content: space-between;
+    justify-content: flex-start;
     background:
       radial-gradient(circle at top, rgb(255 204 0 / 6%), transparent 22%),
       linear-gradient(180deg, rgb(10 12 18 / 76%), rgb(5 6 10 / 86%));
@@ -4294,7 +4294,7 @@ body {
     position: absolute;
     inset: 0;
     background:
-      linear-gradient(180deg, rgb(7 9 14 / 78%) 0%, rgb(7 9 14 / 22%) 26%, rgb(7 9 14 / 12%) 52%, rgb(6 8 12 / 76%) 100%);
+      linear-gradient(180deg, rgb(7 9 14 / 78%) 0%, rgb(7 9 14 / 16%) 22%, rgb(7 9 14 / 4%) 58%, rgb(6 8 12 / 38%) 100%);
     pointer-events: none;
   }
 
@@ -4406,11 +4406,11 @@ body {
   .mobile-dock-utility {
     border: 1px solid rgb(255 255 255 / 10%);
     border-radius: 999px;
-    padding: 0.55rem 0.84rem;
+    padding: 0.5rem 0.78rem;
     background: rgb(7 9 14 / 60%);
     color: var(--text);
     font: inherit;
-    font-size: 0.78rem;
+    font-size: 0.76rem;
     font-weight: 600;
     backdrop-filter: blur(10px);
   }
@@ -4539,13 +4539,72 @@ body {
     min-height: 0;
     display: grid;
     align-content: start;
-    gap: 0.68rem;
+    gap: 0.55rem;
     overflow: auto;
     scrollbar-width: none;
   }
 
   .mobile-betting-dock-shell::-webkit-scrollbar {
     display: none;
+  }
+
+  .mobile-dock-overview {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 0.72rem;
+  }
+
+  .mobile-dock-overview-copy {
+    display: grid;
+    gap: 0.14rem;
+    min-width: 0;
+  }
+
+  .mobile-dock-overview-copy strong {
+    font-size: 1.08rem;
+    line-height: 1;
+    letter-spacing: -0.04em;
+    color: #fff5dc;
+  }
+
+  .mobile-dock-overview-copy span {
+    font-size: 0.76rem;
+    line-height: 1.35;
+    color: var(--muted);
+  }
+
+  .mobile-dock-count-shell {
+    min-width: 4.6rem;
+    border-radius: 18px;
+    padding: 0.6rem 0.55rem;
+    background: rgb(255 255 255 / 4%);
+    border: 1px solid rgb(255 255 255 / 10%);
+    display: grid;
+    justify-items: center;
+    align-content: center;
+    gap: 0.06rem;
+  }
+
+  .mobile-dock-count-shell strong {
+    font-size: 2rem;
+    line-height: 0.88;
+    color: var(--text);
+    letter-spacing: -0.08em;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .mobile-dock-count-shell span {
+    font-size: 0.68rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: rgb(224 230 243 / 66%);
+  }
+
+  .mobile-dock-chip-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.38rem;
   }
 
   .mobile-dock-header {

@@ -2554,16 +2554,6 @@ export function MvpDashboard({
       : "--";
   const mobilePotentialWinLabel =
     selectedPricingGrossPayout !== null ? `${selectedPricingGrossPayout}` : "--";
-  const mobileDockTitle = showBettingControls
-    ? "Bet slip"
-    : showResolvedRoundCard
-      ? "Round settled"
-      : showLiveRoundCard
-        ? "Round in motion"
-        : hasSelectedSession
-          ? "Next market"
-          : "Standby";
-  const mobileDockCopy = showBettingControls ? selectedPricingNote : mobileSpotlightCopy;
   const mobileStageCardTitle = showBettingControls
     ? "How many walkers?"
     : showLiveRoundCard
@@ -2580,16 +2570,36 @@ export function MvpDashboard({
         : "The highlighted region stays centered here while we wait for the next round.";
   const bettingWidgetContent = (
     <div className="mobile-betting-dock-shell">
+      <div className="mobile-dock-overview">
+        <div className="mobile-dock-overview-copy">
+          <p className="mobile-dock-kicker">{mobileSpotlightKicker}</p>
+          <strong>{mobileStageCardTitle}</strong>
+          <span>{mobileStageCardCopy}</span>
+        </div>
+        <div className="mobile-dock-count-shell">
+          <strong>{mobileOverlayCountValue}</strong>
+          <span>{mobileOverlayCountLabel}</span>
+        </div>
+      </div>
+
+      <div className="mobile-dock-chip-row">
+        <span className={selectedState ? `status status-${selectedState}` : "status"}>
+          {selectedState ? getSessionStateLabel(selectedState) : "Standby"}
+        </span>
+        {hasSelectedSession ? <span className="round-chip">{displayedModeSeconds}s round</span> : null}
+        {hasSelectedSession ? <span className="round-chip">Threshold {displayedThreshold}</span> : null}
+      </div>
+
+      <div className="mobile-stage-progress-row">
+        <span>{sessionMetricLabel}</span>
+        <strong>{sessionMetricValue}</strong>
+      </div>
+      <div className="mobile-stage-progress-track" aria-hidden="true">
+        <span style={{ width: `${mobileRoundProgressRatio * 100}%` }} />
+      </div>
+
       {showBettingControls ? (
         <>
-          <div className="mobile-dock-header">
-            <div className="mobile-dock-header-copy">
-              <p className="mobile-dock-kicker">Tommy Walkway</p>
-              <strong>{mobileDockTitle}</strong>
-              <span>{mobileDockCopy}</span>
-            </div>
-          </div>
-
           <div className="mobile-betting-dock-topline">
             <div className="mobile-betting-dock-stat">
               <span>Bet amount</span>
@@ -2889,10 +2899,10 @@ export function MvpDashboard({
                   onRegionChange={canEditRegion ? setRegionPoints : null}
                   focusRegion={mobileRegionFocusEnabled}
                   focusPadding={{
-                    top: 0.1,
-                    right: 0.12,
-                    bottom: 0.18,
-                    left: 0.14
+                    top: 0.08,
+                    right: 0.3,
+                    bottom: 0.16,
+                    left: 0.03
                   }}
                 />
                 <div className="feed-mask mobile-arena-mask" />
@@ -2941,36 +2951,6 @@ export function MvpDashboard({
                   ) : null}
                 </div>
               </header>
-
-              <section className="mobile-stage-card">
-                <div className="mobile-stage-card-main">
-                  <div className="mobile-stage-card-copy">
-                    <p className="mobile-stage-card-kicker">{mobileSpotlightKicker}</p>
-                    <h1 className="mobile-stage-card-title">{mobileStageCardTitle}</h1>
-                    <p className="mobile-stage-card-subtitle">{mobileStageCardCopy}</p>
-                  </div>
-                  <div className="mobile-stage-count-shell">
-                    <strong>{mobileOverlayCountValue}</strong>
-                    <span>{mobileOverlayCountLabel}</span>
-                  </div>
-                </div>
-
-                <div className="mobile-stage-chip-row">
-                  <span className={selectedState ? `status status-${selectedState}` : "status"}>
-                    {selectedState ? getSessionStateLabel(selectedState) : "Standby"}
-                  </span>
-                  {hasSelectedSession ? <span className="round-chip">{displayedModeSeconds}s round</span> : null}
-                  {hasSelectedSession ? <span className="round-chip">Threshold {displayedThreshold}</span> : null}
-                </div>
-
-                <div className="mobile-stage-progress-row">
-                  <span>{sessionMetricLabel}</span>
-                  <strong>{sessionMetricValue}</strong>
-                </div>
-                <div className="mobile-stage-progress-track" aria-hidden="true">
-                  <span style={{ width: `${mobileRoundProgressRatio * 100}%` }} />
-                </div>
-              </section>
 
               {regionEditorDock ? (
                 <div className="mobile-region-editor-shell">{regionEditorDock}</div>
