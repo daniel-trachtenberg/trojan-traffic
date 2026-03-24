@@ -3610,303 +3610,649 @@ body {
     overflow-x: hidden;
     overflow-y: auto;
     background:
-      radial-gradient(circle at top, rgb(255 204 0 / 10%), transparent 30%),
-      linear-gradient(180deg, rgb(12 14 19) 0%, rgb(8 10 15) 100%);
+      radial-gradient(circle at top, rgb(255 204 0 / 12%), transparent 28%),
+      linear-gradient(180deg, rgb(8 10 14) 0%, rgb(3 4 7) 100%);
   }
 
   .mobile-screen-shell {
     display: grid;
-    gap: 0.9rem;
-    padding: 0.95rem 0.95rem calc(6.9rem + env(safe-area-inset-bottom));
+    gap: 0;
+    padding-bottom: calc(1rem + env(safe-area-inset-bottom));
   }
 
-  .mobile-hero-panel,
-  .mobile-camera-card,
-  .mobile-spotlight-card,
-  .mobile-market-panel,
-  .mobile-utility-card,
-  .mobile-preview-panel {
-    border: 1px solid var(--line);
-    border-radius: 24px;
+  .mobile-game-stage {
+    position: relative;
+    min-height: 66dvh;
+    padding: calc(0.9rem + env(safe-area-inset-top)) 0.9rem 5.2rem;
+    overflow: hidden;
     background:
-      linear-gradient(180deg, rgb(255 255 255 / 5%) 0%, rgb(255 255 255 / 2%) 100%);
-    box-shadow: 0 16px 38px rgb(0 0 0 / 18%);
+      radial-gradient(circle at top, rgb(255 204 0 / 8%), transparent 26%),
+      linear-gradient(180deg, rgb(10 12 18 / 72%), rgb(4 5 8 / 90%));
   }
 
-  .mobile-hero-panel {
-    display: grid;
-    gap: 0.8rem;
-    padding: 1rem;
+  .mobile-game-stage::after {
+    content: "";
+    position: absolute;
+    inset: 0;
     background:
-      radial-gradient(circle at top left, rgb(255 204 0 / 14%), transparent 34%),
-      linear-gradient(160deg, rgb(87 12 12 / 28%) 0%, rgb(16 18 24 / 96%) 44%, rgb(9 11 16 / 100%) 100%);
+      radial-gradient(circle at 20% 24%, rgb(255 204 0 / 15%), transparent 18%),
+      radial-gradient(circle at 80% 18%, rgb(153 0 0 / 18%), transparent 20%),
+      linear-gradient(180deg, rgb(6 8 12 / 0%) 38%, rgb(4 5 8 / 84%) 100%);
+    pointer-events: none;
   }
 
-  .mobile-hero-header,
-  .mobile-preview-header {
+  .mobile-game-feed,
+  .mobile-game-feed .video-shell {
+    position: absolute;
+    inset: 0;
+  }
+
+  .mobile-game-feed .video-shell {
+    border: 0;
+    border-radius: 0;
+  }
+
+  .mobile-arena-mask {
+    background:
+      linear-gradient(180deg, rgb(5 6 10 / 64%) 0%, rgb(5 6 10 / 18%) 26%, rgb(5 6 10 / 8%) 54%, rgb(5 6 10 / 82%) 100%);
+  }
+
+  .mobile-hud-bar,
+  .mobile-game-copy,
+  .mobile-round-card,
+  .mobile-stage-action-row {
+    position: relative;
+    z-index: 2;
+  }
+
+  .mobile-hud-bar {
     display: flex;
-    align-items: center;
+    align-items: flex-start;
     justify-content: space-between;
     gap: 0.8rem;
   }
 
-  .mobile-hero-title-block {
+  .mobile-hud-brand {
     display: grid;
-    gap: 0.16rem;
+    gap: 0.18rem;
+    min-width: 0;
   }
 
-  .mobile-hero-title {
+  .mobile-hud-kicker,
+  .mobile-game-overline,
+  .mobile-round-card-kicker,
+  .mobile-betting-dock-stat span,
+  .mobile-dock-status-kicker,
+  .mobile-stake-panel span,
+  .mobile-config-field span,
+  .mobile-slip-banner span:first-child {
     margin: 0;
-    font-size: 1.54rem;
+    font-size: 0.68rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: rgb(235 239 247 / 72%);
+  }
+
+  .mobile-hud-brand strong {
+    font-size: 1.3rem;
     line-height: 1;
     letter-spacing: -0.04em;
-    color: #fff6df;
+    color: #fff6dd;
   }
 
-  .mobile-hero-account-button,
-  .mobile-preview-link {
-    border: 1px solid rgb(255 255 255 / 12%);
-    border-radius: 999px;
-    padding: 0.52rem 0.88rem;
-    background: rgb(255 255 255 / 6%);
-    color: var(--text);
-    font: inherit;
-    font-size: 0.82rem;
-    font-weight: 600;
+  .mobile-hud-brand span {
+    font-size: 0.76rem;
+    line-height: 1.35;
+    color: rgb(224 230 243 / 72%);
   }
 
-  .mobile-camera-card {
-    padding: 0.72rem;
+  .mobile-hud-stack {
     display: grid;
-    gap: 0.72rem;
-    background:
-      linear-gradient(180deg, rgb(11 13 19 / 92%) 0%, rgb(7 9 14 / 98%) 100%);
+    justify-items: end;
+    gap: 0.45rem;
   }
 
-  .mobile-camera-chip-row {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 0.42rem;
-  }
-
-  .mobile-camera-feed-wrap {
-    position: relative;
+  .mobile-hud-balance {
+    border: 1px solid rgb(255 255 255 / 10%);
+    border-radius: 16px;
+    padding: 0.55rem 0.72rem;
+    background: rgb(6 8 12 / 60%);
+    backdrop-filter: blur(10px);
     display: grid;
-    gap: 0.72rem;
+    gap: 0.08rem;
+    justify-items: end;
   }
 
-  .mobile-camera-feed-wrap .video-shell {
-    width: 100%;
-    border-radius: 20px;
-    border-color: rgb(255 204 0 / 18%);
-    box-shadow: inset 0 1px 0 rgb(255 255 255 / 6%);
-  }
-
-  .mobile-camera-focus-pill {
-    position: absolute;
-    left: 0.9rem;
-    bottom: 0.9rem;
-    z-index: 2;
-    border-radius: 999px;
-    border: 1px solid rgb(255 204 0 / 28%);
-    padding: 0.34rem 0.62rem;
-    background: rgb(8 10 16 / 74%);
-    color: #fff2c5;
-    font-size: 0.7rem;
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
-    backdrop-filter: blur(8px);
-  }
-
-  .mobile-camera-metric-grid,
-  .mobile-spotlight-stat-row {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 0.55rem;
-  }
-
-  .mobile-camera-metric-card,
-  .mobile-spotlight-stat-card {
-    border: 1px solid rgb(255 255 255 / 8%);
-    border-radius: 18px;
-    padding: 0.75rem 0.84rem;
-    background: rgb(255 255 255 / 4%);
-    display: grid;
-    gap: 0.14rem;
-  }
-
-  .mobile-camera-metric-card span,
-  .mobile-spotlight-kicker,
-  .mobile-spotlight-stat-card span,
-  .mobile-utility-kicker {
+  .mobile-hud-balance span {
     font-size: 0.66rem;
     letter-spacing: 0.08em;
     text-transform: uppercase;
-    color: rgb(224 230 243 / 70%);
+    color: rgb(236 240 248 / 62%);
   }
 
-  .mobile-camera-metric-card strong,
-  .mobile-spotlight-stat-card strong {
-    font-size: 1.22rem;
+  .mobile-hud-balance strong {
+    color: #fff3cf;
+    font-size: 1rem;
     line-height: 1;
-    color: var(--text);
-    letter-spacing: -0.04em;
     font-variant-numeric: tabular-nums;
   }
 
-  .mobile-camera-metric-grid > :last-child:nth-child(odd) {
-    grid-column: 1 / -1;
+  .mobile-hud-actions {
+    display: flex;
+    gap: 0.42rem;
   }
 
-  .mobile-spotlight-card,
-  .mobile-market-panel,
-  .mobile-preview-panel {
-    padding: 1rem;
+  .mobile-hud-pill,
+  .mobile-stage-action,
+  .mobile-dock-action-button {
+    border: 1px solid rgb(255 255 255 / 10%);
+    border-radius: 999px;
+    padding: 0.52rem 0.85rem;
+    background: rgb(7 9 14 / 64%);
+    color: var(--text);
+    font: inherit;
+    font-size: 0.8rem;
+    font-weight: 600;
+    backdrop-filter: blur(10px);
   }
 
-  .mobile-spotlight-card {
+  .mobile-game-copy {
+    margin-top: 1.2rem;
+    max-width: 16.5rem;
     display: grid;
-    gap: 0.7rem;
+    gap: 0.38rem;
+  }
+
+  .mobile-game-headline {
+    margin: 0;
+    font-size: clamp(2rem, 9vw, 2.7rem);
+    line-height: 0.94;
+    letter-spacing: -0.07em;
+    color: #fff7de;
+    text-transform: uppercase;
+  }
+
+  .mobile-game-subline {
+    margin: 0;
+    font-size: 0.88rem;
+    line-height: 1.45;
+    color: rgb(231 236 246 / 76%);
+  }
+
+  .mobile-bet-callout {
+    justify-self: start;
+    margin-top: 0.12rem;
+    border-radius: 999px;
+    padding: 0.4rem 0.78rem;
     background:
-      radial-gradient(circle at top right, rgb(255 204 0 / 10%), transparent 30%),
-      linear-gradient(180deg, rgb(17 19 27 / 96%) 0%, rgb(10 12 18 / 98%) 100%);
+      linear-gradient(90deg, rgb(153 0 0 / 76%), rgb(255 204 0 / 38%));
+    color: #fff8e5;
+    font-size: 0.74rem;
+    font-weight: 700;
+    letter-spacing: 0.03em;
+    box-shadow: 0 0.8rem 1.8rem rgb(0 0 0 / 22%);
   }
 
-  .mobile-spotlight-kicker {
-    margin: 0;
+  .mobile-round-card {
+    margin-top: 1rem;
+    border: 1px solid rgb(255 255 255 / 10%);
+    border-radius: 24px;
+    padding: 0.95rem;
+    background:
+      linear-gradient(180deg, rgb(6 8 12 / 84%) 0%, rgb(9 11 16 / 72%) 100%);
+    backdrop-filter: blur(14px);
+    box-shadow: 0 20px 44px rgb(0 0 0 / 24%);
+    display: grid;
+    gap: 0.8rem;
   }
 
-  .mobile-spotlight-title {
+  .mobile-round-card-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 0.8rem;
+  }
+
+  .mobile-round-card-copy {
+    display: grid;
+    gap: 0.16rem;
+    min-width: 0;
+  }
+
+  .mobile-round-card-title {
     margin: 0;
-    font-size: 1.28rem;
-    line-height: 1.08;
+    font-size: 1.22rem;
+    line-height: 1.06;
     letter-spacing: -0.03em;
+    color: #fff5db;
+    text-transform: uppercase;
   }
 
-  .mobile-spotlight-copy {
+  .mobile-round-card-subtitle {
     margin: 0;
-    font-size: 0.86rem;
-    line-height: 1.5;
+    font-size: 0.82rem;
+    line-height: 1.4;
     color: var(--muted);
   }
 
-  .mobile-market-panel {
-    position: relative;
-    z-index: 1;
-    background:
-      linear-gradient(180deg, rgb(10 12 18 / 92%) 0%, rgb(12 14 20 / 96%) 100%);
-  }
-
-  .mobile-market-panel .market-choice-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .mobile-market-panel .market-choice-card {
-    min-height: 6.15rem;
-  }
-
-  .mobile-market-panel .bet-card-footer {
-    position: sticky;
-    bottom: calc(4.9rem + env(safe-area-inset-bottom));
-    margin-top: 0.75rem;
-    padding-top: 0.5rem;
-    background: linear-gradient(180deg, rgb(10 12 18 / 0%), rgb(10 12 18 / 94%) 28%);
-  }
-
-  .mobile-utility-grid {
+  .mobile-round-count-shell {
+    min-width: 5.1rem;
+    border-radius: 20px;
+    padding: 0.72rem 0.6rem 0.64rem;
+    background: rgb(255 255 255 / 4%);
+    border: 1px solid rgb(255 255 255 / 10%);
     display: grid;
-    gap: 0.72rem;
+    justify-items: center;
+    align-content: center;
+    gap: 0.08rem;
   }
 
-  .mobile-utility-card {
-    padding: 0.9rem 0.96rem;
-    display: grid;
-    gap: 0.28rem;
-    text-align: left;
-    font: inherit;
+  .mobile-round-count-shell strong {
+    font-size: 2.35rem;
+    line-height: 0.88;
     color: var(--text);
-    cursor: pointer;
+    letter-spacing: -0.08em;
+    font-variant-numeric: tabular-nums;
   }
 
-  .mobile-utility-card strong {
+  .mobile-round-count-shell span {
+    font-size: 0.7rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: rgb(224 230 243 / 66%);
+  }
+
+  .mobile-round-option-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.48rem;
+  }
+
+  .mobile-round-option {
+    border: 1px solid rgb(255 255 255 / 8%);
+    border-radius: 18px;
+    padding: 0.58rem 0.62rem;
+    background: rgb(255 255 255 / 3%);
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: center;
+    gap: 0.55rem;
+  }
+
+  .mobile-round-option.active {
+    box-shadow: inset 0 1px 0 rgb(255 255 255 / 8%);
+  }
+
+  .mobile-round-option-under.active {
+    border-color: rgb(255 99 99 / 38%);
+    background: rgb(103 19 19 / 42%);
+  }
+
+  .mobile-round-option-range.active {
+    border-color: rgb(74 194 255 / 38%);
+    background: rgb(19 70 103 / 42%);
+  }
+
+  .mobile-round-option-over.active {
+    border-color: rgb(72 214 113 / 38%);
+    background: rgb(20 88 39 / 42%);
+  }
+
+  .mobile-round-option-exact.active {
+    border-color: rgb(255 204 0 / 38%);
+    background: rgb(101 79 14 / 42%);
+  }
+
+  .mobile-round-option-icon,
+  .mobile-choice-icon {
+    width: 2rem;
+    height: 2rem;
+    border-radius: 999px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.84rem;
+    font-weight: 700;
+    color: #fffaf0;
+    box-shadow: inset 0 1px 0 rgb(255 255 255 / 12%);
+  }
+
+  .mobile-round-option-icon-under,
+  .mobile-choice-icon-under {
+    background: linear-gradient(180deg, rgb(255 90 90), rgb(152 21 21));
+  }
+
+  .mobile-round-option-icon-range,
+  .mobile-choice-icon-range {
+    background: linear-gradient(180deg, rgb(78 214 255), rgb(19 116 152));
+  }
+
+  .mobile-round-option-icon-over,
+  .mobile-choice-icon-over {
+    background: linear-gradient(180deg, rgb(86 230 120), rgb(22 128 48));
+  }
+
+  .mobile-round-option-icon-exact,
+  .mobile-choice-icon-exact {
+    background: linear-gradient(180deg, rgb(255 219 88), rgb(191 143 12));
+  }
+
+  .mobile-round-option-copy {
+    display: grid;
+    gap: 0.08rem;
+    min-width: 0;
+  }
+
+  .mobile-round-option-copy strong {
+    font-size: 0.9rem;
+    line-height: 1;
+    color: var(--text);
+  }
+
+  .mobile-round-option-copy span {
+    font-size: 0.74rem;
+    line-height: 1.25;
+    color: var(--muted);
+  }
+
+  .mobile-round-progress-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.7rem;
+    font-size: 0.76rem;
+    color: rgb(229 234 244 / 74%);
+  }
+
+  .mobile-round-progress-row strong {
+    font-size: 0.92rem;
+    color: #fff3d4;
+    letter-spacing: -0.02em;
+  }
+
+  .mobile-round-progress-track {
+    height: 0.46rem;
+    border-radius: 999px;
+    background: rgb(255 255 255 / 8%);
+    overflow: hidden;
+  }
+
+  .mobile-round-progress-track span {
+    display: block;
+    height: 100%;
+    border-radius: inherit;
+    background:
+      linear-gradient(90deg, rgb(255 204 0 / 72%), rgb(74 214 255 / 76%), rgb(72 214 113 / 82%));
+  }
+
+  .mobile-stage-action-row {
+    margin-top: 0.9rem;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+
+  .mobile-betting-dock {
+    position: relative;
+    z-index: 4;
+    margin: -3.1rem 0.85rem 0;
+    border: 1px solid rgb(255 255 255 / 10%);
+    border-radius: 28px;
+    padding: 0.95rem;
+    background:
+      linear-gradient(180deg, rgb(15 17 23 / 96%) 0%, rgb(8 10 14 / 98%) 100%);
+    box-shadow: 0 28px 64px rgb(0 0 0 / 38%);
+  }
+
+  .mobile-betting-dock-shell {
+    display: grid;
+    gap: 0.8rem;
+  }
+
+  .mobile-betting-dock-topline {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+    gap: 0.6rem;
+    align-items: stretch;
+  }
+
+  .mobile-betting-dock-stat {
+    border: 1px solid rgb(255 255 255 / 9%);
+    border-radius: 20px;
+    padding: 0.72rem 0.8rem;
+    background: rgb(255 255 255 / 4%);
+    display: grid;
+    gap: 0.12rem;
+  }
+
+  .mobile-betting-dock-stat strong {
+    font-size: 1.45rem;
+    line-height: 1;
+    letter-spacing: -0.05em;
+    color: #fff6df;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .mobile-betting-dock-stat-highlight strong {
+    color: #89d7ff;
+  }
+
+  .mobile-betting-dock-arrow {
+    align-self: center;
+    color: rgb(255 204 0 / 72%);
+    font-size: 1.05rem;
+    font-weight: 700;
+    letter-spacing: -0.06em;
+  }
+
+  .mobile-choice-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 0.42rem;
+  }
+
+  .mobile-choice-button {
+    border: 1px solid rgb(255 255 255 / 10%);
+    border-radius: 18px;
+    padding: 0.7rem 0.42rem 0.68rem;
+    background: rgb(255 255 255 / 4%);
+    color: var(--text);
+    font: inherit;
+    display: grid;
+    justify-items: center;
+    gap: 0.24rem;
+    text-align: center;
+  }
+
+  .mobile-choice-button.active {
+    box-shadow:
+      inset 0 1px 0 rgb(255 255 255 / 10%),
+      0 10px 24px rgb(0 0 0 / 16%);
+  }
+
+  .mobile-choice-under.active {
+    border-color: rgb(255 99 99 / 34%);
+    background: rgb(103 19 19 / 32%);
+  }
+
+  .mobile-choice-range.active {
+    border-color: rgb(74 194 255 / 34%);
+    background: rgb(19 70 103 / 32%);
+  }
+
+  .mobile-choice-over.active {
+    border-color: rgb(72 214 113 / 34%);
+    background: rgb(20 88 39 / 32%);
+  }
+
+  .mobile-choice-exact.active {
+    border-color: rgb(255 204 0 / 34%);
+    background: rgb(101 79 14 / 32%);
+  }
+
+  .mobile-choice-label {
+    font-size: 0.85rem;
+    font-weight: 700;
+    line-height: 1;
+  }
+
+  .mobile-choice-detail,
+  .mobile-choice-multiplier {
+    font-size: 0.67rem;
+    line-height: 1.2;
+  }
+
+  .mobile-choice-detail {
+    color: rgb(226 232 243 / 72%);
+  }
+
+  .mobile-choice-multiplier {
+    color: #fff2b5;
+    font-weight: 700;
+  }
+
+  .mobile-config-row {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.5rem;
+  }
+
+  .mobile-config-row-single {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .mobile-config-field {
+    display: grid;
+    gap: 0.26rem;
+  }
+
+  .mobile-config-field input,
+  .mobile-stake-panel input {
+    width: 100%;
+    border: 1px solid rgb(255 255 255 / 10%);
+    border-radius: 14px;
+    padding: 0.82rem 0.9rem;
+    font: inherit;
+    background: rgb(255 255 255 / 5%);
+    color: var(--text);
+  }
+
+  .mobile-slip-banner,
+  .mobile-dock-status-card {
+    border: 1px solid rgb(255 255 255 / 10%);
+    border-radius: 20px;
+    padding: 0.82rem 0.9rem;
+    background: rgb(255 255 255 / 4%);
+    display: grid;
+    gap: 0.18rem;
+  }
+
+  .mobile-slip-banner strong,
+  .mobile-dock-status-card strong {
     font-size: 1rem;
-    line-height: 1.1;
-    color: #fff4da;
+    line-height: 1.15;
+    color: #fff5dd;
   }
 
-  .mobile-utility-card span:last-child {
-    font-size: 0.82rem;
+  .mobile-slip-banner span:last-child,
+  .mobile-dock-status-card p {
+    margin: 0;
+    font-size: 0.8rem;
     line-height: 1.45;
     color: var(--muted);
   }
 
-  .mobile-utility-card-active {
-    border-color: rgb(255 204 0 / 26%);
-    background:
-      linear-gradient(180deg, rgb(255 204 0 / 8%) 0%, rgb(255 255 255 / 3%) 100%);
-  }
-
-  .mobile-preview-panel {
+  .mobile-stake-control-row {
     display: grid;
-    gap: 0.75rem;
+    gap: 0.55rem;
   }
 
-  .mobile-preview-header {
-    align-items: flex-end;
+  .mobile-stake-panel {
+    display: grid;
+    gap: 0.3rem;
   }
 
-  .mobile-preview-header .account-section-title {
-    margin-top: 0.12rem;
+  .mobile-stake-chip-row {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 0.42rem;
   }
 
-  .mobile-preview-link {
-    padding-inline: 0.78rem;
+  .mobile-stake-chip {
+    min-height: 2.55rem;
+    border: 1px solid rgb(255 255 255 / 10%);
+    border-radius: 14px;
+    background: rgb(255 255 255 / 4%);
+    color: var(--text);
+    font: inherit;
+    font-size: 0.78rem;
+    font-weight: 700;
   }
 
-  .mobile-preview-leaderboard {
-    gap: 0.5rem;
+  .mobile-bet-cta {
+    border: 0;
+    border-radius: 20px;
+    padding: 0.92rem 1rem 1rem;
+    background:
+      linear-gradient(90deg, rgb(126 18 18) 0%, rgb(214 170 24) 22%, rgb(36 151 66) 100%);
+    color: #fefbf3;
+    font: inherit;
+    display: grid;
+    justify-items: center;
+    gap: 0.14rem;
+    box-shadow: 0 18px 36px rgb(0 0 0 / 26%);
+  }
+
+  .mobile-bet-cta:disabled {
+    opacity: 0.66;
+  }
+
+  .mobile-bet-cta-accent {
+    font-size: 0.68rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: rgb(255 246 216 / 82%);
+  }
+
+  .mobile-bet-cta strong {
+    font-size: 1.38rem;
+    line-height: 1;
+    letter-spacing: -0.05em;
+  }
+
+  .mobile-bet-cta span:last-child {
+    font-size: 0.76rem;
+    line-height: 1.35;
+    color: rgb(255 249 228 / 88%);
+  }
+
+  .mobile-bet-cta-secondary {
+    background:
+      linear-gradient(180deg, rgb(22 24 32 / 96%) 0%, rgb(10 12 18 / 98%) 100%);
+  }
+
+  .mobile-dock-action-row {
+    display: grid;
+    grid-auto-flow: column;
+    grid-auto-columns: 1fr;
+    gap: 0.45rem;
+  }
+
+  .mobile-dock-action-button {
+    min-height: 2.9rem;
+    justify-content: center;
+  }
+
+  .mobile-region-editor-shell {
+    margin: 0.9rem 0.85rem 0;
   }
 
   .mobile-region-editor-shell .region-editor-dock {
     width: 100%;
   }
 
-  .mobile-bottom-nav {
-    position: fixed;
-    left: 0.75rem;
-    right: 0.75rem;
-    bottom: calc(0.75rem + env(safe-area-inset-bottom));
-    z-index: 20;
-    display: grid;
-    grid-auto-flow: column;
-    grid-auto-columns: 1fr;
-    gap: 0.45rem;
-    padding: 0.45rem;
-    border: 1px solid rgb(255 255 255 / 10%);
-    border-radius: 22px;
-    background: rgb(8 10 15 / 86%);
-    backdrop-filter: blur(14px);
-    box-shadow: 0 18px 42px rgb(0 0 0 / 28%);
-  }
-
-  .mobile-bottom-nav-button {
-    min-height: 2.8rem;
-    border: 0;
-    border-radius: 16px;
-    background: transparent;
-    color: rgb(214 221 238 / 78%);
-    font: inherit;
-    font-size: 0.8rem;
-    font-weight: 600;
-  }
-
-  .mobile-bottom-nav-button.active {
-    background:
-      radial-gradient(circle at top, rgb(255 204 0 / 18%), transparent 70%),
-      linear-gradient(180deg, rgb(153 0 0 / 24%), rgb(255 255 255 / 3%));
-    color: #fff4d2;
-    box-shadow: inset 0 1px 0 rgb(255 255 255 / 10%);
+  .mobile-game-stage .video-state-overlay {
+    bottom: 7.2rem;
   }
 
   .leaderboard-entry-button {
