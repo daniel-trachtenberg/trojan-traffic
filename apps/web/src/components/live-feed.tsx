@@ -28,6 +28,15 @@ type LiveFeedProps = {
   statusMessage?: string | null;
   regionEditorEnabled?: boolean;
   onRegionChange?: ((points: RegionPoint[]) => void) | null;
+  focusRegion?: boolean;
+  focusPadding?:
+    | number
+    | {
+        top?: number;
+        right?: number;
+        bottom?: number;
+        left?: number;
+      };
 };
 
 type StageSize = {
@@ -35,7 +44,23 @@ type StageSize = {
   height: number;
 };
 
+type FocusViewport = {
+  scale: number;
+  leftPct: number;
+  topPct: number;
+};
+
 const DEFAULT_MEDIA_ASPECT_RATIO = 16 / 9;
+const DEFAULT_FOCUS_PADDING = {
+  top: 0.08,
+  right: 0.08,
+  bottom: 0.18,
+  left: 0.08
+};
+
+function clamp(value: number, min: number, max: number) {
+  return Math.min(Math.max(value, min), max);
+}
 
 function toNormalizedPoints(points: RegionPoint[]) {
   const xScale = points.some((point) => point.x > 1) ? 1920 : 1;
@@ -70,6 +95,52 @@ function isPointInsidePolygon(point: RegionPoint, polygon: RegionPoint[]) {
   return isInside;
 }
 
+function resolveFocusPadding(padding: LiveFeedProps["focusPadding"]) {
+  if (typeof padding === "number") {
+    return {
+      top: padding,
+      right: padding,
+      bottom: padding,
+      left: padding
+    };
+  }
+
+  return {
+    top: padding?.top ?? DEFAULT_FOCUS_PADDING.top,
+    right: padding?.right ?? DEFAULT_FOCUS_PADDING.right,
+    bottom: padding?.bottom ?? DEFAULT_FOCUS_PADDING.bottom,
+    left: padding?.left ?? DEFAULT_FOCUS_PADDING.left
+  };
+}
+
+function getFocusViewport(
+  region: RegionPoint[] | null,
+  padding: LiveFeedProps["focusPadding"]
+): FocusViewport | null {
+  if (!region || region.length < 3) {
+    return null;
+  }
+
+  const insets = resolveFocusPadding(padding);
+  const xValues = region.map((point) => point.x);
+  const yValues = region.map((point) => point.y);
+  const minX = clamp(Math.min(...xValues) - insets.left, 0, 1);
+  const maxX = clamp(Math.max(...xValues) + insets.right, 0, 1);
+  const minY = clamp(Math.min(...yValues) - insets.top, 0, 1);
+  const maxY = clamp(Math.max(...yValues) + insets.bottom, 0, 1);
+  const cropWidth = Math.max(maxX - minX, 0.18);
+  const cropHeight = Math.max(maxY - minY, 0.18);
+  const scale = clamp(Math.min(1 / cropWidth, 1 / cropHeight), 1, 3.8);
+  const centerX = (minX + maxX) / 2;
+  const centerY = (minY + maxY) / 2;
+
+  return {
+    scale,
+    leftPct: clamp((0.5 - centerX * scale) * 100, (1 - scale) * 100, 0),
+    topPct: clamp((0.5 - centerY * scale) * 100, (1 - scale) * 100, 0)
+  };
+}
+
 export function LiveFeed({
   src,
   imageSrc = null,
@@ -79,7 +150,9 @@ export function LiveFeed({
   personBoxes = [],
   statusMessage = null,
   regionEditorEnabled = false,
-  onRegionChange = null
+  onRegionChange = null,
+  focusRegion = false,
+  focusPadding = DEFAULT_FOCUS_PADDING
 }: LiveFeedProps) {
   const shellRef = useRef<HTMLDivElement | null>(null);
   const stageRef = useRef<HTMLDivElement | null>(null);
@@ -96,6 +169,9 @@ export function LiveFeed({
       ? mediaAspectRatio
       : DEFAULT_MEDIA_ASPECT_RATIO;
   const overlayState = statusMessage ?? playbackState;
+  const focusViewport = focusRegion
+    ? getFocusViewport(normalizedRegion, focusPadding)
+    : null;
 
   function updateRegionPoint(clientX: number, clientY: number) {
     if (
@@ -275,98 +351,116 @@ export function LiveFeed({
         onPointerUp={finishDragging}
         onPointerCancel={finishDragging}
       >
-        {imageSrc ? (
-          // Detector frames change every poll, so this bypasses Next.js image optimization on purpose.
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={imageSrc} alt="Live camera frame" draggable={false} />
-        ) : (
-          <video
-            ref={videoRef}
-            muted
-            playsInline
-            autoPlay
-            preload="auto"
-            controls={false}
-            disablePictureInPicture
-            disableRemotePlayback
-            controlsList="nodownload nofullscreen noplaybackrate noremoteplayback"
-            tabIndex={-1}
-          />
-        )}
-        {normalizedRegion && normalizedRegion.length >= 3 ? (
-          <svg
-            className={
-              regionEditorEnabled
-                ? "region-overlay-svg region-overlay-svg-editable"
-                : "region-overlay-svg"
-            }
-            viewBox="0 0 100 100"
-            preserveAspectRatio="none"
-            aria-hidden="true"
-          >
-            <polygon className="region-overlay-fill" points={polygonPoints} />
-            <polygon className="region-overlay-stroke" points={polygonPoints} />
-            {regionEditorEnabled
-              ? normalizedRegion.map((point, index) => {
-                  const x = point.x * 100;
-                  const y = point.y * 100;
-
-                  return (
-                  <g key={`${index}-${point.x}-${point.y}`}>
-                    <circle
-                      className="region-overlay-handle-hitbox"
-                      cx={x}
-                      cy={y}
-                      r="1.7"
-                      onPointerDown={(event) => {
-                        dragPointIndexRef.current = index;
-                        event.currentTarget.setPointerCapture(event.pointerId);
-                        updateRegionPoint(event.clientX, event.clientY);
-                      }}
-                    />
-                    <circle
-                      className="region-overlay-handle-ring"
-                      cx={x}
-                      cy={y}
-                      r="0.7"
-                    />
-                    <line className="region-overlay-handle-tick" x1={x - 1.15} y1={y} x2={x - 0.48} y2={y} />
-                    <line className="region-overlay-handle-tick" x1={x + 0.48} y1={y} x2={x + 1.15} y2={y} />
-                    <line className="region-overlay-handle-tick" x1={x} y1={y - 1.15} x2={x} y2={y - 0.48} />
-                    <line className="region-overlay-handle-tick" x1={x} y1={y + 0.48} x2={x} y2={y + 1.15} />
-                  </g>
-                  );
-                })
-              : null}
-          </svg>
-        ) : null}
-        {personBoxes.map((box) => {
-          const boxCenter = {
-            x: box.x + box.width / 2,
-            y: box.y + box.height / 2
-          };
-          const isInsideRegion =
-            normalizedRegion && normalizedRegion.length >= 3
-              ? isPointInsidePolygon(boxCenter, normalizedRegion)
-              : false;
-
-          return (
-            <div
-              key={box.id}
-              className={
-                isInsideRegion
-                  ? "person-detection-box person-detection-box-inside"
-                  : "person-detection-box person-detection-box-outside"
-              }
-              style={{
-                left: `${box.x * 100}%`,
-                top: `${box.y * 100}%`,
-                width: `${box.width * 100}%`,
-                height: `${box.height * 100}%`
-              }}
+        <div
+          className={
+            focusViewport
+              ? "video-stage-content video-stage-content-focused"
+              : "video-stage-content"
+          }
+          style={
+            focusViewport
+              ? {
+                  width: `${focusViewport.scale * 100}%`,
+                  height: `${focusViewport.scale * 100}%`,
+                  left: `${focusViewport.leftPct}%`,
+                  top: `${focusViewport.topPct}%`
+                }
+              : undefined
+          }
+        >
+          {imageSrc ? (
+            // Detector frames change every poll, so this bypasses Next.js image optimization on purpose.
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={imageSrc} alt="Live camera frame" draggable={false} />
+          ) : (
+            <video
+              ref={videoRef}
+              muted
+              playsInline
+              autoPlay
+              preload="auto"
+              controls={false}
+              disablePictureInPicture
+              disableRemotePlayback
+              controlsList="nodownload nofullscreen noplaybackrate noremoteplayback"
+              tabIndex={-1}
             />
-          );
-        })}
+          )}
+          {normalizedRegion && normalizedRegion.length >= 3 ? (
+            <svg
+              className={
+                regionEditorEnabled
+                  ? "region-overlay-svg region-overlay-svg-editable"
+                  : "region-overlay-svg"
+              }
+              viewBox="0 0 100 100"
+              preserveAspectRatio="none"
+              aria-hidden="true"
+            >
+              <polygon className="region-overlay-fill" points={polygonPoints} />
+              <polygon className="region-overlay-stroke" points={polygonPoints} />
+              {regionEditorEnabled
+                ? normalizedRegion.map((point, index) => {
+                    const x = point.x * 100;
+                    const y = point.y * 100;
+
+                    return (
+                      <g key={`${index}-${point.x}-${point.y}`}>
+                        <circle
+                          className="region-overlay-handle-hitbox"
+                          cx={x}
+                          cy={y}
+                          r="1.7"
+                          onPointerDown={(event) => {
+                            dragPointIndexRef.current = index;
+                            event.currentTarget.setPointerCapture(event.pointerId);
+                            updateRegionPoint(event.clientX, event.clientY);
+                          }}
+                        />
+                        <circle
+                          className="region-overlay-handle-ring"
+                          cx={x}
+                          cy={y}
+                          r="0.7"
+                        />
+                        <line className="region-overlay-handle-tick" x1={x - 1.15} y1={y} x2={x - 0.48} y2={y} />
+                        <line className="region-overlay-handle-tick" x1={x + 0.48} y1={y} x2={x + 1.15} y2={y} />
+                        <line className="region-overlay-handle-tick" x1={x} y1={y - 1.15} x2={x} y2={y - 0.48} />
+                        <line className="region-overlay-handle-tick" x1={x} y1={y + 0.48} x2={x} y2={y + 1.15} />
+                      </g>
+                    );
+                  })
+                : null}
+            </svg>
+          ) : null}
+          {personBoxes.map((box) => {
+            const boxCenter = {
+              x: box.x + box.width / 2,
+              y: box.y + box.height / 2
+            };
+            const isInsideRegion =
+              normalizedRegion && normalizedRegion.length >= 3
+                ? isPointInsidePolygon(boxCenter, normalizedRegion)
+                : false;
+
+            return (
+              <div
+                key={box.id}
+                className={
+                  isInsideRegion
+                    ? "person-detection-box person-detection-box-inside"
+                    : "person-detection-box person-detection-box-outside"
+                }
+                style={{
+                  left: `${box.x * 100}%`,
+                  top: `${box.y * 100}%`,
+                  width: `${box.width * 100}%`,
+                  height: `${box.height * 100}%`
+                }}
+              />
+            );
+          })}
+        </div>
         {overlayState ? (
           <div className={fullScreen ? "video-state video-state-overlay" : "video-state"}>
             {overlayState}

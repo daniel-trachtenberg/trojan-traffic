@@ -559,6 +559,7 @@ type LiveDetectionsResponse = {
 
 const DETECTION_POLL_INTERVAL_MS = 300;
 const DETECTION_OFFLINE_RETRY_INTERVAL_MS = 5000;
+const MOBILE_BREAKPOINT_PX = 980;
 
 function getDetectorStatusMessage(
   detections: LiveDetectionsResponse | null,
@@ -757,6 +758,7 @@ export function MvpDashboard({
   const [isRegionEditModeEnabled, setIsRegionEditModeEnabled] = useState(false);
   const [isSavingRegion, setIsSavingRegion] = useState(false);
   const [cancelingPredictionIds, setCancelingPredictionIds] = useState<string[]>([]);
+  const [isMobileViewport, setIsMobileViewport] = useState(false);
   const nextToastIdRef = useRef(0);
   const toastsRef = useRef<ToastRecord[]>([]);
   const toastTimeoutsRef = useRef(new Map<number, ReturnType<typeof setTimeout>>());
@@ -1723,6 +1725,31 @@ export function MvpDashboard({
   }, []);
 
   useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const mediaQuery = window.matchMedia(`(max-width: ${MOBILE_BREAKPOINT_PX}px)`);
+    const updateViewport = () => {
+      setIsMobileViewport(mediaQuery.matches);
+    };
+
+    updateViewport();
+
+    if (typeof mediaQuery.addEventListener === "function") {
+      mediaQuery.addEventListener("change", updateViewport);
+      return () => {
+        mediaQuery.removeEventListener("change", updateViewport);
+      };
+    }
+
+    mediaQuery.addListener(updateViewport);
+    return () => {
+      mediaQuery.removeListener(updateViewport);
+    };
+  }, []);
+
+  useEffect(() => {
     const activeToastTimeouts = toastTimeoutsRef.current;
 
     return () => {
@@ -2406,20 +2433,560 @@ export function MvpDashboard({
     setOpenRightPanel(null);
   }
 
+  const mobileRegionFocusEnabled = !canEditRegion && regionPoints.length >= 3;
+  const mobileHeroMetrics =
+    showResolvedRoundCard && selectedSession
+      ? [
+          { label: "Final count", value: `${selectedSession.final_count ?? "--"}` },
+          { label: "Line", value: `${displayedThreshold}` },
+          {
+            label: selectedResultPresentation.secondaryLabel,
+            value: selectedResultPresentation.secondaryValue
+          }
+        ]
+      : [
+          { label: "Mode", value: `${displayedModeSeconds}s` },
+          { label: "Line", value: `${displayedThreshold}` },
+          {
+            label:
+              selectedState === "open"
+                ? "Closes in"
+                : selectedState === "upcoming"
+                  ? "Opens at"
+                  : selectedState === "live"
+                    ? "Ends in"
+                    : selectedState === "resolving"
+                      ? "Round"
+                      : "Status",
+            value:
+              selectedState === "open"
+                ? selectedCountdown
+                : selectedState === "upcoming"
+                  ? selectedOpensAtLabel ?? "Soon"
+                  : selectedState === "live"
+                    ? selectedRoundCountdown
+                    : selectedState === "resolving"
+                      ? "Settling"
+                      : sessionMetricValue
+          }
+        ];
+  const mobileSpotlightKicker = showResolvedRoundCard
+    ? selectedResultPresentation.eyebrow
+    : showLiveRoundCard
+      ? "Round live"
+      : showBettingControls
+        ? "Betting window open"
+        : standbyLabel;
+  const mobileSpotlightTitle = showResolvedRoundCard
+    ? selectedResultPresentation.headline
+    : showLiveRoundCard
+      ? "Focused on the active yellow box"
+      : showBettingControls
+        ? "Mobile view is locked on the action"
+        : standbyValue;
+  const mobileSpotlightCopy = showResolvedRoundCard
+    ? selectedResultPresentation.copy
+    : showLiveRoundCard
+      ? `The camera view stays centered on the betting region while the ${displayedModeSeconds}s round runs.`
+      : showBettingControls
+        ? "The full scene steps back on phones so the betting box, odds, and stake controls stay easy to read."
+        : standbyNote;
+  const mobileLeaderboardPreview = leaderboard.slice(0, 3);
+  const bettingWidgetContent = (
+    <>
+      <header className="widget-header bet-widget-header">
+        <div className="widget-title-block">
+          <p className="widget-kicker">Tommy Walkway</p>
+          <h2>Betting</h2>
+        </div>
+        <span className="status status-live-badge">
+          <span className="status-live-dot" aria-hidden="true" />
+          {isRefreshing ? "Refreshing" : "Live"}
+        </span>
+      </header>
+
+      <div className="market-meta-row">
+        <span className={selectedState ? `status status-${selectedState}` : "status"}>
+          {selectedState ? getSessionStateLabel(selectedState) : "Standby"}
+        </span>
+        {hasSelectedSession ? <span className="round-chip">{displayedModeSeconds}s round</span> : null}
+        {hasSelectedSession ? <span className="round-chip">Threshold {displayedThreshold}</span> : null}
+      </div>
+
+      <div className="market-board">
+        {showBettingControls ? (
+          <>
+            <div className="market-choice-grid">
+              <button
+                type="button"
+                className={
+                  hasSelectedSession && selectedSide === "under"
+                    ? "market-choice-card market-choice-under active"
+                    : "market-choice-card market-choice-under"
+                }
+                onClick={() => {
+                  if (selectedSession) {
+                    updateSelectedSide(selectedSession.id, "under");
+                  }
+                }}
+                disabled={!canConfigureSelected}
+              >
+                <span className="market-choice-icon" aria-hidden="true">
+                  ↓
+                </span>
+                <span className="market-choice-title">Under</span>
+                <span className="market-choice-subtitle">Below {displayedThreshold}</span>
+              </button>
+
+              <button
+                type="button"
+                className={
+                  hasSelectedSession && selectedSide === "over"
+                    ? "market-choice-card market-choice-over active"
+                    : "market-choice-card market-choice-over"
+                }
+                onClick={() => {
+                  if (selectedSession) {
+                    updateSelectedSide(selectedSession.id, "over");
+                  }
+                }}
+                disabled={!canConfigureSelected}
+              >
+                <span className="market-choice-icon" aria-hidden="true">
+                  ↑
+                </span>
+                <span className="market-choice-title">Over</span>
+                <span className="market-choice-subtitle">{displayedThreshold} or more</span>
+              </button>
+
+              <button
+                type="button"
+                className={
+                  hasSelectedSession && selectedSide === "exact"
+                    ? "market-choice-card market-choice-exact active"
+                    : "market-choice-card market-choice-exact"
+                }
+                onClick={() => {
+                  if (selectedSession) {
+                    updateSelectedSide(selectedSession.id, "exact");
+                  }
+                }}
+                disabled={!canConfigureSelected}
+              >
+                <span className="market-choice-icon" aria-hidden="true">
+                  =
+                </span>
+                <span className="market-choice-title">Exact</span>
+                <span className="market-choice-subtitle">
+                  {selectedExactValue ? `Call ${selectedExactValue}` : "Name the final count"}
+                </span>
+              </button>
+
+              <button
+                type="button"
+                className={
+                  hasSelectedSession && selectedSide === "range"
+                    ? "market-choice-card market-choice-range active"
+                    : "market-choice-card market-choice-range"
+                }
+                onClick={() => {
+                  if (selectedSession) {
+                    updateSelectedSide(selectedSession.id, "range");
+                  }
+                }}
+                disabled={!canConfigureSelected}
+              >
+                <span className="market-choice-icon" aria-hidden="true">
+                  ≈
+                </span>
+                <span className="market-choice-title">Range</span>
+                <span className="market-choice-subtitle">
+                  {selectedRangeMin && selectedRangeMax
+                    ? `${selectedRangeMin} to ${selectedRangeMax}`
+                    : "Pick a min and max"}
+                </span>
+              </button>
+            </div>
+
+            {hasSelectedSession && selectedSide === "exact" ? (
+              <div className="market-config-card">
+                <div className="market-config-header">
+                  <span className="market-config-label">Exact count</span>
+                  <span className="market-config-hint">Whole number, zero or higher</span>
+                </div>
+
+                <div className="market-config-field-grid market-config-field-grid-single">
+                  <label className="market-config-field">
+                    <span>Your call</span>
+                    <input
+                      type="number"
+                      min={0}
+                      step={1}
+                      inputMode="numeric"
+                      value={selectedExactValue}
+                      onChange={(event) => {
+                        if (selectedSession) {
+                          updateSelectedExactValue(selectedSession.id, event.target.value);
+                        }
+                      }}
+                      disabled={!canConfigureSelected}
+                    />
+                  </label>
+                </div>
+              </div>
+            ) : null}
+
+            {hasSelectedSession && selectedSide === "range" ? (
+              <div className="market-config-card">
+                <div className="market-config-header">
+                  <span className="market-config-label">Inclusive range</span>
+                  <span className="market-config-hint">Whole numbers, zero or higher</span>
+                </div>
+
+                <div className="market-config-field-grid">
+                  <label className="market-config-field">
+                    <span>Minimum</span>
+                    <input
+                      type="number"
+                      min={0}
+                      step={1}
+                      inputMode="numeric"
+                      value={selectedRangeMin}
+                      onChange={(event) => {
+                        if (selectedSession) {
+                          updateSelectedRangeMin(selectedSession.id, event.target.value);
+                        }
+                      }}
+                      disabled={!canConfigureSelected}
+                    />
+                  </label>
+
+                  <label className="market-config-field">
+                    <span>Maximum</span>
+                    <input
+                      type="number"
+                      min={0}
+                      step={1}
+                      inputMode="numeric"
+                      value={selectedRangeMax}
+                      onChange={(event) => {
+                        if (selectedSession) {
+                          updateSelectedRangeMax(selectedSession.id, event.target.value);
+                        }
+                      }}
+                      disabled={!canConfigureSelected}
+                    />
+                  </label>
+                </div>
+              </div>
+            ) : null}
+
+            <div className="market-metrics-row">
+              <div className="market-metric">
+                <span className="market-metric-label">{sessionMetricLabel}</span>
+                <strong>{sessionMetricValue}</strong>
+                <span className="market-metric-note">{sessionMetricNote}</span>
+              </div>
+              <div className="market-metric">
+                <span className="market-metric-label">{selectedPricingLabel}</span>
+                <strong>{formatPayoutMultiplier(selectedPricingMultiplierBps)}</strong>
+                <span className="market-metric-note">{selectedPricingNote}</span>
+              </div>
+            </div>
+
+            <div className="stake-toolbar">
+              <div className="stake-step-row">
+                <span className="stake-label">Stake</span>
+                <div className="stake-step-buttons">
+                  {WAGER_STEPS.map((step) => (
+                    <button
+                      key={step}
+                      type="button"
+                      className="stake-step-button"
+                      disabled={!canConfigureSelected}
+                      onClick={() => {
+                        if (selectedSession) {
+                          adjustSelectedWager(selectedSession.id, step);
+                        }
+                      }}
+                    >
+                      +{step}
+                    </button>
+                  ))}
+                  <button
+                    type="button"
+                    className="stake-step-button"
+                    disabled={!canConfigureSelected}
+                    onClick={() => {
+                      if (selectedSession) {
+                        updateSelectedWager(selectedSession.id, DEFAULT_WAGER);
+                      }
+                    }}
+                  >
+                    Reset
+                  </button>
+                </div>
+              </div>
+
+              <div className="stake-summary-row compact-stake-summary-row">
+                <label className="stake-input-card">
+                  <span>Stake</span>
+                  <input
+                    type="number"
+                    min={1}
+                    value={selectedWager}
+                    onChange={(event) => {
+                      if (selectedSession) {
+                        updateSelectedWager(selectedSession.id, event.target.value);
+                      }
+                    }}
+                    disabled={!canConfigureSelected}
+                  />
+                </label>
+              </div>
+            </div>
+          </>
+        ) : showLiveRoundCard && selectedSession ? (
+          <div className="market-live-summary-card">
+            <span className="market-live-summary-kicker">Round live</span>
+            <strong className="market-live-summary-headline">
+              {selectedSessionPredictionCount > 1
+                ? `${selectedSessionPredictionCount} tickets live · ${selectedSessionStakedTokens} tokens staked`
+                : selectedPrediction
+                  ? `${formatPredictionLabel(selectedPrediction, selectedSession)} · ${selectedPrediction.wager_tokens} tokens · ${formatPayoutMultiplier(getStoredPredictionPayoutMultiplierBps(selectedPrediction))}`
+                  : "Watching this round"}
+            </strong>
+            <div className="market-live-summary-grid">
+              <div className="market-live-summary-pill">
+                <span>Betting line</span>
+                <strong>{displayedThreshold}</strong>
+              </div>
+              <div className="market-live-summary-pill">
+                <span>Closes</span>
+                <strong>{selectedEndsAtLabel ?? "soon"}</strong>
+              </div>
+            </div>
+            <p className="market-live-summary-note">
+              The live countdown and crowd animation are centered on the feed while this round runs.
+            </p>
+          </div>
+        ) : showResolvedRoundCard && selectedSession ? (
+          <div className={`market-result-card market-result-card-${selectedResultTone}`}>
+            <div className="market-result-topline">
+              <span className="market-result-kicker">{selectedResultPresentation.eyebrow}</span>
+              <strong className="market-result-headline">{selectedResultPresentation.headline}</strong>
+              <p className="market-result-copy">{selectedResultPresentation.copy}</p>
+            </div>
+
+            <div className="market-result-scoreboard">
+              <div className="market-result-score-card">
+                <span>Final count</span>
+                <strong>{selectedSession.final_count ?? "--"}</strong>
+              </div>
+              <div className="market-result-score-card">
+                <span>Betting line</span>
+                <strong>{displayedThreshold}</strong>
+              </div>
+            </div>
+
+            <div className="market-result-stat-grid">
+              <div className="market-result-stat-card">
+                <span>
+                  {selectedSessionPredictionCount > 1
+                    ? "Tickets placed"
+                    : selectedPrediction
+                      ? "Your pick"
+                      : "Winning side"}
+                </span>
+                <strong>
+                  {selectedSessionPredictionCount > 1
+                    ? `${selectedSessionPredictionCount}`
+                    : selectedPrediction
+                      ? formatPredictionLabel(selectedPrediction, selectedSession)
+                      : selectedWinningSide
+                        ? selectedWinningSide.toUpperCase()
+                        : "Pending"}
+                </strong>
+              </div>
+              <div className="market-result-stat-card">
+                <span>{selectedResultPresentation.secondaryLabel}</span>
+                <strong>{selectedResultPresentation.secondaryValue}</strong>
+              </div>
+            </div>
+
+            <span className="market-result-footer">{selectedResultPresentation.footer}</span>
+          </div>
+        ) : (
+          <div
+            className={
+              !selectedSession
+                ? "market-standby-card market-standby-card-idle"
+                : selectedState
+                  ? `market-standby-card market-standby-card-${selectedState}`
+                  : "market-standby-card"
+            }
+          >
+            <span className="market-standby-label">{standbyLabel}</span>
+            <strong className="market-standby-value">{standbyValue}</strong>
+            <p className="market-standby-title">{standbyTitle}</p>
+            <div className="market-standby-meta-grid">
+              {standbyMetaItems.map((item) => (
+                <div className="market-standby-meta-card" key={item.label}>
+                  <span>{item.label}</span>
+                  <strong>{item.value}</strong>
+                </div>
+              ))}
+            </div>
+            <span className="market-standby-note">{standbyNote}</span>
+            {standbyActionLabel ? (
+              <div className="market-standby-actions">
+                <button
+                  type="button"
+                  className="bet-submit-button market-standby-button"
+                  onClick={
+                    emptyStateSignupEnabled
+                      ? handleEmptyStateSignupAction
+                      : handleRoundAuthAction
+                  }
+                >
+                  {standbyActionLabel}
+                </button>
+              </div>
+            ) : null}
+          </div>
+        )}
+      </div>
+
+      {selectedSessionPredictionCount > 0 && !showLiveRoundCard && !showResolvedRoundCard ? (
+        <div className="session-result compact-result selection-summary selection-summary-stack">
+          <div className="selection-summary-header">
+            <span className="selection-summary-kicker">
+              {selectedSessionPredictionCount > 1 ? "Round tickets" : "Locked in"}
+            </span>
+            <strong className="selection-summary-title">
+              {selectedSessionPredictionCount > 1
+                ? `${selectedSessionPredictionCount} bets placed`
+                : formatPredictionLabel(selectedPrediction, selectedSession)}
+            </strong>
+            <span className="selection-summary-meta">
+              {selectedSessionStakedTokens} tokens total
+            </span>
+          </div>
+
+          <div className="selection-ticket-list">
+            {selectedSessionPreviewPredictions.map((prediction) => (
+              <div className="selection-ticket-chip" key={prediction.id}>
+                <div className="selection-ticket-chip-copy">
+                  <strong>{formatPredictionLabel(prediction, selectedSession)}</strong>
+                  <span>
+                    {prediction.wager_tokens} tokens ·{" "}
+                    {formatPayoutMultiplier(getStoredPredictionPayoutMultiplierBps(prediction))}
+                  </span>
+                </div>
+                {isPredictionCancelable(prediction, selectedSession, nowMs) ? (
+                  <button
+                    type="button"
+                    className="selection-ticket-cancel-button"
+                    onClick={() => void handleCancelPrediction(prediction)}
+                    disabled={cancelingPredictionIdSet.has(prediction.id)}
+                  >
+                    {cancelingPredictionIdSet.has(prediction.id) ? "Removing..." : "Remove"}
+                  </button>
+                ) : null}
+              </div>
+            ))}
+          </div>
+
+          {selectedSessionOverflowPredictionCount > 0 ? (
+            <span className="selection-summary-more">
+              +{selectedSessionOverflowPredictionCount} more tickets in this round
+            </span>
+          ) : null}
+        </div>
+      ) : null}
+
+      {showBettingControls ? (
+        <div className="bet-card-footer">
+          <button
+            type="button"
+            className="bet-submit-button"
+            disabled={betButtonDisabled}
+            onClick={() => {
+              if (selectedSession) {
+                handleBetAction(selectedSession);
+                return;
+              }
+
+              handleEmptyStateSignupAction();
+            }}
+          >
+            {betButtonLabel}
+          </button>
+        </div>
+      ) : null}
+    </>
+  );
+  const regionEditorDock = showRegionEditDock ? (
+    <section className="region-editor-dock">
+      <div className="region-editor-dock-header">
+        <div>
+          <p className="region-editor-dock-kicker">Region Editor</p>
+          <h3 className="region-editor-dock-title">
+            {isRegionEditModeEnabled ? "Edit Mode Active" : "Unsaved Region Changes"}
+          </h3>
+        </div>
+        <span
+          className={
+            isRegionEditModeEnabled
+              ? "status status-open"
+              : hasUnsavedRegionChanges
+                ? "status status-upcoming"
+                : "status"
+          }
+        >
+          {isRegionEditModeEnabled ? "Handles On" : "Pending Save"}
+        </span>
+      </div>
+
+      <p className="region-editor-dock-copy">
+        {isRegionEditModeEnabled
+          ? "Drag the feed corner points to adjust the betting area. You can save or reset here without reopening the admin console."
+          : "You still have unsaved region changes. Save them, reset them, or resume edit mode to keep adjusting."}
+      </p>
+
+      <div className="region-editor-dock-actions">
+        <button
+          type="button"
+          className="secondary-button region-editor-dock-toggle"
+          onClick={handleToggleRegionEditMode}
+          disabled={isSavingRegion}
+        >
+          {isRegionEditModeEnabled ? "Disable Edit Mode" : "Resume Edit Mode"}
+        </button>
+        <button
+          type="button"
+          className="secondary-button"
+          onClick={handleResetRegion}
+          disabled={!hasUnsavedRegionChanges || isSavingRegion}
+        >
+          Reset Region
+        </button>
+        <button
+          type="button"
+          className="primary-button"
+          onClick={() => {
+            void handleSaveRegion();
+          }}
+          disabled={!hasUnsavedRegionChanges || isSavingRegion}
+        >
+          {isSavingRegion ? "Saving..." : "Save Region"}
+        </button>
+      </div>
+    </section>
+  ) : null;
+
   return (
-    <main className="betting-screen">
-      <LiveFeed
-        src={hlsUrl}
-        imageSrc={liveFrameUrl}
-        mediaAspectRatio={liveFeedAspectRatio}
-        region={regionPoints}
-        fullScreen
-        personBoxes={livePersonBoxes}
-        statusMessage={activeVisionApiUrl ? liveFeedStatusMessage : null}
-        regionEditorEnabled={canEditRegion}
-        onRegionChange={canEditRegion ? setRegionPoints : null}
-      />
-      <div className="feed-mask" />
+    <main className={isMobileViewport ? "betting-screen betting-screen-mobile" : "betting-screen"}>
       {showWinConfetti ? (
         <div className="screen-confetti" aria-hidden="true">
           {SCREEN_CONFETTI_PIECES.map((piece, index) => (
@@ -2438,7 +3005,253 @@ export function MvpDashboard({
           ))}
         </div>
       ) : null}
-      {showLiveRoundCard && selectedSession ? (
+      {isMobileViewport ? (
+        <>
+          <div className="mobile-screen-shell">
+            <section className="mobile-hero-panel">
+              <div className="mobile-hero-header">
+                <div className="mobile-hero-title-block">
+                  <p className="widget-kicker">Tommy Walkway</p>
+                  <h1 className="mobile-hero-title">Walkway Focus</h1>
+                </div>
+                <button
+                  type="button"
+                  className="mobile-hero-account-button"
+                  onClick={handleAccountAction}
+                >
+                  {user ? "Account" : "Sign In"}
+                </button>
+              </div>
+
+              <div className="mobile-camera-card">
+                <div className="mobile-camera-chip-row">
+                  <span className={selectedState ? `status status-${selectedState}` : "status"}>
+                    {selectedState ? getSessionStateLabel(selectedState) : "Standby"}
+                  </span>
+                  {hasSelectedSession ? <span className="round-chip">{displayedModeSeconds}s round</span> : null}
+                  <span className="round-chip">
+                    {mobileRegionFocusEnabled ? "Focused region" : "Full frame"}
+                  </span>
+                </div>
+
+                <div className="mobile-camera-feed-wrap">
+                  <LiveFeed
+                    src={hlsUrl}
+                    imageSrc={liveFrameUrl}
+                    mediaAspectRatio={liveFeedAspectRatio}
+                    region={regionPoints}
+                    personBoxes={livePersonBoxes}
+                    statusMessage={activeVisionApiUrl ? liveFeedStatusMessage : null}
+                    regionEditorEnabled={canEditRegion}
+                    onRegionChange={canEditRegion ? setRegionPoints : null}
+                    focusRegion={mobileRegionFocusEnabled}
+                    focusPadding={{
+                      top: 0.18,
+                      right: 0.18,
+                      bottom: 0.32,
+                      left: 0.18
+                    }}
+                  />
+                  {mobileRegionFocusEnabled ? (
+                    <span className="mobile-camera-focus-pill">Yellow box spotlight</span>
+                  ) : null}
+                  <div className="mobile-camera-metric-grid">
+                    {mobileHeroMetrics.map((metric) => (
+                      <div className="mobile-camera-metric-card" key={metric.label}>
+                        <span>{metric.label}</span>
+                        <strong>{metric.value}</strong>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              <section className="mobile-spotlight-card">
+                <p className="mobile-spotlight-kicker">{mobileSpotlightKicker}</p>
+                <h2 className="mobile-spotlight-title">{mobileSpotlightTitle}</h2>
+                <p className="mobile-spotlight-copy">{mobileSpotlightCopy}</p>
+                <div className="mobile-spotlight-stat-row">
+                  <div className="mobile-spotlight-stat-card">
+                    <span>{sessionMetricLabel}</span>
+                    <strong>{sessionMetricValue}</strong>
+                  </div>
+                  <div className="mobile-spotlight-stat-card">
+                    <span>{selectedPricingLabel}</span>
+                    <strong>{formatPayoutMultiplier(selectedPricingMultiplierBps)}</strong>
+                  </div>
+                </div>
+              </section>
+            </section>
+
+            <section className="mobile-market-panel">{bettingWidgetContent}</section>
+
+            <section className="mobile-utility-grid">
+              <button
+                type="button"
+                className={
+                  openRightPanel === "leaderboard"
+                    ? "mobile-utility-card mobile-utility-card-active"
+                    : "mobile-utility-card"
+                }
+                onClick={() => toggleRightPanel("leaderboard")}
+              >
+                <span className="mobile-utility-kicker">Leaderboard</span>
+                <strong>
+                  {leaderboard[0] ? `#1 ${leaderboard[0].display_name}` : "Open the full board"}
+                </strong>
+                <span>
+                  {leaderboard[0]
+                    ? `${leaderboard[0].token_balance} tokens on top right now.`
+                    : "See the current rankings and public betting profiles."}
+                </span>
+              </button>
+
+              <button
+                type="button"
+                className={
+                  openRightPanel === "account"
+                    ? "mobile-utility-card mobile-utility-card-active"
+                    : "mobile-utility-card"
+                }
+                onClick={handleAccountAction}
+              >
+                <span className="mobile-utility-kicker">{user ? "Account" : "Sign in"}</span>
+                <strong>{user ? profile?.display_name ?? user.email : "Track your bankroll"}</strong>
+                <span>
+                  {user
+                    ? `${tokenBalance} tokens live • ${predictions.length} bets tracked`
+                    : "Open your account history, daily rewards, and market profile."}
+                </span>
+              </button>
+
+              {isAdmin ? (
+                <button
+                  type="button"
+                  className={
+                    openRightPanel === "admin"
+                      ? "mobile-utility-card mobile-utility-card-active"
+                      : "mobile-utility-card"
+                  }
+                  onClick={() => toggleRightPanel("admin")}
+                >
+                  <span className="mobile-utility-kicker">Admin</span>
+                  <strong>{isRegionEditModeEnabled ? "Region edit live" : "Control room"}</strong>
+                  <span>
+                    {isRegionEditModeEnabled
+                      ? "Handles are active on the feed right now."
+                      : "Manage sessions, camera settings, and the betting box."}
+                  </span>
+                </button>
+              ) : null}
+            </section>
+
+            {mobileLeaderboardPreview.length > 0 ? (
+              <section className="mobile-preview-panel">
+                <div className="mobile-preview-header">
+                  <div>
+                    <p className="account-section-kicker">Live board</p>
+                    <h3 className="account-section-title">Top bettors right now</h3>
+                  </div>
+                  <button
+                    type="button"
+                    className="mobile-preview-link"
+                    onClick={() => toggleRightPanel("leaderboard")}
+                  >
+                    Full board
+                  </button>
+                </div>
+                <ol className="leaderboard mobile-preview-leaderboard">
+                  {mobileLeaderboardPreview.map((entry) => (
+                    <li key={entry.user_id}>
+                      <button
+                        type="button"
+                        className="leaderboard-entry-button"
+                        onClick={() => void handleOpenPublicProfile(entry)}
+                        aria-label={`Open ${entry.display_name}'s betting profile`}
+                      >
+                        <span className="leaderboard-entry-rank">#{entry.rank}</span>
+                        <span className="leaderboard-entry-copy">
+                          <span className="leaderboard-entry-name">{entry.display_name}</span>
+                          <span className="leaderboard-entry-meta">
+                            {entry.correct_predictions} correct picks · {entry.tier}
+                          </span>
+                        </span>
+                        <span className="leaderboard-entry-score-shell">
+                          <span className="leaderboard-entry-score-label">Bankroll</span>
+                          <span className="leaderboard-entry-score">{entry.token_balance}</span>
+                        </span>
+                      </button>
+                    </li>
+                  ))}
+                </ol>
+              </section>
+            ) : null}
+
+            {regionEditorDock ? (
+              <div className="mobile-region-editor-shell">{regionEditorDock}</div>
+            ) : null}
+          </div>
+
+          <nav className="mobile-bottom-nav" aria-label="Quick panels">
+            <button
+              type="button"
+              className={openRightPanel === null ? "mobile-bottom-nav-button active" : "mobile-bottom-nav-button"}
+              onClick={() => setOpenRightPanel(null)}
+            >
+              Market
+            </button>
+            <button
+              type="button"
+              className={
+                openRightPanel === "leaderboard"
+                  ? "mobile-bottom-nav-button active"
+                  : "mobile-bottom-nav-button"
+              }
+              onClick={() => toggleRightPanel("leaderboard")}
+            >
+              Leaders
+            </button>
+            <button
+              type="button"
+              className={
+                openRightPanel === "account"
+                  ? "mobile-bottom-nav-button active"
+                  : "mobile-bottom-nav-button"
+              }
+              onClick={handleAccountAction}
+            >
+              {user ? "Account" : "Sign In"}
+            </button>
+            {isAdmin ? (
+              <button
+                type="button"
+                className={
+                  openRightPanel === "admin"
+                    ? "mobile-bottom-nav-button active"
+                    : "mobile-bottom-nav-button"
+                }
+                onClick={() => toggleRightPanel("admin")}
+              >
+                Admin
+              </button>
+            ) : null}
+          </nav>
+        </>
+      ) : (
+        <>
+          <LiveFeed
+            src={hlsUrl}
+            imageSrc={liveFrameUrl}
+            mediaAspectRatio={liveFeedAspectRatio}
+            region={regionPoints}
+            fullScreen
+            personBoxes={livePersonBoxes}
+            statusMessage={activeVisionApiUrl ? liveFeedStatusMessage : null}
+            regionEditorEnabled={canEditRegion}
+            onRegionChange={canEditRegion ? setRegionPoints : null}
+          />
+          <div className="feed-mask" />
+          {showLiveRoundCard && selectedSession ? (
         <section className="live-round-overlay" aria-label="Live round status">
           <div className="live-round-overlay-panel">
             <div className="live-round-overlay-header">
@@ -3284,6 +4097,8 @@ export function MvpDashboard({
           ) : null}
         </div>
       </div>
+        </>
+      )}
 
       {openRightPanel ? (
         <div className="center-modal-backdrop" onClick={() => setOpenRightPanel(null)} role="presentation">
