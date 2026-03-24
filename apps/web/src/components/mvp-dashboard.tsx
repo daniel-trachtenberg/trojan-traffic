@@ -590,6 +590,9 @@ type PredictionHistoryListProps = {
   emptyKicker: string;
   emptyTitle: string;
   emptyCopy: string;
+  cancelablePredictionIds?: Set<string>;
+  cancelingPredictionIds?: Set<string>;
+  onCancelPrediction?: (prediction: PredictionRow) => void;
 };
 
 function PredictionHistoryList({
@@ -598,7 +601,10 @@ function PredictionHistoryList({
   nowMs,
   emptyKicker,
   emptyTitle,
-  emptyCopy
+  emptyCopy,
+  cancelablePredictionIds,
+  cancelingPredictionIds,
+  onCancelPrediction
 }: PredictionHistoryListProps) {
   if (predictions.length === 0) {
     return (
@@ -626,6 +632,8 @@ function PredictionHistoryList({
             : prediction.was_correct === null
               ? "Pending"
               : formatTokenDelta(prediction.token_delta);
+        const isCancelable = Boolean(cancelablePredictionIds?.has(prediction.id) && onCancelPrediction);
+        const isCanceling = Boolean(cancelingPredictionIds?.has(prediction.id));
 
         return (
           <article
@@ -667,20 +675,40 @@ function PredictionHistoryList({
             </div>
 
             <div className="bet-history-card-footer">
-              <p>{getPredictionHistoryNote(prediction, session, nowMs)}</p>
-              <span>
-                {prediction.resolved_at
-                  ? `Settled ${formatShortDateTime(prediction.resolved_at)}`
-                  : session?.starts_at
-                    ? `Round start ${formatShortDateTime(session.starts_at)}`
-                    : "Waiting for round details"}
-              </span>
+              <div className="bet-history-card-footer-copy">
+                <p>{getPredictionHistoryNote(prediction, session, nowMs)}</p>
+                <span>
+                  {prediction.resolved_at
+                    ? `Settled ${formatShortDateTime(prediction.resolved_at)}`
+                    : session?.starts_at
+                      ? `Round start ${formatShortDateTime(session.starts_at)}`
+                      : "Waiting for round details"}
+                </span>
+              </div>
+              {isCancelable ? (
+                <button
+                  type="button"
+                  className="bet-history-cancel-button"
+                  onClick={() => onCancelPrediction?.(prediction)}
+                  disabled={isCanceling}
+                >
+                  {isCanceling ? "Removing..." : "Cancel Bet"}
+                </button>
+              ) : null}
             </div>
           </article>
         );
       })}
     </div>
   );
+}
+
+function isPredictionCancelable(prediction: PredictionRow, session: SessionRow | null, nowMs: number) {
+  if (!session || prediction.resolved_at !== null) {
+    return false;
+  }
+
+  return getSessionState(session, nowMs) === "open";
 }
 
 export function MvpDashboard({
@@ -728,6 +756,7 @@ export function MvpDashboard({
   );
   const [isRegionEditModeEnabled, setIsRegionEditModeEnabled] = useState(false);
   const [isSavingRegion, setIsSavingRegion] = useState(false);
+  const [cancelingPredictionIds, setCancelingPredictionIds] = useState<string[]>([]);
   const nextToastIdRef = useRef(0);
   const toastsRef = useRef<ToastRecord[]>([]);
   const toastTimeoutsRef = useRef(new Map<number, ReturnType<typeof setTimeout>>());
@@ -969,6 +998,12 @@ export function MvpDashboard({
   );
   const publicProfileSessionLookup = new Map(
     publicProfileSessionRows.map((session) => [session.id, session])
+  );
+  const cancelingPredictionIdSet = new Set(cancelingPredictionIds);
+  const cancelablePredictionIdSet = new Set(
+    predictions
+      .filter((prediction) => isPredictionCancelable(prediction, sessionLookup.get(prediction.session_id) ?? null, nowMs))
+      .map((prediction) => prediction.id)
   );
   const livePeopleCount = null as number | null;
   const livePeopleCountDisplay = `${livePeopleCount ?? 0}`.padStart(2, "0");
@@ -2089,6 +2124,42 @@ export function MvpDashboard({
     });
   }
 
+  async function handleCancelPrediction(prediction: PredictionRow, activeUser: User | null = user) {
+    if (!supabase || !activeUser) {
+      return;
+    }
+
+    setCancelingPredictionIds((current) => [...current, prediction.id]);
+    setError(null);
+    setNotice(null);
+
+    try {
+      const cancelResponse = await supabase.rpc("cancel_prediction", {
+        p_prediction_id: prediction.id
+      });
+
+      if (cancelResponse.error) {
+        setError(cancelResponse.error.message);
+        return;
+      }
+
+      const cancelResult = Array.isArray(cancelResponse.data)
+        ? (cancelResponse.data[0] as { available_tokens: number } | undefined)
+        : undefined;
+
+      if (cancelResult) {
+        setTokenBalance(cancelResult.available_tokens);
+      }
+
+      setNotice(`Bet removed. ${prediction.wager_tokens} tokens refunded.`);
+      startTransition(() => {
+        void load(activeUser);
+      });
+    } finally {
+      setCancelingPredictionIds((current) => current.filter((id) => id !== prediction.id));
+    }
+  }
+
   function closeAuthModal() {
     setShowAuthModal(false);
     setAuthIntentSessionId(null);
@@ -3054,11 +3125,23 @@ export function MvpDashboard({
               <div className="selection-ticket-list">
                 {selectedSessionPreviewPredictions.map((prediction) => (
                   <div className="selection-ticket-chip" key={prediction.id}>
-                    <strong>{formatPredictionLabel(prediction, selectedSession)}</strong>
-                    <span>
-                      {prediction.wager_tokens} tokens ·{" "}
-                      {formatPayoutMultiplier(getStoredPredictionPayoutMultiplierBps(prediction))}
-                    </span>
+                    <div className="selection-ticket-chip-copy">
+                      <strong>{formatPredictionLabel(prediction, selectedSession)}</strong>
+                      <span>
+                        {prediction.wager_tokens} tokens ·{" "}
+                        {formatPayoutMultiplier(getStoredPredictionPayoutMultiplierBps(prediction))}
+                      </span>
+                    </div>
+                    {isPredictionCancelable(prediction, selectedSession, nowMs) ? (
+                      <button
+                        type="button"
+                        className="selection-ticket-cancel-button"
+                        onClick={() => void handleCancelPrediction(prediction)}
+                        disabled={cancelingPredictionIdSet.has(prediction.id)}
+                      >
+                        {cancelingPredictionIdSet.has(prediction.id) ? "Removing..." : "Remove"}
+                      </button>
+                    ) : null}
                   </div>
                 ))}
               </div>
@@ -3342,6 +3425,11 @@ export function MvpDashboard({
                       emptyKicker="No bets yet"
                       emptyTitle="Your history will land here"
                       emptyCopy="Place a round and this panel will start tracking your side, stake, final count, and payout."
+                      cancelablePredictionIds={cancelablePredictionIdSet}
+                      cancelingPredictionIds={cancelingPredictionIdSet}
+                      onCancelPrediction={(prediction) => {
+                        void handleCancelPrediction(prediction);
+                      }}
                     />
                   </section>
                 </div>

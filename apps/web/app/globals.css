@@ -2652,6 +2652,11 @@ body {
   gap: 0.35rem 0.8rem;
 }
 
+.selection-ticket-chip-copy {
+  display: grid;
+  gap: 0.18rem;
+}
+
 .selection-ticket-chip strong {
   font-size: 0.87rem;
   color: var(--text);
@@ -2660,6 +2665,24 @@ body {
 .selection-ticket-chip span {
   font-size: 0.76rem;
   color: var(--muted);
+}
+
+.selection-ticket-cancel-button,
+.bet-history-cancel-button {
+  border: 1px solid rgb(255 255 255 / 14%);
+  border-radius: 999px;
+  padding: 0.4rem 0.68rem;
+  background: rgb(255 255 255 / 5%);
+  color: #f4d9d9;
+  font: inherit;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.selection-ticket-cancel-button:disabled,
+.bet-history-cancel-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
 .bet-card-footer {
@@ -2922,6 +2945,11 @@ body {
   gap: 0.72rem;
   background:
     linear-gradient(180deg, rgb(10 12 18 / 72%) 0%, rgb(14 16 22 / 92%) 100%);
+}
+
+.bet-history-card-footer-copy {
+  display: grid;
+  gap: 0.18rem;
 }
 
 .public-profile-modal .account-panel {
