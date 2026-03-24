@@ -736,7 +736,6 @@ export function MvpDashboard({
   const publicProfileLoadIdRef = useRef(0);
 
   const sessionLookup = new Map(sessions.map((session) => [session.id, session]));
-  const predictionBySession = new Map(predictions.map((prediction) => [prediction.session_id, prediction]));
   const pendingPredictionCount = predictions.filter((prediction) => prediction.resolved_at === null).length;
   const settledPredictions = predictions.filter((prediction) => prediction.was_correct !== null);
   const wonPredictionCount = settledPredictions.filter(
@@ -766,9 +765,34 @@ export function MvpDashboard({
   const selectedSession =
     focusedSession ?? inFlightSession ?? spotlightResolvedSession ?? upcomingSession ?? null;
   const hasSelectedSession = Boolean(selectedSession);
-  const selectedPrediction = selectedSession
-    ? predictionBySession.get(selectedSession.id) ?? null
-    : null;
+  const selectedSessionPredictions = selectedSession
+    ? predictions.filter((prediction) => prediction.session_id === selectedSession.id)
+    : [];
+  const selectedPrediction = selectedSessionPredictions[0] ?? null;
+  const selectedSessionPredictionCount = selectedSessionPredictions.length;
+  const hasSelectedSessionPredictions = selectedSessionPredictionCount > 0;
+  const selectedSessionPreviewPredictions = selectedSessionPredictions.slice(0, 3);
+  const selectedSessionOverflowPredictionCount = Math.max(selectedSessionPredictionCount - 3, 0);
+  const selectedSessionStakedTokens = selectedSessionPredictions.reduce(
+    (total, prediction) => total + prediction.wager_tokens,
+    0
+  );
+  const selectedSessionSettledPredictions = selectedSessionPredictions.filter(
+    (prediction) => prediction.was_correct !== null
+  );
+  const selectedSessionCompletedCount = selectedSessionPredictions.filter(
+    (prediction) => prediction.resolved_at !== null
+  ).length;
+  const selectedSessionWonCount = selectedSessionSettledPredictions.filter(
+    (prediction) => prediction.was_correct === true
+  ).length;
+  const selectedSessionVoidedCount = selectedSessionPredictions.filter(
+    (prediction) => prediction.resolved_at !== null && prediction.was_correct === null
+  ).length;
+  const selectedSessionNetDelta = selectedSessionPredictions.reduce(
+    (total, prediction) => total + (prediction.token_delta ?? 0),
+    0
+  );
   const selectedState = selectedSession ? getSessionState(selectedSession, nowMs) : null;
   const displayedModeSeconds = selectedSession?.mode_seconds ?? 30;
   const displayedThreshold = selectedSession?.threshold ?? 5;
@@ -792,19 +816,15 @@ export function MvpDashboard({
   const selectedConfiguredWager = Number.parseInt(selectedWager, 10);
   const selectedConfiguredRangeMin = Number.parseInt(selectedRangeMin, 10);
   const selectedConfiguredRangeMax = Number.parseInt(selectedRangeMax, 10);
-  const selectedPricingSide = selectedPrediction?.side ?? selectedSide;
+  const selectedPricingSide = selectedSide;
   const selectedPricingWager =
-    selectedPrediction?.wager_tokens ??
-    (Number.isFinite(selectedConfiguredWager) && selectedConfiguredWager > 0 ? selectedConfiguredWager : null);
+    Number.isFinite(selectedConfiguredWager) && selectedConfiguredWager > 0 ? selectedConfiguredWager : null;
   const selectedPricingRangeMin =
-    selectedPrediction?.range_min ??
-    (Number.isFinite(selectedConfiguredRangeMin) ? selectedConfiguredRangeMin : null);
+    Number.isFinite(selectedConfiguredRangeMin) ? selectedConfiguredRangeMin : null;
   const selectedPricingRangeMax =
-    selectedPrediction?.range_max ??
-    (Number.isFinite(selectedConfiguredRangeMax) ? selectedConfiguredRangeMax : null);
+    Number.isFinite(selectedConfiguredRangeMax) ? selectedConfiguredRangeMax : null;
   const selectedPricingRangeWidth = getRangeWidth(selectedPricingRangeMin, selectedPricingRangeMax);
   const selectedPricingMultiplierBps =
-    selectedPrediction?.payout_multiplier_bps ??
     getPredictionPayoutMultiplierBps(selectedPricingSide, selectedPricingRangeMin, selectedPricingRangeMax);
   const selectedPricingGrossPayout =
     selectedPricingWager !== null
@@ -814,14 +834,14 @@ export function MvpDashboard({
     selectedPricingWager !== null
       ? getPredictionNetWinTokens(selectedPricingWager, selectedPricingMultiplierBps)
       : null;
-  const selectedPricingLabel = selectedPrediction ? "Locked Odds" : "Odds";
+  const selectedPricingLabel = hasSelectedSessionPredictions ? "Next Ticket" : "Odds";
   const selectedPricingNote =
     selectedPricingWager === null || selectedPricingMultiplierBps === null || selectedPricingGrossPayout === null
       ? "Set a valid wager to preview the payout."
       : selectedPricingSide === "range" && selectedPricingRangeWidth !== null
         ? `${selectedPricingWager} in, ${selectedPricingGrossPayout} back. Covers ${selectedPricingRangeWidth} exact counts.`
         : `${selectedPricingWager} in, ${selectedPricingGrossPayout} back. Profit +${selectedPricingNetWin ?? 0}.`;
-  const canConfigureSelected = Boolean(selectedSession && selectedState === "open" && selectedPrediction === null);
+  const canConfigureSelected = Boolean(selectedSession && selectedState === "open");
   const showBettingControls = Boolean(selectedSession && selectedState === "open");
   const dailyClaimState = getDailyClaimState(streaks?.last_login_date ?? null, nowMs);
   const isDailyClaimDisabled =
@@ -843,8 +863,8 @@ export function MvpDashboard({
   const betButtonLabel = hasSelectedSession
     ? !user
       ? "Sign In to Bet"
-      : selectedPrediction
-      ? "Entered"
+      : hasSelectedSessionPredictions
+      ? "Add Bet"
       : "Bet"
     : user
       ? "Waiting"
@@ -1106,11 +1126,17 @@ export function MvpDashboard({
 
   const selectedWinningSide = selectedSession ? getWinningSide(selectedSession) : null;
   const selectedResultTone =
-    selectedPrediction?.was_correct === true
-      ? "win"
-      : selectedPrediction?.was_correct === false
-        ? "loss"
-        : "neutral";
+    selectedSessionPredictionCount > 1
+      ? selectedSessionNetDelta > 0
+        ? "win"
+        : selectedSessionNetDelta < 0
+          ? "loss"
+          : "neutral"
+      : selectedPrediction?.was_correct === true
+        ? "win"
+        : selectedPrediction?.was_correct === false
+          ? "loss"
+          : "neutral";
   const showWinConfetti = showResolvedRoundCard && selectedResultTone === "win";
   const selectedResultPresentation = (() => {
     if (!selectedSession) {
@@ -1132,6 +1158,61 @@ export function MvpDashboard({
     const selectedPredictionLabel = selectedPrediction
       ? formatPredictionLabel(selectedPrediction, selectedSession)
       : null;
+
+    if (selectedSessionPredictionCount > 1) {
+      if (selectedSessionVoidedCount === selectedSessionPredictionCount) {
+        return {
+          eyebrow: "Round cancelled",
+          headline: "Entries voided",
+          copy: `The ${displayedModeSeconds}s round was cancelled after betting closed. All ${selectedSessionPredictionCount} of your tickets were voided.`,
+          footer: settledAtCopy,
+          secondaryLabel: "Tickets",
+          secondaryValue: `${selectedSessionPredictionCount}`
+        };
+      }
+
+      if (selectedSessionCompletedCount < selectedSessionPredictionCount) {
+        return {
+          eyebrow: "Round finished",
+          headline: "Results syncing",
+          copy: `Final count posted at ${finalCountLabel}. ${selectedSessionPredictionCount} tickets are still settling.`,
+          footer: "Payouts should land automatically in a moment.",
+          secondaryLabel: "Tickets",
+          secondaryValue: `${selectedSessionPredictionCount}`
+        };
+      }
+
+      if (selectedSessionNetDelta > 0) {
+        return {
+          eyebrow: "Round settled",
+          headline: "Net win",
+          copy: `Final count hit ${finalCountLabel}. You won ${selectedSessionWonCount} of ${selectedSessionPredictionCount} tickets for ${formatTokenDelta(selectedSessionNetDelta)} net.`,
+          footer: settledAtCopy,
+          secondaryLabel: "Tickets won",
+          secondaryValue: `${selectedSessionWonCount}/${selectedSessionPredictionCount}`
+        };
+      }
+
+      if (selectedSessionNetDelta < 0) {
+        return {
+          eyebrow: "Round settled",
+          headline: "Net loss",
+          copy: `Final count landed at ${finalCountLabel}. You went ${selectedSessionWonCount} for ${selectedSessionPredictionCount} and lost ${Math.abs(selectedSessionNetDelta)} tokens net.`,
+          footer: settledAtCopy,
+          secondaryLabel: "Tickets won",
+          secondaryValue: `${selectedSessionWonCount}/${selectedSessionPredictionCount}`
+        };
+      }
+
+      return {
+        eyebrow: "Round settled",
+        headline: "Flat session",
+        copy: `Final count landed at ${finalCountLabel}. Your ${selectedSessionPredictionCount} tickets finished flat overall.`,
+        footer: settledAtCopy,
+        secondaryLabel: "Net session",
+        secondaryValue: formatTokenDelta(selectedSessionNetDelta)
+      };
+    }
 
     if (selectedPrediction?.resolved_at && selectedPrediction.was_correct === null) {
       return {
@@ -2847,7 +2928,9 @@ export function MvpDashboard({
               <div className="market-live-summary-card">
                 <span className="market-live-summary-kicker">Round live</span>
                 <strong className="market-live-summary-headline">
-                  {selectedPrediction
+                  {selectedSessionPredictionCount > 1
+                    ? `${selectedSessionPredictionCount} tickets live · ${selectedSessionStakedTokens} tokens staked`
+                    : selectedPrediction
                     ? `${formatPredictionLabel(selectedPrediction, selectedSession)} · ${selectedPrediction.wager_tokens} tokens · ${formatPayoutMultiplier(getStoredPredictionPayoutMultiplierBps(selectedPrediction))}`
                     : "Watching this round"}
                 </strong>
@@ -2886,9 +2969,17 @@ export function MvpDashboard({
 
                 <div className="market-result-stat-grid">
                   <div className="market-result-stat-card">
-                    <span>{selectedPrediction ? "Your pick" : "Winning side"}</span>
+                    <span>
+                      {selectedSessionPredictionCount > 1
+                        ? "Tickets placed"
+                        : selectedPrediction
+                          ? "Your pick"
+                          : "Winning side"}
+                    </span>
                     <strong>
-                      {selectedPrediction
+                      {selectedSessionPredictionCount > 1
+                        ? `${selectedSessionPredictionCount}`
+                        : selectedPrediction
                         ? formatPredictionLabel(selectedPrediction, selectedSession)
                         : selectedWinningSide
                           ? selectedWinningSide.toUpperCase()
@@ -2944,19 +3035,40 @@ export function MvpDashboard({
             )}
           </div>
 
-          {selectedPrediction && !showLiveRoundCard && !showResolvedRoundCard ? (
-            <p className="session-result compact-result selection-summary">
-              Locked in: <strong>{formatPredictionLabel(selectedPrediction, selectedSession)}</strong> ·{" "}
-              {selectedPrediction.wager_tokens} tokens ·{" "}
-              {formatPayoutMultiplier(getStoredPredictionPayoutMultiplierBps(selectedPrediction))}
-              {selectedPrediction.resolved_at && selectedPrediction.was_correct === null
-                ? " · Cancelled"
-                : selectedPrediction.was_correct !== null
-                ? selectedPrediction.was_correct
-                  ? ` · Win ${formatTokenDelta(selectedPrediction.token_delta)}`
-                  : ` · Loss ${formatTokenDelta(selectedPrediction.token_delta)}`
-                : " · Pending"}
-            </p>
+          {selectedSessionPredictionCount > 0 && !showLiveRoundCard && !showResolvedRoundCard ? (
+            <div className="session-result compact-result selection-summary selection-summary-stack">
+              <div className="selection-summary-header">
+                <span className="selection-summary-kicker">
+                  {selectedSessionPredictionCount > 1 ? "Round tickets" : "Locked in"}
+                </span>
+                <strong className="selection-summary-title">
+                  {selectedSessionPredictionCount > 1
+                    ? `${selectedSessionPredictionCount} bets placed`
+                    : formatPredictionLabel(selectedPrediction, selectedSession)}
+                </strong>
+                <span className="selection-summary-meta">
+                  {selectedSessionStakedTokens} tokens total
+                </span>
+              </div>
+
+              <div className="selection-ticket-list">
+                {selectedSessionPreviewPredictions.map((prediction) => (
+                  <div className="selection-ticket-chip" key={prediction.id}>
+                    <strong>{formatPredictionLabel(prediction, selectedSession)}</strong>
+                    <span>
+                      {prediction.wager_tokens} tokens ·{" "}
+                      {formatPayoutMultiplier(getStoredPredictionPayoutMultiplierBps(prediction))}
+                    </span>
+                  </div>
+                ))}
+              </div>
+
+              {selectedSessionOverflowPredictionCount > 0 ? (
+                <span className="selection-summary-more">
+                  +{selectedSessionOverflowPredictionCount} more tickets in this round
+                </span>
+              ) : null}
+            </div>
           ) : null}
 
           {showBettingControls ? (

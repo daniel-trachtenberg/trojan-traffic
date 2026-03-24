@@ -2603,6 +2603,65 @@ body {
   background: rgb(255 255 255 / 3%);
 }
 
+.selection-summary-stack {
+  display: grid;
+  gap: 0.7rem;
+}
+
+.selection-summary-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.45rem 0.7rem;
+}
+
+.selection-summary-kicker {
+  font-size: 0.66rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.selection-summary-title {
+  font-size: 0.98rem;
+  line-height: 1.1;
+  color: var(--text);
+}
+
+.selection-summary-meta,
+.selection-summary-more {
+  font-size: 0.76rem;
+  color: var(--muted);
+}
+
+.selection-ticket-list {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.selection-ticket-chip {
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 0.68rem 0.76rem;
+  background: rgb(255 255 255 / 4%);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.35rem 0.8rem;
+}
+
+.selection-ticket-chip strong {
+  font-size: 0.87rem;
+  color: var(--text);
+}
+
+.selection-ticket-chip span {
+  font-size: 0.76rem;
+  color: var(--muted);
+}
+
 .bet-card-footer {
   margin-top: 0.68rem;
 }
