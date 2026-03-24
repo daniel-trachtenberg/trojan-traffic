@@ -4255,6 +4255,577 @@ body {
     bottom: 7.2rem;
   }
 
+  .betting-screen-mobile {
+    height: 100dvh;
+    min-height: 100dvh;
+    overflow: hidden;
+    overscroll-behavior: none;
+    background:
+      radial-gradient(circle at top, rgb(255 204 0 / 10%), transparent 24%),
+      linear-gradient(180deg, rgb(8 10 14) 0%, rgb(3 4 7) 100%);
+  }
+
+  .mobile-screen-shell {
+    height: 100%;
+    display: grid;
+    grid-template-rows: minmax(0, 2fr) minmax(0, 1fr);
+    gap: 0;
+    padding-bottom: 0;
+  }
+
+  .mobile-game-stage {
+    position: relative;
+    min-height: 0;
+    padding:
+      calc(0.8rem + env(safe-area-inset-top))
+      0.8rem
+      0.8rem;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    background:
+      radial-gradient(circle at top, rgb(255 204 0 / 6%), transparent 22%),
+      linear-gradient(180deg, rgb(10 12 18 / 76%), rgb(5 6 10 / 86%));
+  }
+
+  .mobile-game-stage::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background:
+      linear-gradient(180deg, rgb(7 9 14 / 78%) 0%, rgb(7 9 14 / 22%) 26%, rgb(7 9 14 / 12%) 52%, rgb(6 8 12 / 76%) 100%);
+    pointer-events: none;
+  }
+
+  .mobile-game-feed,
+  .mobile-game-feed .video-shell {
+    position: absolute;
+    inset: 0;
+  }
+
+  .mobile-game-feed .video-shell {
+    border: 0;
+    border-radius: 0;
+    background: #0d0f14;
+  }
+
+  .mobile-game-feed .video-stage video,
+  .mobile-game-feed .video-stage img {
+    object-fit: cover;
+  }
+
+  .mobile-arena-mask {
+    background:
+      linear-gradient(180deg, rgb(5 6 10 / 72%) 0%, rgb(5 6 10 / 12%) 28%, rgb(5 6 10 / 6%) 54%, rgb(5 6 10 / 84%) 100%);
+  }
+
+  .mobile-stage-header,
+  .mobile-stage-card,
+  .mobile-region-editor-shell {
+    position: relative;
+    z-index: 2;
+  }
+
+  .mobile-stage-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 0.75rem;
+  }
+
+  .mobile-stage-brand {
+    display: grid;
+    gap: 0.12rem;
+    min-width: 0;
+  }
+
+  .mobile-stage-kicker,
+  .mobile-stage-card-kicker,
+  .mobile-dock-kicker,
+  .mobile-betting-dock-stat span,
+  .mobile-dock-status-kicker,
+  .mobile-stake-panel span,
+  .mobile-config-field span,
+  .mobile-slip-banner span:first-child,
+  .mobile-bet-summary span {
+    margin: 0;
+    font-size: 0.68rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: rgb(235 239 247 / 68%);
+  }
+
+  .mobile-stage-brand strong {
+    font-size: 1.08rem;
+    line-height: 1;
+    letter-spacing: -0.04em;
+    color: #fff5dd;
+  }
+
+  .mobile-stage-brand span {
+    font-size: 0.74rem;
+    line-height: 1.35;
+    color: rgb(224 230 243 / 72%);
+  }
+
+  .mobile-stage-header-actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 0.42rem;
+  }
+
+  .mobile-stage-balance {
+    min-width: 4.9rem;
+    border: 1px solid rgb(255 255 255 / 10%);
+    border-radius: 16px;
+    padding: 0.52rem 0.72rem;
+    background: rgb(6 8 12 / 56%);
+    backdrop-filter: blur(10px);
+    display: grid;
+    gap: 0.08rem;
+    justify-items: end;
+  }
+
+  .mobile-stage-balance span {
+    font-size: 0.66rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: rgb(236 240 248 / 62%);
+  }
+
+  .mobile-stage-balance strong {
+    color: #fff3cf;
+    font-size: 0.96rem;
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .mobile-stage-pill,
+  .mobile-dock-utility {
+    border: 1px solid rgb(255 255 255 / 10%);
+    border-radius: 999px;
+    padding: 0.55rem 0.84rem;
+    background: rgb(7 9 14 / 60%);
+    color: var(--text);
+    font: inherit;
+    font-size: 0.78rem;
+    font-weight: 600;
+    backdrop-filter: blur(10px);
+  }
+
+  .mobile-stage-card {
+    width: min(100%, 27rem);
+    align-self: flex-start;
+    border: 1px solid rgb(255 255 255 / 11%);
+    border-radius: 24px;
+    padding: 0.85rem 0.9rem;
+    background:
+      linear-gradient(180deg, rgb(8 10 14 / 88%) 0%, rgb(11 14 20 / 78%) 100%);
+    backdrop-filter: blur(14px);
+    box-shadow: 0 20px 42px rgb(0 0 0 / 26%);
+    display: grid;
+    gap: 0.62rem;
+  }
+
+  .mobile-stage-card-main {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 0.72rem;
+  }
+
+  .mobile-stage-card-copy {
+    display: grid;
+    gap: 0.18rem;
+    min-width: 0;
+  }
+
+  .mobile-stage-card-title {
+    margin: 0;
+    font-size: clamp(1.26rem, 5vw, 1.58rem);
+    line-height: 0.98;
+    letter-spacing: -0.05em;
+    color: #fff5db;
+  }
+
+  .mobile-stage-card-subtitle {
+    margin: 0;
+    font-size: 0.82rem;
+    line-height: 1.38;
+    color: var(--muted);
+  }
+
+  .mobile-stage-count-shell {
+    min-width: 4.5rem;
+    border-radius: 18px;
+    padding: 0.62rem 0.55rem;
+    background: rgb(255 255 255 / 4%);
+    border: 1px solid rgb(255 255 255 / 10%);
+    display: grid;
+    justify-items: center;
+    align-content: center;
+    gap: 0.06rem;
+  }
+
+  .mobile-stage-count-shell strong {
+    font-size: 2rem;
+    line-height: 0.88;
+    color: var(--text);
+    letter-spacing: -0.08em;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .mobile-stage-count-shell span {
+    font-size: 0.68rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: rgb(224 230 243 / 66%);
+  }
+
+  .mobile-stage-chip-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.38rem;
+  }
+
+  .mobile-stage-progress-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.7rem;
+    font-size: 0.75rem;
+    color: rgb(229 234 244 / 74%);
+  }
+
+  .mobile-stage-progress-row strong {
+    font-size: 0.88rem;
+    color: #fff3d4;
+    letter-spacing: -0.02em;
+  }
+
+  .mobile-stage-progress-track {
+    height: 0.42rem;
+    border-radius: 999px;
+    background: rgb(255 255 255 / 8%);
+    overflow: hidden;
+  }
+
+  .mobile-stage-progress-track span {
+    display: block;
+    height: 100%;
+    border-radius: inherit;
+    background: linear-gradient(90deg, rgb(255 204 0 / 74%), rgb(153 0 0 / 78%));
+  }
+
+  .mobile-betting-dock {
+    position: relative;
+    min-height: 0;
+    padding:
+      0.8rem
+      0.85rem
+      calc(0.85rem + env(safe-area-inset-bottom));
+    border-top: 1px solid rgb(255 255 255 / 10%);
+    border-radius: 24px 24px 0 0;
+    background:
+      linear-gradient(180deg, rgb(16 18 26 / 98%) 0%, rgb(10 12 18 / 100%) 100%);
+    box-shadow: 0 -18px 48px rgb(0 0 0 / 32%);
+    overflow: hidden;
+  }
+
+  .mobile-betting-dock-shell {
+    height: 100%;
+    min-height: 0;
+    display: grid;
+    align-content: start;
+    gap: 0.68rem;
+    overflow: auto;
+    scrollbar-width: none;
+  }
+
+  .mobile-betting-dock-shell::-webkit-scrollbar {
+    display: none;
+  }
+
+  .mobile-dock-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 0.65rem;
+  }
+
+  .mobile-dock-header-copy {
+    display: grid;
+    gap: 0.12rem;
+    min-width: 0;
+  }
+
+  .mobile-dock-header-copy strong {
+    font-size: 1rem;
+    line-height: 1.05;
+    letter-spacing: -0.03em;
+    color: #fff5dc;
+  }
+
+  .mobile-dock-header-copy span {
+    font-size: 0.76rem;
+    line-height: 1.35;
+    color: var(--muted);
+  }
+
+  .mobile-betting-dock-topline {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.55rem;
+    align-items: stretch;
+  }
+
+  .mobile-betting-dock-stat {
+    border: 1px solid rgb(255 255 255 / 9%);
+    border-radius: 18px;
+    padding: 0.68rem 0.78rem;
+    background: rgb(255 255 255 / 4%);
+    display: grid;
+    gap: 0.1rem;
+  }
+
+  .mobile-betting-dock-stat strong {
+    font-size: 1.18rem;
+    line-height: 1;
+    letter-spacing: -0.05em;
+    color: #fff6df;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .mobile-betting-dock-stat-highlight strong {
+    color: #fff2b5;
+  }
+
+  .mobile-betting-dock-arrow {
+    display: none;
+  }
+
+  .mobile-choice-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 0.4rem;
+  }
+
+  .mobile-choice-button {
+    min-height: 4.75rem;
+    border: 1px solid rgb(255 255 255 / 10%);
+    border-radius: 18px;
+    padding: 0.54rem 0.36rem;
+    background: rgb(255 255 255 / 4%);
+    color: var(--text);
+    font: inherit;
+    display: grid;
+    justify-items: center;
+    align-content: start;
+    gap: 0.18rem;
+    text-align: center;
+  }
+
+  .mobile-choice-button.active {
+    box-shadow:
+      inset 0 1px 0 rgb(255 255 255 / 10%),
+      0 10px 24px rgb(0 0 0 / 14%);
+  }
+
+  .mobile-choice-copy {
+    display: grid;
+    gap: 0.06rem;
+    min-width: 0;
+  }
+
+  .mobile-choice-label {
+    font-size: 0.79rem;
+    font-weight: 700;
+    line-height: 1;
+  }
+
+  .mobile-choice-detail,
+  .mobile-choice-multiplier {
+    font-size: 0.64rem;
+    line-height: 1.2;
+  }
+
+  .mobile-choice-detail {
+    color: rgb(226 232 243 / 72%);
+  }
+
+  .mobile-choice-multiplier {
+    color: #fff2b5;
+    font-weight: 700;
+  }
+
+  .mobile-config-row {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.45rem;
+  }
+
+  .mobile-config-row-single {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .mobile-config-field {
+    display: grid;
+    gap: 0.22rem;
+  }
+
+  .mobile-config-field input,
+  .mobile-stake-panel input {
+    width: 100%;
+    border: 1px solid rgb(255 255 255 / 10%);
+    border-radius: 14px;
+    padding: 0.72rem 0.82rem;
+    font: inherit;
+    background: rgb(255 255 255 / 5%);
+    color: var(--text);
+  }
+
+  .mobile-slip-banner,
+  .mobile-dock-status-card {
+    border: 1px solid rgb(255 255 255 / 10%);
+    border-radius: 18px;
+    padding: 0.74rem 0.84rem;
+    background: rgb(255 255 255 / 4%);
+    display: grid;
+    gap: 0.16rem;
+  }
+
+  .mobile-slip-banner strong,
+  .mobile-dock-status-card strong {
+    font-size: 0.95rem;
+    line-height: 1.15;
+    color: #fff5dd;
+  }
+
+  .mobile-slip-banner span:last-child,
+  .mobile-dock-status-card p {
+    margin: 0;
+    font-size: 0.78rem;
+    line-height: 1.4;
+    color: var(--muted);
+  }
+
+  .mobile-dock-status-card {
+    height: 100%;
+    align-content: center;
+  }
+
+  .mobile-stake-control-row {
+    display: grid;
+    grid-template-columns: minmax(0, 0.92fr) minmax(0, 1.08fr);
+    gap: 0.5rem;
+    align-items: end;
+  }
+
+  .mobile-stake-panel {
+    display: grid;
+    gap: 0.26rem;
+  }
+
+  .mobile-stake-chip-row {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 0.35rem;
+  }
+
+  .mobile-stake-chip {
+    min-height: 2.7rem;
+    border: 1px solid rgb(255 255 255 / 10%);
+    border-radius: 14px;
+    background: rgb(255 255 255 / 4%);
+    color: var(--text);
+    font: inherit;
+    font-size: 0.74rem;
+    font-weight: 700;
+  }
+
+  .mobile-bet-footer {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 0.5rem;
+    align-items: stretch;
+  }
+
+  .mobile-bet-summary {
+    border: 1px solid rgb(255 255 255 / 10%);
+    border-radius: 18px;
+    padding: 0.68rem 0.78rem;
+    background: rgb(255 255 255 / 4%);
+    display: grid;
+    gap: 0.12rem;
+    align-content: center;
+  }
+
+  .mobile-bet-summary strong {
+    font-size: 1rem;
+    line-height: 1;
+    letter-spacing: -0.04em;
+    color: #fff3d4;
+  }
+
+  .mobile-bet-cta {
+    min-width: 9.5rem;
+    border: 0;
+    border-radius: 18px;
+    padding: 0.82rem 0.98rem;
+    background:
+      linear-gradient(135deg, rgb(126 18 18) 0%, rgb(214 170 24) 34%, rgb(126 18 18) 100%);
+    color: #fefbf3;
+    font: inherit;
+    display: grid;
+    justify-items: center;
+    align-content: center;
+    gap: 0.1rem;
+    box-shadow: 0 14px 30px rgb(0 0 0 / 22%);
+  }
+
+  .mobile-bet-cta:disabled {
+    opacity: 0.66;
+  }
+
+  .mobile-bet-cta-accent {
+    font-size: 0.64rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: rgb(255 246 216 / 82%);
+  }
+
+  .mobile-bet-cta strong {
+    font-size: 1.08rem;
+    line-height: 1;
+    letter-spacing: -0.04em;
+  }
+
+  .mobile-bet-cta-secondary {
+    width: 100%;
+    padding: 0.9rem 1rem;
+    background:
+      linear-gradient(180deg, rgb(22 24 32 / 96%) 0%, rgb(10 12 18 / 98%) 100%);
+  }
+
+  .mobile-region-editor-shell {
+    position: fixed;
+    left: 0.75rem;
+    right: 0.75rem;
+    bottom: calc(34dvh + 0.75rem + env(safe-area-inset-bottom));
+    z-index: 8;
+  }
+
+  .mobile-region-editor-shell .region-editor-dock {
+    width: 100%;
+    max-width: none;
+  }
+
+  .mobile-game-stage .video-state-overlay {
+    bottom: calc(1rem + env(safe-area-inset-bottom));
+  }
+
   .leaderboard-entry-button {
     grid-template-columns: auto minmax(0, 1fr);
   }
@@ -4273,38 +4844,50 @@ body {
 
   .betting-screen-mobile .center-modal-backdrop {
     position: fixed;
-    align-items: end;
-    padding: 0.75rem 0.75rem calc(5.9rem + env(safe-area-inset-bottom));
-    background: rgb(5 6 10 / 74%);
+    inset: 0;
+    place-items: stretch;
+    padding: 0;
+    background: rgb(5 6 10 / 88%);
   }
 
   .betting-screen-mobile .center-modal,
   .betting-screen-mobile .account-modal,
   .betting-screen-mobile .admin-modal,
-  .betting-screen-mobile .auth-modal {
+  .betting-screen-mobile .auth-modal,
+  .betting-screen-mobile .public-profile-modal {
     width: 100%;
-    max-height: min(80vh, 880px);
-    border-radius: 24px 24px 18px 18px;
+    height: 100dvh;
+    max-height: 100dvh;
+    border: 0;
+    border-radius: 0;
+    padding:
+      calc(0.9rem + env(safe-area-inset-top))
+      0.9rem
+      calc(1rem + env(safe-area-inset-bottom));
+    box-shadow: none;
   }
 
   .betting-screen-mobile .center-modal-header {
     position: sticky;
     top: 0;
     z-index: 1;
-    margin: -1rem -1rem 0;
-    padding: 1rem 1rem 0.7rem;
+    margin: calc(-0.9rem - env(safe-area-inset-top)) -0.9rem 0;
+    padding:
+      calc(0.9rem + env(safe-area-inset-top))
+      0.9rem
+      0.7rem;
     background: inherit;
   }
 
   .betting-screen-mobile .modal-leaderboard {
-    max-height: min(46vh, 420px);
+    max-height: none;
   }
 
   .betting-screen-mobile .toast-stack {
     position: fixed;
     top: auto;
     right: 0.75rem;
-    bottom: calc(5.8rem + env(safe-area-inset-bottom));
+    bottom: calc(34dvh + 0.75rem + env(safe-area-inset-bottom));
     width: min(360px, calc(100vw - 1.5rem));
   }
 }

@@ -2554,30 +2554,53 @@ export function MvpDashboard({
       : "--";
   const mobilePotentialWinLabel =
     selectedPricingGrossPayout !== null ? `${selectedPricingGrossPayout}` : "--";
+  const mobileDockTitle = showBettingControls
+    ? "Bet slip"
+    : showResolvedRoundCard
+      ? "Round settled"
+      : showLiveRoundCard
+        ? "Round in motion"
+        : hasSelectedSession
+          ? "Next market"
+          : "Standby";
+  const mobileDockCopy = showBettingControls ? selectedPricingNote : mobileSpotlightCopy;
+  const mobileStageCardTitle = showBettingControls
+    ? "How many walkers?"
+    : showLiveRoundCard
+      ? "Round live"
+      : showResolvedRoundCard
+        ? "Round settled"
+        : "Watching the board";
+  const mobileStageCardCopy = showBettingControls
+    ? "Bet on the highlighted crossing before the window closes."
+    : showLiveRoundCard
+      ? "Betting is locked while the current count plays out."
+      : showResolvedRoundCard
+        ? `${selectedResultPresentation.secondaryLabel} ${selectedResultPresentation.secondaryValue}`
+        : "The highlighted region stays centered here while we wait for the next round.";
   const bettingWidgetContent = (
     <div className="mobile-betting-dock-shell">
-      <div className="mobile-betting-dock-topline">
-        <div className="mobile-betting-dock-stat">
-          <span>{showBettingControls ? "Bet amount" : selectedSessionPredictionCount > 0 ? "Staked" : "Market"}</span>
-          <strong>{showBettingControls ? mobileBetAmountLabel : `${selectedSessionStakedTokens || 0}`}</strong>
-        </div>
-        <div className="mobile-betting-dock-arrow" aria-hidden="true">
-          {showBettingControls ? ">>" : "::"}
-        </div>
-        <div className="mobile-betting-dock-stat mobile-betting-dock-stat-highlight">
-          <span>{showBettingControls ? "Potential win" : selectedResultPresentation.secondaryLabel}</span>
-          <strong>
-            {showBettingControls
-              ? mobilePotentialWinLabel
-              : showResolvedRoundCard
-                ? selectedResultPresentation.secondaryValue
-                : formatPayoutMultiplier(selectedPricingMultiplierBps)}
-          </strong>
-        </div>
-      </div>
-
       {showBettingControls ? (
         <>
+          <div className="mobile-dock-header">
+            <div className="mobile-dock-header-copy">
+              <p className="mobile-dock-kicker">Tommy Walkway</p>
+              <strong>{mobileDockTitle}</strong>
+              <span>{mobileDockCopy}</span>
+            </div>
+          </div>
+
+          <div className="mobile-betting-dock-topline">
+            <div className="mobile-betting-dock-stat">
+              <span>Bet amount</span>
+              <strong>{mobileBetAmountLabel}</strong>
+            </div>
+            <div className="mobile-betting-dock-stat mobile-betting-dock-stat-highlight">
+              <span>Potential win</span>
+              <strong>{mobilePotentialWinLabel}</strong>
+            </div>
+          </div>
+
           <div className="mobile-choice-grid">
             {mobileMarketChoices.map((choice) => (
               <button
@@ -2592,14 +2615,16 @@ export function MvpDashboard({
                   if (selectedSession) {
                     updateSelectedSide(selectedSession.id, choice.side);
                   }
-                }}
-                disabled={!canConfigureSelected}
+                  }}
+                  disabled={!canConfigureSelected}
               >
                 <span className={`mobile-choice-icon mobile-choice-icon-${choice.accent}`} aria-hidden="true">
                   {choice.icon}
                 </span>
-                <span className="mobile-choice-label">{choice.label}</span>
-                <span className="mobile-choice-detail">{choice.detail}</span>
+                <span className="mobile-choice-copy">
+                  <span className="mobile-choice-label">{choice.label}</span>
+                  <span className="mobile-choice-detail">{choice.detail}</span>
+                </span>
                 <span className="mobile-choice-multiplier">{choice.multiplier}</span>
               </button>
             ))}
@@ -2710,27 +2735,32 @@ export function MvpDashboard({
             </div>
           </div>
 
-          <button
-            type="button"
-            className="mobile-bet-cta"
-            disabled={betButtonDisabled}
-            onClick={() => {
-              if (selectedSession) {
-                handleBetAction(selectedSession);
-                return;
-              }
+          <div className="mobile-bet-footer">
+            <div className="mobile-bet-summary">
+              <span>{mobileSelectedChoice.label}</span>
+              <strong>
+                {mobilePotentialWinLabel === "--"
+                  ? "Set stake"
+                  : `${mobilePotentialWinLabel} return`}
+              </strong>
+            </div>
+            <button
+              type="button"
+              className="mobile-bet-cta"
+              disabled={betButtonDisabled}
+              onClick={() => {
+                if (selectedSession) {
+                  handleBetAction(selectedSession);
+                  return;
+                }
 
-              handleEmptyStateSignupAction();
-            }}
-          >
-            <span className="mobile-bet-cta-accent">{mobileSelectedChoice.label}</span>
-            <strong>{betButtonLabel}</strong>
-            <span>
-              {mobilePotentialWinLabel === "--"
-                ? "Set your stake to preview the win."
-                : `Potential return ${mobilePotentialWinLabel} tokens`}
-            </span>
-          </button>
+                handleEmptyStateSignupAction();
+              }}
+            >
+              <span className="mobile-bet-cta-accent">{mobileSelectedChoice.label}</span>
+              <strong>{betButtonLabel}</strong>
+            </button>
+          </div>
         </>
       ) : (
         <div className="mobile-dock-status-card">
@@ -2761,32 +2791,6 @@ export function MvpDashboard({
           ) : null}
         </div>
       )}
-
-      <div className="mobile-dock-action-row">
-        <button
-          type="button"
-          className="mobile-dock-action-button"
-          onClick={() => toggleRightPanel("leaderboard")}
-        >
-          Leaderboard
-        </button>
-        <button
-          type="button"
-          className="mobile-dock-action-button"
-          onClick={handleAccountAction}
-        >
-          {user ? "My Bets" : "Sign In"}
-        </button>
-        {isAdmin ? (
-          <button
-            type="button"
-            className="mobile-dock-action-button"
-            onClick={() => toggleRightPanel("admin")}
-          >
-            Admin
-          </button>
-        ) : null}
-      </div>
     </div>
   );
   const regionEditorDock = showRegionEditDock ? (
@@ -2885,19 +2889,19 @@ export function MvpDashboard({
                   onRegionChange={canEditRegion ? setRegionPoints : null}
                   focusRegion={mobileRegionFocusEnabled}
                   focusPadding={{
-                    top: 0.18,
-                    right: 0.18,
-                    bottom: 0.32,
-                    left: 0.18
+                    top: 0.1,
+                    right: 0.12,
+                    bottom: 0.18,
+                    left: 0.14
                   }}
                 />
                 <div className="feed-mask mobile-arena-mask" />
               </div>
 
-              <header className="mobile-hud-bar">
-                <div className="mobile-hud-brand">
-                  <p className="mobile-hud-kicker">Tommy Walkway</p>
-                  <strong>Walkway Rush</strong>
+              <header className="mobile-stage-header">
+                <div className="mobile-stage-brand">
+                  <p className="mobile-stage-kicker">Tommy Walkway</p>
+                  <strong>Live betting</strong>
                   <span>
                     {hasSelectedSession
                       ? `${displayedModeSeconds}s round · ${selectedState ? getSessionStateLabel(selectedState) : "Standby"}`
@@ -2905,129 +2909,75 @@ export function MvpDashboard({
                   </span>
                 </div>
 
-                <div className="mobile-hud-stack">
+                <div className="mobile-stage-header-actions">
                   {user ? (
-                    <div className="mobile-hud-balance">
+                    <div className="mobile-stage-balance">
                       <span>Balance</span>
                       <strong>{tokenBalance}</strong>
                     </div>
                   ) : null}
-                  <div className="mobile-hud-actions">
+                  <button
+                    type="button"
+                    className="mobile-stage-pill"
+                    onClick={() => toggleRightPanel("leaderboard")}
+                  >
+                    Leaderboard
+                  </button>
+                  <button
+                    type="button"
+                    className="mobile-stage-pill"
+                    onClick={handleAccountAction}
+                  >
+                    {user ? "Account" : "Sign In"}
+                  </button>
+                  {isAdmin ? (
                     <button
                       type="button"
-                      className="mobile-hud-pill"
-                      onClick={() => toggleRightPanel("leaderboard")}
+                      className="mobile-stage-pill"
+                      onClick={() => toggleRightPanel("admin")}
                     >
-                      Board
+                      Admin
                     </button>
-                    <button
-                      type="button"
-                      className="mobile-hud-pill"
-                      onClick={handleAccountAction}
-                    >
-                      {user ? "Me" : "Sign In"}
-                    </button>
-                  </div>
+                  ) : null}
                 </div>
               </header>
 
-              <div className="mobile-game-copy">
-                <p className="mobile-game-overline">{mobileSpotlightKicker}</p>
-                <h1 className="mobile-game-headline">{mobileSpotlightTitle}</h1>
-                <p className="mobile-game-subline">{mobileSpotlightCopy}</p>
-                {showBettingControls ? (
-                  <span className="mobile-bet-callout">Place your bets now</span>
-                ) : null}
-              </div>
-
-              <section className="mobile-round-card">
-                <div className="mobile-round-card-header">
-                  <div className="mobile-round-card-copy">
-                    <p className="mobile-round-card-kicker">
-                      {hasSelectedSession
-                        ? `Threshold ${displayedThreshold} · ${selectedStartsAtLabel ?? "Now"}`
-                        : "Awaiting next round"}
-                    </p>
-                    <h2 className="mobile-round-card-title">
-                      {showBettingControls ? "How many walkers?" : "Live walkway pulse"}
-                    </h2>
-                    <p className="mobile-round-card-subtitle">
-                      {hasSelectedSession
-                        ? `${sessionMetricLabel} ${sessionMetricValue}`
-                        : "The next Tommy Walkway market will land here automatically."}
-                    </p>
+              <section className="mobile-stage-card">
+                <div className="mobile-stage-card-main">
+                  <div className="mobile-stage-card-copy">
+                    <p className="mobile-stage-card-kicker">{mobileSpotlightKicker}</p>
+                    <h1 className="mobile-stage-card-title">{mobileStageCardTitle}</h1>
+                    <p className="mobile-stage-card-subtitle">{mobileStageCardCopy}</p>
                   </div>
-                  <div className="mobile-round-count-shell">
+                  <div className="mobile-stage-count-shell">
                     <strong>{mobileOverlayCountValue}</strong>
                     <span>{mobileOverlayCountLabel}</span>
                   </div>
                 </div>
 
-                <div className="mobile-round-option-grid">
-                  {mobileMarketChoices.map((choice) => {
-                    const isHighlighted = showBettingControls
-                      ? selectedSide === choice.side
-                      : showResolvedRoundCard && selectedSession
-                        ? (selectedWinningSide === choice.side ||
-                            (choice.side === "exact" &&
-                              selectedSession.final_count === selectedSession.threshold))
-                        : false;
-
-                    return (
-                      <div
-                        key={choice.side}
-                        className={
-                          isHighlighted
-                            ? `mobile-round-option mobile-round-option-${choice.accent} active`
-                            : `mobile-round-option mobile-round-option-${choice.accent}`
-                        }
-                      >
-                        <span className={`mobile-round-option-icon mobile-round-option-icon-${choice.accent}`} aria-hidden="true">
-                          {choice.icon}
-                        </span>
-                        <div className="mobile-round-option-copy">
-                          <strong>{choice.label}</strong>
-                          <span>{choice.detail}</span>
-                        </div>
-                      </div>
-                    );
-                  })}
+                <div className="mobile-stage-chip-row">
+                  <span className={selectedState ? `status status-${selectedState}` : "status"}>
+                    {selectedState ? getSessionStateLabel(selectedState) : "Standby"}
+                  </span>
+                  {hasSelectedSession ? <span className="round-chip">{displayedModeSeconds}s round</span> : null}
+                  {hasSelectedSession ? <span className="round-chip">Threshold {displayedThreshold}</span> : null}
                 </div>
 
-                <div className="mobile-round-progress-row">
+                <div className="mobile-stage-progress-row">
                   <span>{sessionMetricLabel}</span>
                   <strong>{sessionMetricValue}</strong>
                 </div>
-                <div className="mobile-round-progress-track" aria-hidden="true">
+                <div className="mobile-stage-progress-track" aria-hidden="true">
                   <span style={{ width: `${mobileRoundProgressRatio * 100}%` }} />
                 </div>
               </section>
 
-              <div className="mobile-stage-action-row">
-                <button
-                  type="button"
-                  className="mobile-stage-action"
-                  onClick={() => toggleRightPanel("leaderboard")}
-                >
-                  Leaderboard
-                </button>
-                {isAdmin ? (
-                  <button
-                    type="button"
-                    className="mobile-stage-action"
-                    onClick={() => toggleRightPanel("admin")}
-                  >
-                    Admin
-                  </button>
-                ) : null}
-              </div>
+              {regionEditorDock ? (
+                <div className="mobile-region-editor-shell">{regionEditorDock}</div>
+              ) : null}
             </section>
 
             <section className="mobile-betting-dock">{bettingWidgetContent}</section>
-
-            {regionEditorDock ? (
-              <div className="mobile-region-editor-shell">{regionEditorDock}</div>
-            ) : null}
           </div>
         </>
       ) : (
