@@ -4372,11 +4372,6 @@ body {
     box-shadow: none;
   }
 
-  .mobile-game-feed .video-stage .video-stage-content:not(.video-stage-content-focused) {
-    width: 150%;
-    left: -50%;
-  }
-
   .mobile-game-feed .video-stage video,
   .mobile-game-feed .video-stage img {
     object-fit: fill;
@@ -4449,6 +4444,22 @@ body {
     pointer-events: none;
   }
 
+  .mobile-feed-overlay-open {
+    align-items: flex-start;
+    justify-content: flex-start;
+    gap: 0.52rem;
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding-bottom: 0.12rem;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+    scroll-snap-type: x proximity;
+  }
+
+  .mobile-feed-overlay-open::-webkit-scrollbar {
+    display: none;
+  }
+
   .mobile-feed-badge-row {
     display: flex;
     flex-wrap: wrap;
@@ -4457,7 +4468,9 @@ body {
   }
 
   .mobile-open-market-widget {
-    max-width: min(18.5rem, calc(100% - 4.5rem));
+    flex: 0 0 auto;
+    width: min(13.5rem, 56vw);
+    max-width: none;
     border: 1px solid rgb(255 255 255 / 11%);
     border-radius: 18px;
     padding: 0.6rem 0.72rem;
@@ -4469,6 +4482,110 @@ body {
       0 16px 36px rgb(0 0 0 / 24%);
     display: grid;
     gap: 0.12rem;
+    pointer-events: auto;
+    scroll-snap-align: start;
+  }
+
+  .mobile-open-bet-card {
+    width: min(9.75rem, 38vw);
+    min-height: 5.5rem;
+    flex: 0 0 auto;
+    border: 1px solid rgb(255 255 255 / 11%);
+    border-radius: 18px;
+    padding: 0.56rem 0.62rem;
+    background:
+      linear-gradient(180deg, rgb(8 10 14 / 78%) 0%, rgb(9 12 18 / 66%) 100%);
+    backdrop-filter: blur(14px);
+    box-shadow:
+      inset 0 1px 0 rgb(255 255 255 / 8%),
+      0 16px 36px rgb(0 0 0 / 24%);
+    display: grid;
+    align-content: start;
+    gap: 0.34rem;
+    pointer-events: auto;
+    scroll-snap-align: start;
+  }
+
+  .mobile-open-bet-card-under {
+    border-color: rgb(153 0 0 / 26%);
+    background:
+      radial-gradient(circle at top, rgb(153 0 0 / 13%), transparent 56%),
+      linear-gradient(180deg, rgb(8 10 14 / 78%) 0%, rgb(9 12 18 / 66%) 100%);
+  }
+
+  .mobile-open-bet-card-over {
+    border-color: rgb(255 204 0 / 24%);
+    background:
+      radial-gradient(circle at top, rgb(255 204 0 / 11%), transparent 56%),
+      linear-gradient(180deg, rgb(8 10 14 / 78%) 0%, rgb(9 12 18 / 66%) 100%);
+  }
+
+  .mobile-open-bet-card-exact {
+    border-color: rgb(96 165 250 / 24%);
+    background:
+      radial-gradient(circle at top, rgb(96 165 250 / 11%), transparent 56%),
+      linear-gradient(180deg, rgb(8 10 14 / 78%) 0%, rgb(9 12 18 / 66%) 100%);
+  }
+
+  .mobile-open-bet-card-range {
+    border-color: rgb(34 197 94 / 24%);
+    background:
+      radial-gradient(circle at top, rgb(34 197 94 / 11%), transparent 56%),
+      linear-gradient(180deg, rgb(8 10 14 / 78%) 0%, rgb(9 12 18 / 66%) 100%);
+  }
+
+  .mobile-open-bet-card-header,
+  .mobile-open-bet-card-meta {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.38rem;
+  }
+
+  .mobile-open-bet-card-kicker {
+    min-width: 0;
+    font-size: 0.56rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: rgb(255 239 197 / 72%);
+  }
+
+  .mobile-open-bet-card-title {
+    font-size: 0.82rem;
+    line-height: 1.08;
+    color: #fff5dd;
+  }
+
+  .mobile-open-bet-card-meta {
+    font-size: 0.62rem;
+    line-height: 1;
+    color: rgb(224 230 243 / 68%);
+    white-space: nowrap;
+  }
+
+  .mobile-open-bet-card-meta span:last-child {
+    color: #fff2cf;
+  }
+
+  .mobile-open-bet-card-remove {
+    width: 1.35rem;
+    height: 1.35rem;
+    flex: 0 0 auto;
+    border: 1px solid rgb(255 255 255 / 10%);
+    border-radius: 999px;
+    padding: 0;
+    background: rgb(255 255 255 / 4%);
+    color: #fff4d7;
+    font: inherit;
+    font-size: 0.9rem;
+    line-height: 1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .mobile-open-bet-card-remove:disabled {
+    opacity: 0.56;
   }
 
   .mobile-open-market-widget-kicker {
@@ -5607,9 +5724,31 @@ body {
   }
 
   .betting-screen-mobile-phone .mobile-open-market-widget {
-    max-width: min(15.5rem, calc(100% - 4rem));
+    width: min(12rem, 54vw);
     padding: 0.5rem 0.62rem;
     border-radius: 16px;
+  }
+
+  .betting-screen-mobile-phone .mobile-open-bet-card {
+    width: min(8.35rem, 36vw);
+    min-height: 4.95rem;
+    padding: 0.46rem 0.5rem;
+    border-radius: 16px;
+    gap: 0.28rem;
+  }
+
+  .betting-screen-mobile-phone .mobile-open-bet-card-title {
+    font-size: 0.72rem;
+  }
+
+  .betting-screen-mobile-phone .mobile-open-bet-card-meta {
+    font-size: 0.56rem;
+  }
+
+  .betting-screen-mobile-phone .mobile-open-bet-card-remove {
+    width: 1.18rem;
+    height: 1.18rem;
+    font-size: 0.82rem;
   }
 
   .betting-screen-mobile-phone .mobile-open-market-widget strong {
@@ -5796,8 +5935,32 @@ body {
     }
 
     .mobile-open-market-widget {
+      width: min(10.75rem, 50vw);
       padding: 0.46rem 0.58rem;
       border-radius: 15px;
+    }
+
+    .mobile-open-bet-card {
+      width: min(7.4rem, 34vw);
+      min-height: 4.25rem;
+      padding: 0.42rem 0.46rem;
+      border-radius: 14px;
+      gap: 0.22rem;
+    }
+
+    .mobile-open-bet-card-title {
+      font-size: 0.64rem;
+    }
+
+    .mobile-open-bet-card-kicker,
+    .mobile-open-bet-card-meta {
+      font-size: 0.52rem;
+    }
+
+    .mobile-open-bet-card-remove {
+      width: 1.04rem;
+      height: 1.04rem;
+      font-size: 0.74rem;
     }
 
     .mobile-open-market-widget strong {

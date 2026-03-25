@@ -2567,6 +2567,7 @@ export function MvpDashboard({
   ]
     .filter(Boolean)
     .join(" • ");
+  const showMobileOpenBetWidget = showBettingControls && selectedSessionPredictionCount > 0;
   const mobileLiveCountDisplay = livePeopleCount === null ? "--" : livePeopleCountDisplay;
   const mobileLiveHeaderKicker = selectedState === "resolving" ? "Round closed" : "Round live";
   const mobileLiveHeaderTitle =
@@ -3073,13 +3074,58 @@ export function MvpDashboard({
                     <div className="feed-mask mobile-arena-mask" />
                   </div>
 
-                  <div className="mobile-feed-overlay">
+                  <div
+                    className={
+                      showBettingControls
+                        ? "mobile-feed-overlay mobile-feed-overlay-open"
+                        : "mobile-feed-overlay"
+                    }
+                  >
                     {showBettingControls ? (
-                      <div className="mobile-open-market-widget">
-                        <span className="mobile-open-market-widget-kicker">Bets open</span>
-                        <strong>{sessionMetricLabel} {sessionMetricValue}</strong>
-                        {mobileOpenOverlayCopy ? <span>{mobileOpenOverlayCopy}</span> : null}
-                      </div>
+                      <>
+                        <div className="mobile-open-market-widget">
+                          <span className="mobile-open-market-widget-kicker">Bets open</span>
+                          <strong>{sessionMetricLabel} {sessionMetricValue}</strong>
+                          {mobileOpenOverlayCopy ? <span>{mobileOpenOverlayCopy}</span> : null}
+                        </div>
+
+                        {showMobileOpenBetWidget ? (
+                          selectedSessionPredictions.map((prediction, index) => (
+                            <div
+                              className={`mobile-open-bet-card mobile-open-bet-card-${prediction.side}`}
+                              key={prediction.id}
+                            >
+                              <div className="mobile-open-bet-card-header">
+                                <span className="mobile-open-bet-card-kicker">
+                                  {selectedSessionPredictionCount > 1 ? `Bet ${index + 1}` : "Your bet"}
+                                </span>
+                                {isPredictionCancelable(prediction, selectedSession, nowMs) ? (
+                                  <button
+                                    type="button"
+                                    className="mobile-open-bet-card-remove"
+                                    onClick={() => void handleCancelPrediction(prediction)}
+                                    disabled={cancelingPredictionIdSet.has(prediction.id)}
+                                    aria-label={`Remove ${formatPredictionLabel(prediction, selectedSession)}`}
+                                  >
+                                    {cancelingPredictionIdSet.has(prediction.id) ? "..." : "×"}
+                                  </button>
+                                ) : null}
+                              </div>
+
+                              <strong className="mobile-open-bet-card-title">
+                                {formatPredictionLabel(prediction, selectedSession)}
+                              </strong>
+
+                              <div className="mobile-open-bet-card-meta">
+                                <span>{prediction.wager_tokens} tokens</span>
+                                <span>
+                                  {formatPayoutMultiplier(getStoredPredictionPayoutMultiplierBps(prediction))}
+                                </span>
+                              </div>
+                            </div>
+                          ))
+                        ) : null}
+                      </>
                     ) : showMobileRoundActivityCard || showResolvedRoundCard ? (
                       <div className="mobile-feed-badge-row">
                         <span
