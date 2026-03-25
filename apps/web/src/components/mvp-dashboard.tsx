@@ -2326,6 +2326,13 @@ export function MvpDashboard({
     }));
   }
 
+  function updateSelectedMobileRangeValue(sessionId: string, nextRangeValue: string) {
+    const nextParts = nextRangeValue.match(/\d+/g) ?? [];
+
+    updateSelectedRangeMin(sessionId, nextParts[0] ?? "");
+    updateSelectedRangeMax(sessionId, nextParts[1] ?? "");
+  }
+
   function updateSelectedWager(sessionId: string, nextWager: string) {
     setWagerBySession((current) => ({
       ...current,
@@ -2464,32 +2471,6 @@ export function MvpDashboard({
     setOpenRightPanel(null);
   }
 
-  const rangeMarketLabel = `${selectedRangeMin || getDefaultRangeMin(displayedThreshold)}-${selectedRangeMax || getDefaultRangeMax(displayedThreshold)}`;
-  const exactMarketLabel = selectedExactValue || `${displayedThreshold}`;
-  const mobileRoundProgressRatio = (() => {
-    if (!selectedSession || !selectedState) {
-      return 0;
-    }
-
-    if (selectedState === "open" && selectedStartsAtMs !== null) {
-      const bettingOpensAtMs = selectedStartsAtMs - BETTING_OPEN_WINDOW_MS;
-      return clamp((nowMs - bettingOpensAtMs) / BETTING_OPEN_WINDOW_MS, 0, 1);
-    }
-
-    if (selectedState === "live" && selectedStartsAtMs !== null && selectedEndsAtMs !== null) {
-      return clamp(
-        (nowMs - selectedStartsAtMs) / Math.max(selectedEndsAtMs - selectedStartsAtMs, 1),
-        0,
-        1
-      );
-    }
-
-    if (selectedState === "resolving" || selectedState === "resolved") {
-      return 1;
-    }
-
-    return 0;
-  })();
   const mobileSpotlightTitle = showResolvedRoundCard
     ? selectedResultPresentation.headline
     : showBettingControls
@@ -2508,44 +2489,43 @@ export function MvpDashboard({
     {
       side: "under" as const,
       accent: "under",
-      icon: "v",
+      icon: "↓",
       label: "Under",
       detail: `Below ${displayedThreshold}`,
       multiplier: formatPayoutMultiplier(getPredictionPayoutMultiplierBps("under"))
     },
     {
-      side: "range" as const,
-      accent: "range",
-      icon: "<>",
-      label: "Range",
-      detail: rangeMarketLabel,
-      multiplier: formatPayoutMultiplier(
-        getPredictionPayoutMultiplierBps("range", selectedPricingRangeMin, selectedPricingRangeMax)
-      )
-    },
-    {
       side: "over" as const,
       accent: "over",
-      icon: "^",
+      icon: "↑",
       label: "Over",
-      detail: `${displayedThreshold}+`,
+      detail: `${displayedThreshold} or more`,
       multiplier: formatPayoutMultiplier(getPredictionPayoutMultiplierBps("over"))
     },
     {
       side: "exact" as const,
       accent: "exact",
-      icon: "*",
+      icon: "=",
       label: "Exact",
-      detail: exactMarketLabel,
+      detail: selectedExactValue ? `Call ${selectedExactValue}` : "Name the final count",
       multiplier: formatPayoutMultiplier(getPredictionPayoutMultiplierBps("exact"))
+    },
+    {
+      side: "range" as const,
+      accent: "range",
+      icon: "≈",
+      label: "Range",
+      detail:
+        selectedRangeMin && selectedRangeMax
+          ? `${selectedRangeMin} to ${selectedRangeMax}`
+          : "Pick a min and max",
+      multiplier: formatPayoutMultiplier(
+        getPredictionPayoutMultiplierBps("range", selectedPricingRangeMin, selectedPricingRangeMax)
+      )
     }
   ];
   const mobileSelectedChoice =
     mobileMarketChoices.find((choice) => choice.side === selectedSide) ?? mobileMarketChoices[2];
-  const mobileBetAmountLabel =
-    Number.isFinite(selectedConfiguredWager) && selectedConfiguredWager > 0
-      ? `${selectedConfiguredWager}`
-      : "--";
   const mobilePotentialWinLabel =
     selectedPricingGrossPayout !== null ? `${selectedPricingGrossPayout}` : "--";
   const shouldFocusMobileFeed = regionPoints.length >= 3 && !canEditRegion;
@@ -2571,12 +2551,42 @@ export function MvpDashboard({
     : !user && !hasSelectedSession
       ? "Sign in now so you're ready when the next round is posted."
       : mobileSpotlightCopy;
-  const mobileSlipSummaryLabel =
-    selectedSessionPredictionCount > 0
-      ? selectedSessionPredictionCount > 1
-        ? `${selectedSessionPredictionCount} live slips`
-        : "1 live slip"
-      : null;
+  const mobileBetCtaMeta =
+    mobilePotentialWinLabel === "--"
+      ? `${mobileSelectedChoice.multiplier} payout`
+      : `Win ${mobilePotentialWinLabel}`;
+  const mobileOpenOverlayCopy = [
+    selectedStartsAtLabel ? `Closes at ${selectedStartsAtLabel}` : null,
+    hasSelectedSession ? `${displayedModeSeconds}s round` : null,
+    hasSelectedSession ? `Line ${displayedThreshold}` : null
+  ]
+    .filter(Boolean)
+    .join(" • ");
+  const mobileModeInputLabel =
+    selectedSide === "exact"
+      ? "Exact count"
+      : selectedSide === "range"
+        ? "Range"
+        : null;
+  const mobileModeInputPlaceholder =
+    selectedSide === "exact"
+      ? `${displayedThreshold}`
+      : selectedSide === "range"
+        ? `${getDefaultRangeMin(displayedThreshold)}-${getDefaultRangeMax(displayedThreshold)}`
+        : "";
+  const mobileModeInputDefaultValue =
+    selectedSide === "exact"
+      ? selectedExactValue
+      : selectedSide === "range"
+        ? `${selectedRangeMin}${selectedRangeMax ? `-${selectedRangeMax}` : ""}`
+        : "";
+  const mobileDockMetaItems =
+    showResolvedRoundCard && selectedSession
+      ? [
+          { label: "Final count", value: `${selectedSession.final_count ?? "--"}` },
+          { label: "Betting line", value: `${displayedThreshold}` }
+        ]
+      : standbyMetaItems;
   const mobileFloatingActions = (
     <div className="mobile-floating-actions">
       {isAdmin ? (
@@ -2623,47 +2633,17 @@ export function MvpDashboard({
     >
       {showBettingControls ? (
         <>
-          <div className="mobile-dock-header">
-            <div className="mobile-dock-header-copy">
-              <strong>{mobileDockTitle}</strong>
-              <span>{mobileDockCopy}</span>
-            </div>
-          </div>
-
-          <div className="mobile-dock-chip-row">
-            <span className={selectedState ? `status status-${selectedState}` : "status"}>
-              {selectedState ? getSessionStateLabel(selectedState) : "Standby"}
-            </span>
-            {hasSelectedSession ? <span className="round-chip">{displayedModeSeconds}s round</span> : null}
-            {hasSelectedSession ? <span className="round-chip">Line {displayedThreshold}</span> : null}
-            {user ? <span className="round-chip">Balance {tokenBalance}</span> : null}
-            {mobileSlipSummaryLabel ? <span className="round-chip">{mobileSlipSummaryLabel}</span> : null}
-          </div>
-
-          <div className="mobile-stage-progress-track" aria-hidden="true">
-            <span style={{ width: `${mobileRoundProgressRatio * 100}%` }} />
-          </div>
-
-          <div className="mobile-betting-dock-topline">
-            <div className="mobile-betting-dock-stat">
-              <span>Bet amount</span>
-              <strong>{mobileBetAmountLabel}</strong>
-            </div>
-            <div className="mobile-betting-dock-stat mobile-betting-dock-stat-highlight">
-              <span>Potential win</span>
-              <strong>{mobilePotentialWinLabel}</strong>
-            </div>
-          </div>
-
-          <div className="mobile-choice-grid">
+          <div className="mobile-market-tab-row" role="tablist" aria-label="Market types">
             {mobileMarketChoices.map((choice) => (
               <button
                 key={choice.side}
                 type="button"
+                role="tab"
+                aria-selected={selectedSide === choice.side}
                 className={
                   selectedSide === choice.side
-                    ? `mobile-choice-button mobile-choice-${choice.accent} active`
-                    : `mobile-choice-button mobile-choice-${choice.accent}`
+                    ? `mobile-market-tab mobile-market-tab-${choice.accent} active`
+                    : `mobile-market-tab mobile-market-tab-${choice.accent}`
                 }
                 onClick={() => {
                   if (selectedSession) {
@@ -2672,79 +2652,45 @@ export function MvpDashboard({
                 }}
                 disabled={!canConfigureSelected}
               >
-                <span className={`mobile-choice-icon mobile-choice-icon-${choice.accent}`} aria-hidden="true">
+                <span className="mobile-market-tab-icon" aria-hidden="true">
                   {choice.icon}
                 </span>
-                <span className="mobile-choice-copy">
-                  <span className="mobile-choice-label">{choice.label}</span>
-                  <span className="mobile-choice-detail">{choice.detail}</span>
-                </span>
-                <span className="mobile-choice-multiplier">{choice.multiplier}</span>
+                <span className="mobile-market-tab-label">{choice.label}</span>
               </button>
             ))}
           </div>
 
-          {selectedSide === "exact" ? (
-            <div className="mobile-config-row mobile-config-row-single">
-              <label className="mobile-config-field">
-                <span>Exact call</span>
-                <input
-                  type="number"
-                  min={0}
-                  step={1}
-                  inputMode="numeric"
-                  value={selectedExactValue}
-                  onChange={(event) => {
-                    if (selectedSession) {
-                      updateSelectedExactValue(selectedSession.id, event.target.value);
-                    }
-                  }}
-                  disabled={!canConfigureSelected}
-                />
-              </label>
-            </div>
+          {mobileModeInputLabel ? (
+            <label className="mobile-dock-inline-field mobile-dock-inline-field-parameter">
+              <span>{mobileModeInputLabel}</span>
+              <input
+                key={`${selectedSession?.id ?? "none"}-${selectedSide}`}
+                type="text"
+                inputMode={selectedSide === "exact" ? "numeric" : "text"}
+                defaultValue={mobileModeInputDefaultValue}
+                placeholder={mobileModeInputPlaceholder}
+                onChange={(event) => {
+                  if (!selectedSession) {
+                    return;
+                  }
+
+                  if (selectedSide === "exact") {
+                    updateSelectedExactValue(selectedSession.id, event.target.value);
+                    return;
+                  }
+
+                  if (selectedSide === "range") {
+                    updateSelectedMobileRangeValue(selectedSession.id, event.target.value);
+                  }
+                }}
+                disabled={!canConfigureSelected}
+              />
+            </label>
           ) : null}
 
-          {selectedSide === "range" ? (
-            <div className="mobile-config-row">
-              <label className="mobile-config-field">
-                <span>Min</span>
-                <input
-                  type="number"
-                  min={0}
-                  step={1}
-                  inputMode="numeric"
-                  value={selectedRangeMin}
-                  onChange={(event) => {
-                    if (selectedSession) {
-                      updateSelectedRangeMin(selectedSession.id, event.target.value);
-                    }
-                  }}
-                  disabled={!canConfigureSelected}
-                />
-              </label>
-              <label className="mobile-config-field">
-                <span>Max</span>
-                <input
-                  type="number"
-                  min={0}
-                  step={1}
-                  inputMode="numeric"
-                  value={selectedRangeMax}
-                  onChange={(event) => {
-                    if (selectedSession) {
-                      updateSelectedRangeMax(selectedSession.id, event.target.value);
-                    }
-                  }}
-                  disabled={!canConfigureSelected}
-                />
-              </label>
-            </div>
-          ) : null}
-
-          <div className="mobile-stake-control-row">
-            <label className="mobile-stake-panel">
-              <span>Stake</span>
+          <div className="mobile-dock-amount-stack">
+            <label className="mobile-dock-inline-field mobile-dock-inline-field-amount">
+              <span>Amount</span>
               <input
                 type="number"
                 min={1}
@@ -2758,9 +2704,9 @@ export function MvpDashboard({
               />
             </label>
 
-            <div className="mobile-stake-chip-row">
+            <div className="mobile-stake-chip-row" aria-label="Stake shortcuts">
               <button type="button" className="mobile-stake-chip" onClick={() => applyMobileWagerPreset("min")}>
-                MIN
+                Min
               </button>
               <button type="button" className="mobile-stake-chip" onClick={() => applyMobileWagerPreset(1)}>
                 +1
@@ -2777,47 +2723,48 @@ export function MvpDashboard({
             </div>
           </div>
 
-          <div className="mobile-bet-footer">
-            <div className="mobile-bet-summary">
-              <span>
-                {mobileSlipSummaryLabel ? `${mobileSelectedChoice.label} selected` : mobileSelectedChoice.label}
-              </span>
-              <strong>
-                {mobilePotentialWinLabel === "--"
-                  ? "Set stake"
-                  : `${mobilePotentialWinLabel} return`}
-              </strong>
-            </div>
-            <button
-              type="button"
-              className="mobile-bet-cta"
-              disabled={betButtonDisabled}
-              onClick={() => {
-                if (selectedSession) {
-                  handleBetAction(selectedSession);
-                  return;
-                }
+          <button
+            type="button"
+            className="mobile-bet-cta"
+            disabled={betButtonDisabled}
+            onClick={() => {
+              if (selectedSession) {
+                handleBetAction(selectedSession);
+                return;
+              }
 
-                handleEmptyStateSignupAction();
-              }}
-            >
-              <span className="mobile-bet-cta-accent">{mobileSelectedChoice.label}</span>
-              <strong>{betButtonLabel}</strong>
-            </button>
-          </div>
+              handleEmptyStateSignupAction();
+            }}
+          >
+            <span className="mobile-bet-cta-accent">{mobileSelectedChoice.label}</span>
+            <strong>{betButtonLabel}</strong>
+            <span className="mobile-bet-cta-meta">{mobileBetCtaMeta}</span>
+          </button>
         </>
       ) : (
         <>
-          <div className="mobile-dock-status-card">
-            <div className="mobile-dock-header">
-              <div className="mobile-dock-header-copy">
+          <div className="mobile-dock-state-surface">
+            <div className="mobile-dock-topbar">
+              <div className="mobile-dock-topbar-copy">
+                <span className="mobile-dock-kicker">{hasSelectedSession ? sessionMetricLabel : "Tommy Walkway"}</span>
                 <strong>{mobileDockTitle}</strong>
-                <span>{mobileDockCopy}</span>
               </div>
               <span className={selectedState ? `status status-${selectedState}` : "status"}>
                 {selectedState ? getSessionStateLabel(selectedState) : "Standby"}
               </span>
             </div>
+
+            <p className="mobile-dock-state-copy">{mobileDockCopy}</p>
+
+            <div className="mobile-dock-state-meta-grid">
+              {mobileDockMetaItems.map((item) => (
+                <div className="mobile-dock-state-meta-card" key={`${item.label}-${item.value}`}>
+                  <span>{item.label}</span>
+                  <strong>{item.value}</strong>
+                </div>
+              ))}
+            </div>
+
             {selectedSessionPredictionCount > 0 ? (
               <div className="mobile-slip-banner">
                 <span>Your live slips</span>
@@ -2829,25 +2776,30 @@ export function MvpDashboard({
                 <span>{selectedSessionStakedTokens} tokens committed</span>
               </div>
             ) : null}
-            {!user ? (
-              <button
-                type="button"
-                className="mobile-bet-cta mobile-bet-cta-secondary"
-                onClick={hasSelectedSession ? handleRoundAuthAction : handleEmptyStateSignupAction}
-              >
-                <span className="mobile-bet-cta-accent">Join</span>
-                <strong>{standbyActionLabel ?? "Sign In / Sign Up"}</strong>
-                <span>Be ready as soon as the next window opens.</span>
-              </button>
-            ) : null}
-            {isAdmin ? (
-              <button
-                type="button"
-                className="mobile-dock-inline-action"
-                onClick={() => toggleRightPanel("admin")}
-              >
-                Open Admin
-              </button>
+
+            {!user || isAdmin ? (
+              <div className="mobile-dock-state-actions">
+                {!user ? (
+                  <button
+                    type="button"
+                    className="mobile-bet-cta mobile-bet-cta-secondary"
+                    onClick={hasSelectedSession ? handleRoundAuthAction : handleEmptyStateSignupAction}
+                  >
+                    <span className="mobile-bet-cta-accent">Join</span>
+                    <strong>{standbyActionLabel ?? "Sign In / Sign Up"}</strong>
+                    <span className="mobile-bet-cta-meta">Be ready as soon as the next window opens.</span>
+                  </button>
+                ) : null}
+                {isAdmin ? (
+                  <button
+                    type="button"
+                    className="mobile-dock-inline-action"
+                    onClick={() => toggleRightPanel("admin")}
+                  >
+                    Open Admin
+                  </button>
+                ) : null}
+              </div>
             ) : null}
           </div>
         </>
@@ -2913,15 +2865,20 @@ export function MvpDashboard({
     </section>
   ) : null;
 
+  const mobileScreenClassName = isMobileViewport
+    ? [
+        "betting-screen",
+        "betting-screen-mobile",
+        isPhoneViewport ? "betting-screen-mobile-phone" : null,
+        showBettingControls ? "betting-screen-mobile-dock-open" : null
+      ]
+        .filter(Boolean)
+        .join(" ")
+    : "betting-screen";
+
   return (
     <main
-      className={
-        isMobileViewport
-          ? isPhoneViewport
-            ? "betting-screen betting-screen-mobile betting-screen-mobile-phone"
-            : "betting-screen betting-screen-mobile"
-          : "betting-screen"
-      }
+      className={mobileScreenClassName}
     >
       {showWinConfetti ? (
         <div className="screen-confetti" aria-hidden="true">
@@ -2973,7 +2930,13 @@ export function MvpDashboard({
                   </div>
 
                   <div className="mobile-feed-overlay">
-                    {showBettingControls || showLiveRoundCard || showResolvedRoundCard ? (
+                    {showBettingControls ? (
+                      <div className="mobile-open-market-widget">
+                        <span className="mobile-open-market-widget-kicker">Bets open</span>
+                        <strong>{sessionMetricLabel} {sessionMetricValue}</strong>
+                        {mobileOpenOverlayCopy ? <span>{mobileOpenOverlayCopy}</span> : null}
+                      </div>
+                    ) : showLiveRoundCard || showResolvedRoundCard ? (
                       <div className="mobile-feed-badge-row">
                         <span
                           className={
@@ -3006,7 +2969,15 @@ export function MvpDashboard({
               ) : null}
             </section>
 
-            <section className="mobile-betting-dock">{bettingWidgetContent}</section>
+            <section
+              className={
+                showBettingControls
+                  ? "mobile-betting-dock mobile-betting-dock-open"
+                  : "mobile-betting-dock"
+              }
+            >
+              {bettingWidgetContent}
+            </section>
           </div>
         </>
       ) : (
