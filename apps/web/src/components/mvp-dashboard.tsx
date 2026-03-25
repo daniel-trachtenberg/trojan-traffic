@@ -2548,6 +2548,7 @@ export function MvpDashboard({
       : "--";
   const mobilePotentialWinLabel =
     selectedPricingGrossPayout !== null ? `${selectedPricingGrossPayout}` : "--";
+  const shouldFocusMobileFeed = regionPoints.length >= 3 && !canEditRegion;
   const mobileFeedStatusLabel = showResolvedRoundCard
     ? "Result posted"
     : showBettingControls
@@ -2570,8 +2571,56 @@ export function MvpDashboard({
     : !user && !hasSelectedSession
       ? "Sign in now so you're ready when the next round is posted."
       : mobileSpotlightCopy;
+  const mobileSlipSummaryLabel =
+    selectedSessionPredictionCount > 0
+      ? selectedSessionPredictionCount > 1
+        ? `${selectedSessionPredictionCount} live slips`
+        : "1 live slip"
+      : null;
+  const mobileFloatingActions = (
+    <div className="mobile-floating-actions">
+      {isAdmin ? (
+        <button
+          type="button"
+          className="mobile-floating-icon-button"
+          onClick={() => toggleRightPanel("admin")}
+          aria-label="Open admin panel"
+        >
+          <svg viewBox="0 0 24 24" role="img" aria-hidden="true">
+            <path d="M12 2.5 4.5 5.3v5.5c0 4.9 3 9.4 7.5 10.7 4.5-1.3 7.5-5.8 7.5-10.7V5.3L12 2.5Zm0 2.1 5.3 2v4.2c0 3.9-2.2 7.3-5.3 8.5-3.1-1.2-5.3-4.6-5.3-8.5V6.6l5.3-2Zm-2 4.1h4v1.4H10V8.7Zm0 3.1h4v1.4H10v-1.4Zm0 3.1h4v1.4H10v-1.4Z" />
+          </svg>
+        </button>
+      ) : null}
+      <button
+        type="button"
+        className="mobile-floating-icon-button"
+        onClick={() => toggleRightPanel("leaderboard")}
+        aria-label="Open leaderboard panel"
+      >
+        <svg viewBox="0 0 24 24" role="img" aria-hidden="true">
+          <path d="M7 4h10v3a5 5 0 0 1-4 4.9V14h3v2H8v-2h3v-2.1A5 5 0 0 1 7 7V4Zm2 2v1a3 3 0 0 0 6 0V6H9Zm-3 1h1a4.9 4.9 0 0 0 .6 2.3A3 3 0 0 1 6 7Zm12 0a3 3 0 0 1-1.6 2.3A4.9 4.9 0 0 0 17 7h1Z" />
+        </svg>
+      </button>
+      <button
+        type="button"
+        className="mobile-floating-icon-button"
+        onClick={handleAccountAction}
+        aria-label={user ? "Open account panel" : "Open sign in panel"}
+      >
+        <svg viewBox="0 0 24 24" role="img" aria-hidden="true">
+          <path d="M12 12a4 4 0 1 0-4-4 4 4 0 0 0 4 4Zm0 2c-3.33 0-6 2.01-6 4.5V20h12v-1.5c0-2.49-2.67-4.5-6-4.5Z" />
+        </svg>
+      </button>
+    </div>
+  );
   const bettingWidgetContent = (
-    <div className="mobile-betting-dock-shell">
+    <div
+      className={
+        showBettingControls
+          ? "mobile-betting-dock-shell mobile-betting-dock-shell-betting"
+          : "mobile-betting-dock-shell"
+      }
+    >
       {showBettingControls ? (
         <>
           <div className="mobile-dock-header">
@@ -2585,8 +2634,10 @@ export function MvpDashboard({
             <span className={selectedState ? `status status-${selectedState}` : "status"}>
               {selectedState ? getSessionStateLabel(selectedState) : "Standby"}
             </span>
-            {hasSelectedSession ? <span className="round-chip">{mobileFeedMetaLabel}</span> : null}
-            {hasSelectedSession ? <span className="round-chip">{displayedThreshold}+ over line</span> : null}
+            {hasSelectedSession ? <span className="round-chip">{displayedModeSeconds}s round</span> : null}
+            {hasSelectedSession ? <span className="round-chip">Line {displayedThreshold}</span> : null}
+            {user ? <span className="round-chip">Balance {tokenBalance}</span> : null}
+            {mobileSlipSummaryLabel ? <span className="round-chip">{mobileSlipSummaryLabel}</span> : null}
           </div>
 
           <div className="mobile-stage-progress-track" aria-hidden="true">
@@ -2618,8 +2669,8 @@ export function MvpDashboard({
                   if (selectedSession) {
                     updateSelectedSide(selectedSession.id, choice.side);
                   }
-                  }}
-                  disabled={!canConfigureSelected}
+                }}
+                disabled={!canConfigureSelected}
               >
                 <span className={`mobile-choice-icon mobile-choice-icon-${choice.accent}`} aria-hidden="true">
                   {choice.icon}
@@ -2691,18 +2742,6 @@ export function MvpDashboard({
             </div>
           ) : null}
 
-          {selectedSessionPredictionCount > 0 ? (
-            <div className="mobile-slip-banner">
-              <span>Current slips</span>
-              <strong>
-                {selectedSessionPredictionCount > 1
-                  ? `${selectedSessionPredictionCount} live tickets`
-                  : formatPredictionLabel(selectedPrediction, selectedSession)}
-              </strong>
-              <span>{selectedSessionStakedTokens} tokens already committed</span>
-            </div>
-          ) : null}
-
           <div className="mobile-stake-control-row">
             <label className="mobile-stake-panel">
               <span>Stake</span>
@@ -2740,7 +2779,9 @@ export function MvpDashboard({
 
           <div className="mobile-bet-footer">
             <div className="mobile-bet-summary">
-              <span>{mobileSelectedChoice.label}</span>
+              <span>
+                {mobileSlipSummaryLabel ? `${mobileSelectedChoice.label} selected` : mobileSelectedChoice.label}
+              </span>
               <strong>
                 {mobilePotentialWinLabel === "--"
                   ? "Set stake"
@@ -2792,7 +2833,7 @@ export function MvpDashboard({
               <button
                 type="button"
                 className="mobile-bet-cta mobile-bet-cta-secondary"
-                  onClick={hasSelectedSession ? handleRoundAuthAction : handleEmptyStateSignupAction}
+                onClick={hasSelectedSession ? handleRoundAuthAction : handleEmptyStateSignupAction}
               >
                 <span className="mobile-bet-cta-accent">Join</span>
                 <strong>{standbyActionLabel ?? "Sign In / Sign Up"}</strong>
@@ -2904,62 +2945,29 @@ export function MvpDashboard({
         <>
           <div className="mobile-screen-shell">
             <section className="mobile-game-stage">
-              <header className="mobile-stage-header">
-                <div className="mobile-stage-brand">
-                  <p className="mobile-stage-kicker">Tommy Walkway</p>
-                  <strong>Live betting</strong>
-                  <span>
-                    {hasSelectedSession
-                      ? `${displayedModeSeconds}s round · ${selectedState ? getSessionStateLabel(selectedState) : "Standby"}`
-                      : "Live campus feed"}
-                  </span>
-                </div>
-
-                <div className="mobile-stage-header-actions">
-                  {user ? (
-                    <div className="mobile-stage-balance">
-                      <span>Balance</span>
-                      <strong>{tokenBalance}</strong>
-                    </div>
-                  ) : null}
-                  <button
-                    type="button"
-                    className="mobile-stage-pill"
-                    onClick={() => toggleRightPanel("leaderboard")}
-                  >
-                    Leaderboard
-                  </button>
-                  <button
-                    type="button"
-                    className="mobile-stage-pill"
-                    onClick={handleAccountAction}
-                  >
-                    {user ? "Account" : "Sign In"}
-                  </button>
-                  {isAdmin ? (
-                    <button
-                      type="button"
-                      className="mobile-stage-pill"
-                      onClick={() => toggleRightPanel("admin")}
-                    >
-                      Admin
-                    </button>
-                  ) : null}
-                </div>
-              </header>
-
               <div className="mobile-stage-hero">
-                <div className="mobile-feed-frame">
+                <div
+                  className={
+                    shouldFocusMobileFeed
+                      ? "mobile-feed-frame mobile-feed-frame-focused"
+                      : "mobile-feed-frame"
+                  }
+                >
                   <div className="mobile-game-feed">
                     <LiveFeed
                       src={hlsUrl}
                       imageSrc={liveFrameUrl}
                       mediaAspectRatio={liveFeedAspectRatio}
                       region={regionPoints}
+                      fullScreen
                       personBoxes={livePersonBoxes}
                       statusMessage={activeVisionApiUrl ? liveFeedStatusMessage : null}
                       regionEditorEnabled={canEditRegion}
                       onRegionChange={canEditRegion ? setRegionPoints : null}
+                      focusRegion={shouldFocusMobileFeed}
+                      focusPadding={{ top: 0.08, right: 0.08, bottom: 0.18, left: 0.08 }}
+                      focusHorizontalAlignment="right"
+                      stageHorizontalAlignment="right"
                     />
                     <div className="feed-mask mobile-arena-mask" />
                   </div>
@@ -2992,6 +3000,7 @@ export function MvpDashboard({
                 </div>
               </div>
 
+              {mobileFloatingActions}
               {regionEditorDock ? (
                 <div className="mobile-region-editor-shell">{regionEditorDock}</div>
               ) : null}

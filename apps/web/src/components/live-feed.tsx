@@ -45,6 +45,8 @@ type LiveFeedProps = {
         height: number;
       }
     | null;
+  focusHorizontalAlignment?: "center" | "right" | "left";
+  stageHorizontalAlignment?: "center" | "right" | "left";
 };
 
 type StageSize = {
@@ -61,6 +63,7 @@ type FocusViewport = {
 };
 
 const DEFAULT_MEDIA_ASPECT_RATIO = 16 / 9;
+const MIN_FOCUS_SCALE = 1.04;
 const DEFAULT_FOCUS_PADDING = {
   top: 0.08,
   right: 0.08,
@@ -127,7 +130,9 @@ function getFocusViewport(
   region: RegionPoint[] | null,
   padding: LiveFeedProps["focusPadding"],
   stageSize: StageSize | null,
-  focusWindow: LiveFeedProps["focusWindow"]
+  focusWindow: LiveFeedProps["focusWindow"],
+  focusHorizontalAlignment: LiveFeedProps["focusHorizontalAlignment"],
+  stageHorizontalAlignment: LiveFeedProps["stageHorizontalAlignment"]
 ): FocusViewport | null {
   if ((!region || region.length < 3) && !focusWindow) {
     return null;
@@ -151,22 +156,50 @@ function getFocusViewport(
   const cropHeight = Math.max(maxY - minY, 0.18);
   const visibleWidthFraction = stageSize?.visibleWidthFraction ?? 1;
   const visibleHeightFraction = stageSize?.visibleHeightFraction ?? 1;
+  const horizontalWindowStart =
+    stageHorizontalAlignment === "right"
+      ? 1 - visibleWidthFraction
+      : stageHorizontalAlignment === "left"
+        ? 0
+        : (1 - visibleWidthFraction) / 2;
+  const verticalWindowStart = (1 - visibleHeightFraction) / 2;
   const scale = clamp(
     Math.min(visibleWidthFraction / cropWidth, visibleHeightFraction / cropHeight),
     1,
     3.8
   );
+
+  // If the region can't produce a meaningful zoom, fall back to the clean full view.
+  // This avoids edge gaps on narrow mobile screens where a small pan would otherwise expose
+  // empty stage background without materially improving the framing.
+  if (scale < MIN_FOCUS_SCALE) {
+    return null;
+  }
+
   const centerX = (minX + maxX) / 2;
   const centerY = (minY + maxY) / 2;
-  const minLeftPct = (0.5 + visibleWidthFraction / 2 - scale) * 100;
-  const maxLeftPct = (0.5 - visibleWidthFraction / 2) * 100;
-  const minTopPct = (0.5 + visibleHeightFraction / 2 - scale) * 100;
-  const maxTopPct = (0.5 - visibleHeightFraction / 2) * 100;
+  const minLeftPct = (horizontalWindowStart + visibleWidthFraction - scale) * 100;
+  const maxLeftPct = horizontalWindowStart * 100;
+  const minTopPct = (verticalWindowStart + visibleHeightFraction - scale) * 100;
+  const maxTopPct = verticalWindowStart * 100;
+  const centeredLeftPct = (horizontalWindowStart + visibleWidthFraction / 2 - centerX * scale) * 100;
+  const rightAlignedLeftPct = (horizontalWindowStart + visibleWidthFraction - maxX * scale) * 100;
+  const leftAlignedLeftPct = (horizontalWindowStart - minX * scale) * 100;
+  const resolvedLeftPct =
+    focusHorizontalAlignment === "right"
+      ? rightAlignedLeftPct
+      : focusHorizontalAlignment === "left"
+        ? leftAlignedLeftPct
+        : centeredLeftPct;
 
   return {
     scale,
-    leftPct: clamp((0.5 - centerX * scale) * 100, minLeftPct, maxLeftPct),
-    topPct: clamp((0.5 - centerY * scale) * 100, minTopPct, maxTopPct)
+    leftPct: clamp(resolvedLeftPct, minLeftPct, maxLeftPct),
+    topPct: clamp(
+      (verticalWindowStart + visibleHeightFraction / 2 - centerY * scale) * 100,
+      minTopPct,
+      maxTopPct
+    )
   };
 }
 
@@ -182,7 +215,9 @@ export function LiveFeed({
   onRegionChange = null,
   focusRegion = false,
   focusPadding = DEFAULT_FOCUS_PADDING,
-  focusWindow = null
+  focusWindow = null,
+  focusHorizontalAlignment = "center",
+  stageHorizontalAlignment = "center"
 }: LiveFeedProps) {
   const shellRef = useRef<HTMLDivElement | null>(null);
   const stageRef = useRef<HTMLDivElement | null>(null);
@@ -200,7 +235,14 @@ export function LiveFeed({
       : DEFAULT_MEDIA_ASPECT_RATIO;
   const overlayState = statusMessage ?? playbackState;
   const focusViewport = focusRegion
-    ? getFocusViewport(normalizedRegion, focusPadding, stageSize, focusWindow)
+    ? getFocusViewport(
+        normalizedRegion,
+        focusPadding,
+        stageSize,
+        focusWindow,
+        focusHorizontalAlignment,
+        stageHorizontalAlignment
+      )
     : null;
 
   function updateRegionPoint(clientX: number, clientY: number) {
@@ -289,7 +331,9 @@ export function LiveFeed({
         if (
           current &&
           current.width === nextSize.width &&
-          current.height === nextSize.height
+          current.height === nextSize.height &&
+          current.visibleWidthFraction === nextSize.visibleWidthFraction &&
+          current.visibleHeightFraction === nextSize.visibleHeightFraction
         ) {
           return current;
         }
@@ -381,6 +425,7 @@ export function LiveFeed({
     <div
       ref={shellRef}
       className={fullScreen ? "video-shell video-shell-fullscreen" : "video-shell"}
+      data-stage-horizontal-alignment={stageHorizontalAlignment}
     >
       <div
         ref={stageRef}
