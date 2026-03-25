@@ -63,8 +63,7 @@ function formatDateTimeForInput(value: Date | string) {
 }
 
 function createDefaultFormState(defaultCameraFeedUrl: string): SessionFormState {
-  const startsAt = new Date(Date.now() + 10 * 60 * 1000);
-  startsAt.setSeconds(0, 0);
+  const startsAt = new Date(Math.ceil((Date.now() + 60_000) / 60_000) * 60_000);
 
   return {
     modeSeconds: "30",
