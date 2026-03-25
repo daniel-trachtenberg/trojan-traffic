@@ -474,6 +474,10 @@ body {
   margin-bottom: 0.82rem;
 }
 
+.center-modal-body {
+  min-width: 0;
+}
+
 .modal-leaderboard {
   max-height: min(58vh, 520px);
   overflow: auto;
@@ -5118,27 +5122,83 @@ body {
     max-height: 100dvh;
     border: 0;
     border-radius: 0;
-    padding:
-      calc(0.9rem + env(safe-area-inset-top))
-      0.9rem
-      calc(1rem + env(safe-area-inset-bottom));
+    padding: 0;
     box-shadow: none;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
   }
 
   .betting-screen-mobile .center-modal-header {
-    position: sticky;
-    top: 0;
-    z-index: 1;
-    margin: calc(-0.9rem - env(safe-area-inset-top)) -0.9rem 0;
+    position: relative;
+    z-index: 2;
+    margin: 0;
     padding:
       calc(0.9rem + env(safe-area-inset-top))
       0.9rem
-      0.7rem;
-    background: inherit;
+      0.85rem;
+    border-bottom: 1px solid rgb(255 255 255 / 8%);
+    background:
+      linear-gradient(180deg, rgb(16 18 26 / 98%) 0%, rgb(13 15 22 / 94%) 100%);
+    backdrop-filter: blur(16px);
+  }
+
+  .betting-screen-mobile .center-modal-header h2 {
+    line-height: 1.02;
+  }
+
+  .betting-screen-mobile .panel-close-button {
+    width: 2.75rem;
+    height: 2.75rem;
+    font-size: 1.35rem;
+  }
+
+  .betting-screen-mobile .center-modal-body {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow: auto;
+    padding:
+      0.9rem
+      0.9rem
+      calc(1rem + env(safe-area-inset-bottom));
+    display: grid;
+    align-content: start;
+    gap: 0.9rem;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .betting-screen-mobile .center-modal-body::-webkit-scrollbar {
+    display: none;
+  }
+
+  .betting-screen-mobile .center-modal-body > :first-child {
+    margin-top: 0;
+  }
+
+  .betting-screen-mobile .leaderboard-panel-note,
+  .betting-screen-mobile .auth-modal-hint {
+    margin: 0;
+  }
+
+  .betting-screen-mobile .auth-modal-form {
+    margin-top: 0;
+    gap: 0.72rem;
+  }
+
+  .betting-screen-mobile .mode-row {
+    gap: 0.5rem;
+  }
+
+  .betting-screen-mobile .mode-button {
+    min-height: 3.25rem;
+    border-radius: 14px;
+    font-size: 0.92rem;
   }
 
   .betting-screen-mobile .modal-leaderboard {
     max-height: none;
+    padding-bottom: 0.35rem;
   }
 
   .betting-screen-mobile .toast-stack {

@@ -3902,6 +3902,7 @@ export function MvpDashboard({
               </button>
             </header>
 
+            <div className="center-modal-body">
             {openRightPanel === "account" ? (
               user ? (
                 <div className="account-panel">
@@ -4062,6 +4063,7 @@ export function MvpDashboard({
                 {leaderboard.length === 0 ? <p className="hint">No leaderboard entries yet.</p> : null}
               </>
             )}
+            </div>
           </section>
         </div>
       ) : null}
@@ -4087,6 +4089,7 @@ export function MvpDashboard({
               </button>
             </header>
 
+            <div className="center-modal-body">
             <div className="account-panel">
               <section className="account-hero">
                 <div className="account-hero-copy">
@@ -4160,6 +4163,7 @@ export function MvpDashboard({
                 )}
               </section>
             </div>
+            </div>
           </section>
         </div>
       ) : null}
@@ -4185,6 +4189,7 @@ export function MvpDashboard({
               </button>
             </header>
 
+            <div className="center-modal-body">
             <p className="hint auth-modal-hint">
               {authModalHint}
             </p>
@@ -4296,6 +4301,7 @@ export function MvpDashboard({
                 ) : null}
               </div>
             </form>
+            </div>
           </section>
         </div>
       ) : null}
