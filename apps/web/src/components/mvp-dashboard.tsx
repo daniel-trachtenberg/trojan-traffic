@@ -2725,7 +2725,7 @@ export function MvpDashboard({
 
           <button
             type="button"
-            className="mobile-bet-cta"
+            className="mobile-bet-cta mobile-bet-cta-inline"
             disabled={betButtonDisabled}
             onClick={() => {
               if (selectedSession) {
