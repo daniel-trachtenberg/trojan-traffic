@@ -891,6 +891,9 @@ export function MvpDashboard({
       : dailyClaimState.detail;
   const showLiveRoundCard = Boolean(selectedSession && selectedState === "live");
   const showResolvedRoundCard = Boolean(selectedSession && selectedState === "resolved");
+  const showMobileRoundActivityCard = Boolean(
+    selectedSession && (selectedState === "live" || selectedState === "resolving")
+  );
   const emptyStateSignupEnabled = !hasSelectedSession && !user;
   const betButtonDisabled = hasSelectedSession ? !canConfigureSelected : !emptyStateSignupEnabled;
   const betButtonLabel = hasSelectedSession
@@ -1009,7 +1012,7 @@ export function MvpDashboard({
       .filter((prediction) => isPredictionCancelable(prediction, sessionLookup.get(prediction.session_id) ?? null, nowMs))
       .map((prediction) => prediction.id)
   );
-  const livePeopleCount = null as number | null;
+  const livePeopleCount = liveDetections?.boxes.length ?? null;
   const livePeopleCountDisplay = `${livePeopleCount ?? 0}`.padStart(2, "0");
   const selectedRoundCountdown =
     selectedEndsAtMs !== null ? formatCountdown(selectedEndsAtMs - nowMs) : "00:00";
@@ -2533,8 +2536,10 @@ export function MvpDashboard({
     ? "Result posted"
     : showBettingControls
       ? "Bets open"
-      : showLiveRoundCard
-        ? "Round live"
+      : showMobileRoundActivityCard
+        ? selectedState === "resolving"
+          ? "Reviewing round"
+          : "Round live"
         : "Live feed";
   const mobileFeedMetaLabel = hasSelectedSession
     ? `${sessionMetricLabel} ${sessionMetricValue}`
@@ -2562,6 +2567,83 @@ export function MvpDashboard({
   ]
     .filter(Boolean)
     .join(" • ");
+  const mobileLiveCountDisplay = livePeopleCount === null ? "--" : livePeopleCountDisplay;
+  const mobileLiveHeaderKicker = selectedState === "resolving" ? "Round closed" : "Round live";
+  const mobileLiveHeaderTitle =
+    selectedState === "resolving" ? "Reviewing the final box count" : "Track the live walkway";
+  const mobileLiveTimeLabel = selectedState === "resolving" ? "Window" : "Time left";
+  const mobileLiveTimeValue = selectedState === "resolving" ? "Closed" : selectedRoundCountdown;
+  const mobileLiveTimeNote =
+    selectedState === "resolving"
+      ? selectedEndsAtLabel
+        ? `Closed at ${selectedEndsAtLabel}`
+        : "Round closed"
+      : `${displayedModeSeconds}s round • closes ${selectedEndsAtLabel ?? "soon"}`;
+  const mobileLiveCountNote =
+    livePeopleCount === null
+      ? selectedState === "resolving"
+        ? "Final count syncing from the live feed."
+        : "Counter syncing to the live feed."
+      : livePeopleCount === displayedThreshold
+        ? "Exactly on the betting line."
+        : livePeopleCount > displayedThreshold
+          ? `${livePeopleCount - displayedThreshold} above the betting line.`
+          : `${displayedThreshold - livePeopleCount} below the betting line.`;
+  const mobileLiveMeterStateTone =
+    livePeopleCount === null
+      ? "syncing"
+      : livePeopleCount === displayedThreshold
+        ? "exact"
+        : livePeopleCount > displayedThreshold
+          ? "over"
+          : "under";
+  const mobileLiveMeterStateLabel =
+    livePeopleCount === null
+      ? "Counter syncing"
+      : livePeopleCount === displayedThreshold
+        ? "On the line"
+        : livePeopleCount > displayedThreshold
+          ? `${livePeopleCount - displayedThreshold} above line`
+          : `${displayedThreshold - livePeopleCount} below line`;
+  const mobileLiveMeterSummary =
+    livePeopleCount === null
+      ? "Tracking live movement"
+      : livePeopleCount === displayedThreshold
+        ? "Exact line live right now"
+        : livePeopleCount > displayedThreshold
+          ? "Over is ahead right now"
+          : "Under is ahead right now";
+  const mobileLiveThresholdMarkerPercent = 72;
+  const mobileLiveMeterFillPercent =
+    livePeopleCount === null
+      ? 24 + liveElapsedRatio * 20
+      : displayedThreshold > 0
+        ? clamp((liveCountValue / displayedThreshold) * mobileLiveThresholdMarkerPercent, 0, 100)
+        : 0;
+  const mobileLiveTicketEyebrow =
+    selectedSessionPredictionCount > 1
+      ? `${selectedSessionPredictionCount} live tickets`
+      : selectedPrediction
+        ? "Your ticket"
+        : selectedState === "resolving"
+          ? "Result pending"
+          : "Watch mode";
+  const mobileLiveTicketHeadline =
+    selectedSessionPredictionCount > 1
+      ? `${selectedSessionStakedTokens} tokens in play`
+      : selectedPrediction && selectedSession
+        ? formatPredictionLabel(selectedPrediction, selectedSession)
+        : selectedState === "resolving"
+          ? "Final count coming in now"
+          : "Bets are locked for this round";
+  const mobileLiveTicketNote =
+    selectedSessionPredictionCount > 1
+      ? "All live tickets settle as soon as the result posts."
+      : selectedPrediction
+        ? `${selectedPrediction.wager_tokens} tokens • ${formatPayoutMultiplier(getStoredPredictionPayoutMultiplierBps(selectedPrediction))}`
+        : selectedState === "resolving"
+          ? "We will post the official result here automatically."
+          : "The next betting window opens on the following round.";
   const mobileModeInputLabel =
     selectedSide === "exact"
       ? "Exact count"
@@ -2741,6 +2823,69 @@ export function MvpDashboard({
             <span className="mobile-bet-cta-meta">{mobileBetCtaMeta}</span>
           </button>
         </>
+      ) : showMobileRoundActivityCard && selectedSession ? (
+        <div className={`mobile-live-dock mobile-live-dock-${selectedState}`}>
+          <div className="mobile-live-dock-header">
+            <div className="mobile-live-dock-header-copy">
+              <span className="mobile-live-dock-kicker">{mobileLiveHeaderKicker}</span>
+              <strong>{mobileLiveHeaderTitle}</strong>
+            </div>
+            <span
+              className={
+                selectedState === "resolving"
+                  ? "status status-resolving mobile-live-dock-status"
+                  : "status status-live-badge mobile-live-dock-status"
+              }
+            >
+              {selectedState === "resolving" ? null : <span className="status-live-dot" aria-hidden="true" />}
+              {selectedState === "resolving" ? "Reviewing" : "Live"}
+            </span>
+          </div>
+
+          <div className="mobile-live-dock-scoreboard">
+            <div className="mobile-live-dock-focus-card mobile-live-dock-focus-card-time">
+              <span>{mobileLiveTimeLabel}</span>
+              <strong>{mobileLiveTimeValue}</strong>
+              <p>{mobileLiveTimeNote}</p>
+            </div>
+
+            <div className="mobile-live-dock-focus-card mobile-live-dock-focus-card-count">
+              <span>People in box</span>
+              <div className="mobile-live-dock-count-orb" aria-hidden="true" />
+              <strong>{mobileLiveCountDisplay}</strong>
+              <p>{mobileLiveCountNote}</p>
+            </div>
+          </div>
+
+          <div className={`mobile-live-dock-meter-card mobile-live-dock-meter-card-${mobileLiveMeterStateTone}`}>
+            <div className="mobile-live-dock-meter-header">
+              <div>
+                <span>Betting line</span>
+                <strong>{displayedThreshold} people</strong>
+              </div>
+              <span className={`mobile-live-dock-meter-state mobile-live-dock-meter-state-${mobileLiveMeterStateTone}`}>
+                {mobileLiveMeterStateLabel}
+              </span>
+            </div>
+
+            <div className="mobile-live-dock-meter-track" aria-hidden="true">
+              <span style={{ width: `${mobileLiveMeterFillPercent}%` }} />
+              <i style={{ left: `${mobileLiveThresholdMarkerPercent}%` }} />
+            </div>
+
+            <div className="mobile-live-dock-meter-scale">
+              <span>0</span>
+              <span>Line {displayedThreshold}</span>
+              <span>{mobileLiveMeterSummary}</span>
+            </div>
+          </div>
+
+          <div className="mobile-live-dock-ticket">
+            <span>{mobileLiveTicketEyebrow}</span>
+            <strong>{mobileLiveTicketHeadline}</strong>
+            <span>{mobileLiveTicketNote}</span>
+          </div>
+        </div>
       ) : (
         <>
           <div className="mobile-dock-state-surface">
@@ -2870,6 +3015,7 @@ export function MvpDashboard({
         "betting-screen",
         "betting-screen-mobile",
         isPhoneViewport ? "betting-screen-mobile-phone" : null,
+        showMobileRoundActivityCard ? "betting-screen-mobile-round-active" : null,
         showBettingControls ? "betting-screen-mobile-dock-open" : null
       ]
         .filter(Boolean)
@@ -2936,18 +3082,20 @@ export function MvpDashboard({
                         <strong>{sessionMetricLabel} {sessionMetricValue}</strong>
                         {mobileOpenOverlayCopy ? <span>{mobileOpenOverlayCopy}</span> : null}
                       </div>
-                    ) : showLiveRoundCard || showResolvedRoundCard ? (
+                    ) : showMobileRoundActivityCard || showResolvedRoundCard ? (
                       <div className="mobile-feed-badge-row">
                         <span
                           className={
-                            showBettingControls
+                            showBettingControls || (showMobileRoundActivityCard && selectedState === "live")
                               ? "status status-live-badge mobile-feed-live-badge"
                               : selectedState
                                 ? `status status-${selectedState}`
                                 : "status"
                           }
                         >
-                          {showBettingControls ? <span className="status-live-dot" aria-hidden="true" /> : null}
+                          {showBettingControls || (showMobileRoundActivityCard && selectedState === "live") ? (
+                            <span className="status-live-dot" aria-hidden="true" />
+                          ) : null}
                           {mobileFeedStatusLabel}
                         </span>
                         <span className="round-chip mobile-feed-meta-chip">{mobileFeedMetaLabel}</span>
