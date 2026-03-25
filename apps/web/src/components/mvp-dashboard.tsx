@@ -3149,11 +3149,12 @@ export function MvpDashboard({
                       region={regionPoints}
                       fullScreen
                       fullScreenStageFit="fill"
+                      stageWindow={{ left: 0, top: 0, width: 1, height: 3 / 4 }}
                       personBoxes={livePersonBoxes}
                       statusMessage={activeVisionApiUrl ? liveFeedStatusMessage : null}
                       regionEditorEnabled={canEditRegion}
                       onRegionChange={canEditRegion ? setRegionPoints : null}
-                      displayWindow={{ left: 1 / 2, top: 0, width: 1 / 2, height: 1 }}
+                      displayWindow={{ left: 1 / 2, top: 1 / 8, width: 1 / 2, height: 3 / 4 }}
                     />
                     <div className="feed-mask mobile-arena-mask" />
                   </div>

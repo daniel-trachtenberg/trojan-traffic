@@ -18,6 +18,13 @@ type PersonDetectionBox = {
   confidence: number;
 };
 
+type ViewportWindow = {
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+};
+
 type LiveFeedProps = {
   src: string;
   imageSrc?: string | null;
@@ -29,14 +36,8 @@ type LiveFeedProps = {
   statusMessage?: string | null;
   regionEditorEnabled?: boolean;
   onRegionChange?: ((points: RegionPoint[]) => void) | null;
-  displayWindow?:
-    | {
-        left: number;
-        top: number;
-        width: number;
-        height: number;
-      }
-    | null;
+  stageWindow?: ViewportWindow | null;
+  displayWindow?: ViewportWindow | null;
   focusRegion?: boolean;
   focusPadding?:
     | number
@@ -84,7 +85,7 @@ function clamp(value: number, min: number, max: number) {
   return Math.min(Math.max(value, min), max);
 }
 
-function getViewportStyle(viewport: NonNullable<LiveFeedProps["displayWindow"]>) {
+function getViewportStyle(viewport: ViewportWindow) {
   return {
     width: `${(1 / viewport.width) * 100}%`,
     height: `${(1 / viewport.height) * 100}%`,
@@ -232,6 +233,7 @@ export function LiveFeed({
   statusMessage = null,
   regionEditorEnabled = false,
   onRegionChange = null,
+  stageWindow = null,
   displayWindow = null,
   focusRegion = false,
   focusPadding = DEFAULT_FOCUS_PADDING,
@@ -314,8 +316,8 @@ export function LiveFeed({
       const nextSize = fullScreen
         ? fullScreenStageFit === "fill"
           ? {
-              width: Math.round(bounds.width),
-              height: Math.round(bounds.height),
+              width: Math.round(bounds.width * (stageWindow?.width ?? 1)),
+              height: Math.round(bounds.height * (stageWindow?.height ?? 1)),
               visibleWidthFraction: 1,
               visibleHeightFraction: 1
             }
@@ -376,7 +378,7 @@ export function LiveFeed({
     return () => {
       observer.disconnect();
     };
-  }, [fullScreen, fullScreenStageFit, resolvedAspectRatio]);
+  }, [fullScreen, fullScreenStageFit, resolvedAspectRatio, stageWindow]);
 
   useEffect(() => {
     const video = videoRef.current;
@@ -457,14 +459,21 @@ export function LiveFeed({
       <div
         ref={stageRef}
         className="video-stage"
-        style={
-          stageSize
+        style={{
+          ...(stageWindow
+            ? {
+                position: "absolute",
+                left: `${stageWindow.left * 100}%`,
+                top: `${stageWindow.top * 100}%`
+              }
+            : {}),
+          ...(stageSize
             ? {
                 width: `${stageSize.width}px`,
                 height: `${stageSize.height}px`
               }
-            : undefined
-        }
+            : {})
+        }}
         onPointerMove={handleEditorPointerMove}
         onPointerUp={finishDragging}
         onPointerCancel={finishDragging}
