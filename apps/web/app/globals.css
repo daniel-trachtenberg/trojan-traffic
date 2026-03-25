@@ -4279,13 +4279,15 @@ body {
   }
 
   .betting-screen-mobile {
-    --mobile-dock-height-idle: clamp(15rem, 33dvh, 16.75rem);
-    --mobile-dock-height-upcoming: clamp(15.25rem, 34dvh, 17rem);
-    --mobile-dock-height-open: clamp(15.85rem, 38dvh, 17.4rem);
-    --mobile-dock-height-open-parameterized: clamp(17.4rem, 43dvh, 18.9rem);
-    --mobile-dock-height-live: clamp(12.2rem, 28dvh, 13.8rem);
-    --mobile-dock-height-resolving: clamp(13.3rem, 31dvh, 15rem);
-    --mobile-dock-height-resolved: clamp(16.2rem, 37dvh, 18.1rem);
+    --mobile-dock-side-gap: 0.7rem;
+    --mobile-dock-bottom-gap: 0.62rem;
+    --mobile-dock-height-idle: clamp(15.6rem, 34dvh, 17.3rem);
+    --mobile-dock-height-upcoming: clamp(15.85rem, 35dvh, 17.6rem);
+    --mobile-dock-height-open: clamp(16.45rem, 39dvh, 18rem);
+    --mobile-dock-height-open-parameterized: clamp(18rem, 44dvh, 19.7rem);
+    --mobile-dock-height-live: clamp(12.9rem, 29dvh, 14.5rem);
+    --mobile-dock-height-resolving: clamp(14rem, 32dvh, 15.7rem);
+    --mobile-dock-height-resolved: clamp(16.9rem, 38dvh, 18.8rem);
     --mobile-dock-height: var(--mobile-dock-height-idle);
     height: 100dvh;
     min-height: 100dvh;
@@ -4456,7 +4458,9 @@ body {
     position: absolute;
     left: 0.78rem;
     right: 0.78rem;
-    bottom: calc(var(--mobile-dock-height) + 1rem + env(safe-area-inset-bottom));
+    bottom: calc(
+      var(--mobile-dock-height) + var(--mobile-dock-bottom-gap) + 1rem + env(safe-area-inset-bottom)
+    );
     display: flex;
     align-items: flex-end;
     justify-content: space-between;
@@ -4901,32 +4905,60 @@ body {
 
   .mobile-betting-dock {
     position: absolute;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    height: calc(var(--mobile-dock-height) + env(safe-area-inset-bottom));
+    left: var(--mobile-dock-side-gap);
+    right: var(--mobile-dock-side-gap);
+    bottom: calc(var(--mobile-dock-bottom-gap) + env(safe-area-inset-bottom));
+    height: var(--mobile-dock-height);
     min-height: 0;
     padding:
-      0.72rem
-      0.78rem
-      calc(0.72rem + env(safe-area-inset-bottom));
-    border-top: 0;
-    border-radius: 30px 30px 0 0;
+      1rem
+      1rem
+      calc(0.94rem + env(safe-area-inset-bottom));
+    border: 1px solid rgb(255 255 255 / 10%);
+    border-radius: 2rem;
     background:
-      linear-gradient(180deg, rgb(12 14 21 / 0%) 0%, rgb(12 14 21 / 0.74) 9%, rgb(12 14 21 / 0.95) 22%, rgb(8 10 15 / 0.985) 100%);
-    backdrop-filter: blur(22px);
-    box-shadow: 0 -24px 60px rgb(0 0 0 / 34%);
+      linear-gradient(180deg, rgb(19 22 31 / 0.92) 0%, rgb(11 13 19 / 0.95) 100%);
+    backdrop-filter: blur(28px) saturate(1.08);
+    box-shadow:
+      inset 0 1px 0 rgb(255 255 255 / 10%),
+      0 20px 48px rgb(0 0 0 / 32%),
+      0 6px 18px rgb(0 0 0 / 16%);
     overflow: hidden;
   }
 
   .mobile-betting-dock::before {
     content: "";
     position: absolute;
-    top: 0;
-    left: 0.8rem;
-    right: 0.8rem;
-    height: 1px;
-    background: linear-gradient(90deg, rgb(255 255 255 / 0%), rgb(255 255 255 / 20%), rgb(255 255 255 / 0%));
+    inset: 1px 1px auto;
+    height: 32%;
+    border-radius: inherit;
+    background: linear-gradient(180deg, rgb(255 255 255 / 6%), rgb(255 255 255 / 0%));
+    pointer-events: none;
+  }
+
+  .betting-screen-mobile-open .mobile-betting-dock {
+    background:
+      radial-gradient(circle at 50% 0%, rgb(153 0 0 / 11%), transparent 58%),
+      linear-gradient(180deg, rgb(19 22 31 / 0.92) 0%, rgb(11 13 19 / 0.95) 100%);
+  }
+
+  .betting-screen-mobile-live .mobile-betting-dock {
+    background:
+      radial-gradient(circle at 50% 0%, rgb(255 204 0 / 11%), transparent 58%),
+      linear-gradient(180deg, rgb(19 22 31 / 0.92) 0%, rgb(11 13 19 / 0.95) 100%);
+  }
+
+  .betting-screen-mobile-resolving .mobile-betting-dock {
+    background:
+      radial-gradient(circle at 50% 0%, rgb(255 204 0 / 8%), transparent 58%),
+      linear-gradient(180deg, rgb(19 22 31 / 0.92) 0%, rgb(11 13 19 / 0.95) 100%);
+  }
+
+  .betting-screen-mobile-upcoming .mobile-betting-dock,
+  .betting-screen-mobile-idle .mobile-betting-dock {
+    background:
+      radial-gradient(circle at 50% 0%, rgb(255 255 255 / 7%), transparent 58%),
+      linear-gradient(180deg, rgb(19 22 31 / 0.92) 0%, rgb(11 13 19 / 0.95) 100%);
   }
 
   .mobile-betting-dock-shell {
@@ -4949,22 +4981,18 @@ body {
   .mobile-idle-dock {
     height: 100%;
     min-height: 0;
-    border: 1px solid rgb(255 255 255 / 10%);
-    border-radius: 22px;
-    padding: 0.82rem 0.86rem;
-    box-shadow:
-      inset 0 1px 0 rgb(255 255 255 / 8%),
-      0 18px 40px rgb(0 0 0 / 24%);
-    overflow: hidden;
+    border: 0;
+    border-radius: 0;
+    padding: 0;
+    box-shadow: none;
+    background: none;
+    overflow: visible;
   }
 
   .mobile-open-dock {
-    background:
-      radial-gradient(circle at top, rgb(255 255 255 / 5%), transparent 54%),
-      linear-gradient(180deg, rgb(18 21 31 / 94%) 0%, rgb(9 11 17 / 98%) 100%);
     display: grid;
     align-content: stretch;
-    gap: 0.48rem;
+    gap: 0.56rem;
   }
 
   .mobile-open-dock-field-grid {
@@ -5065,16 +5093,13 @@ body {
   .mobile-open-dock-footer {
     margin-top: auto;
     display: grid;
-    gap: 0.38rem;
+    gap: 0.48rem;
   }
 
   .mobile-round-dock {
     display: grid;
     align-content: start;
     gap: 0.52rem;
-    background:
-      radial-gradient(circle at top, rgb(255 204 0 / 10%), transparent 52%),
-      linear-gradient(180deg, rgb(18 21 31 / 94%) 0%, rgb(9 11 17 / 98%) 100%);
   }
 
   .mobile-round-dock-header,
@@ -5146,30 +5171,20 @@ body {
     display: grid;
     align-content: start;
     gap: 0.52rem;
-    background:
-      radial-gradient(circle at top, rgb(255 204 0 / 8%), transparent 56%),
-      linear-gradient(180deg, rgb(18 21 31 / 94%) 0%, rgb(9 11 17 / 98%) 100%);
   }
 
   .mobile-result-dock {
     display: grid;
     align-content: start;
     gap: 0.52rem;
-    background: linear-gradient(180deg, rgb(19 22 30 / 94%), rgb(14 16 23 / 96%));
   }
 
   .mobile-result-dock-win {
-    border-color: rgb(124 229 160 / 28%);
-    background:
-      radial-gradient(circle at top, rgb(124 229 160 / 18%), transparent 42%),
-      linear-gradient(180deg, rgb(14 30 19 / 94%), rgb(14 16 23 / 96%));
+    border-color: transparent;
   }
 
   .mobile-result-dock-loss {
-    border-color: rgb(255 110 110 / 24%);
-    background:
-      radial-gradient(circle at top, rgb(153 0 0 / 18%), transparent 42%),
-      linear-gradient(180deg, rgb(34 10 12 / 94%), rgb(14 16 23 / 96%));
+    border-color: transparent;
   }
 
   .mobile-result-dock-win .mobile-result-dock-topline strong {
@@ -5237,27 +5252,18 @@ body {
     display: grid;
     align-content: start;
     gap: 0.56rem;
-    background:
-      radial-gradient(circle at top, rgb(255 255 255 / 5%), transparent 56%),
-      linear-gradient(180deg, rgb(18 21 31 / 94%) 0%, rgb(9 11 17 / 98%) 100%);
   }
 
   .mobile-idle-dock-idle {
-    background:
-      radial-gradient(circle at top, rgb(255 204 0 / 8%), transparent 54%),
-      linear-gradient(180deg, rgb(18 21 31 / 94%) 0%, rgb(9 11 17 / 98%) 100%);
+    background: none;
   }
 
   .mobile-idle-dock-upcoming {
-    background:
-      radial-gradient(circle at top, rgb(255 204 0 / 14%), transparent 52%),
-      linear-gradient(180deg, rgb(18 21 31 / 94%) 0%, rgb(9 11 17 / 98%) 100%);
+    background: none;
   }
 
   .mobile-idle-dock-cancelled {
-    background:
-      radial-gradient(circle at top, rgb(153 0 0 / 16%), transparent 54%),
-      linear-gradient(180deg, rgb(18 21 31 / 94%) 0%, rgb(9 11 17 / 98%) 100%);
+    background: none;
   }
 
   .mobile-result-dock-score-card strong {
@@ -6142,7 +6148,9 @@ body {
     position: fixed;
     left: 0.75rem;
     right: 0.75rem;
-    bottom: calc(var(--mobile-dock-height) + 0.75rem + env(safe-area-inset-bottom));
+    bottom: calc(
+      var(--mobile-dock-height) + var(--mobile-dock-bottom-gap) + 0.82rem + env(safe-area-inset-bottom)
+    );
     z-index: 8;
   }
 
@@ -6156,13 +6164,15 @@ body {
   }
 
   .betting-screen-mobile-phone {
-    --mobile-dock-height-idle: clamp(14.35rem, 33dvh, 15.7rem);
-    --mobile-dock-height-upcoming: clamp(14.7rem, 34dvh, 16rem);
-    --mobile-dock-height-open: clamp(15rem, 38dvh, 16.4rem);
-    --mobile-dock-height-open-parameterized: clamp(16.7rem, 43dvh, 18rem);
-    --mobile-dock-height-live: clamp(11.7rem, 29dvh, 13rem);
-    --mobile-dock-height-resolving: clamp(12.7rem, 31dvh, 14.1rem);
-    --mobile-dock-height-resolved: clamp(15.2rem, 36dvh, 16.9rem);
+    --mobile-dock-side-gap: 0.62rem;
+    --mobile-dock-bottom-gap: 0.54rem;
+    --mobile-dock-height-idle: clamp(14.9rem, 34dvh, 16.2rem);
+    --mobile-dock-height-upcoming: clamp(15.2rem, 35dvh, 16.5rem);
+    --mobile-dock-height-open: clamp(15.7rem, 39dvh, 17.1rem);
+    --mobile-dock-height-open-parameterized: clamp(17.45rem, 44dvh, 18.75rem);
+    --mobile-dock-height-live: clamp(12.25rem, 30dvh, 13.55rem);
+    --mobile-dock-height-resolving: clamp(13.35rem, 32dvh, 14.7rem);
+    --mobile-dock-height-resolved: clamp(15.8rem, 37dvh, 17.45rem);
     --mobile-dock-height: var(--mobile-dock-height-idle);
   }
 
@@ -6197,7 +6207,9 @@ body {
   .betting-screen-mobile-phone .mobile-feed-overlay {
     left: 0.68rem;
     right: 0.68rem;
-    bottom: calc(var(--mobile-dock-height) + 0.78rem + env(safe-area-inset-bottom));
+    bottom: calc(
+      var(--mobile-dock-height) + var(--mobile-dock-bottom-gap) + 0.78rem + env(safe-area-inset-bottom)
+    );
     gap: 0.5rem;
   }
 
@@ -6290,10 +6302,10 @@ body {
 
   .betting-screen-mobile-phone .mobile-betting-dock {
     padding:
-      0.6rem
-      0.68rem
-      calc(0.7rem + env(safe-area-inset-bottom));
-    border-radius: 26px 26px 0 0;
+      0.86rem
+      0.88rem
+      calc(0.8rem + env(safe-area-inset-bottom));
+    border-radius: 1.75rem;
   }
 
   .betting-screen-mobile-phone .mobile-betting-dock-shell {
@@ -6305,8 +6317,8 @@ body {
   .betting-screen-mobile-phone .mobile-review-dock,
   .betting-screen-mobile-phone .mobile-result-dock,
   .betting-screen-mobile-phone .mobile-idle-dock {
-    padding: 0.7rem 0.74rem;
-    gap: 0.42rem;
+    padding: 0;
+    gap: 0.38rem;
   }
 
   .betting-screen-mobile-phone .mobile-open-dock-field-grid {
@@ -6460,20 +6472,23 @@ body {
 
   @media (max-height: 580px) and (orientation: landscape) {
     .betting-screen-mobile {
-      --mobile-dock-height-idle: clamp(12.1rem, 42dvh, 13.8rem);
-      --mobile-dock-height-upcoming: clamp(12.4rem, 43dvh, 14.1rem);
-      --mobile-dock-height-open: clamp(12.9rem, 46dvh, 14.4rem);
-      --mobile-dock-height-open-parameterized: clamp(14.5rem, 52dvh, 16.1rem);
-      --mobile-dock-height-live: clamp(10.6rem, 35dvh, 12rem);
-      --mobile-dock-height-resolving: clamp(11.2rem, 38dvh, 12.8rem);
-      --mobile-dock-height-resolved: clamp(13.2rem, 47dvh, 15rem);
+      --mobile-dock-side-gap: 0.54rem;
+      --mobile-dock-bottom-gap: 0.42rem;
+      --mobile-dock-height-idle: clamp(12.6rem, 43dvh, 14.3rem);
+      --mobile-dock-height-upcoming: clamp(12.9rem, 44dvh, 14.6rem);
+      --mobile-dock-height-open: clamp(13.4rem, 47dvh, 14.9rem);
+      --mobile-dock-height-open-parameterized: clamp(15.05rem, 53dvh, 16.7rem);
+      --mobile-dock-height-live: clamp(11rem, 36dvh, 12.4rem);
+      --mobile-dock-height-resolving: clamp(11.7rem, 39dvh, 13.2rem);
+      --mobile-dock-height-resolved: clamp(13.8rem, 48dvh, 15.5rem);
     }
 
     .mobile-betting-dock {
       padding:
-        0.5rem
-        0.62rem
-        calc(0.58rem + env(safe-area-inset-bottom));
+        0.7rem
+        0.78rem
+        calc(0.66rem + env(safe-area-inset-bottom));
+      border-radius: 1.5rem;
     }
 
     .mobile-betting-dock-shell-betting {
@@ -6560,9 +6575,9 @@ body {
     .mobile-review-dock,
     .mobile-result-dock,
     .mobile-idle-dock {
-      padding: 0.58rem 0.62rem;
-      gap: 0.36rem;
-      border-radius: 18px;
+      padding: 0;
+      gap: 0.32rem;
+      border-radius: 0;
     }
 
     .mobile-open-dock-field-grid {
