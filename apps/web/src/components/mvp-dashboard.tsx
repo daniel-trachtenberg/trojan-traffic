@@ -560,6 +560,7 @@ type LiveDetectionsResponse = {
 const DETECTION_POLL_INTERVAL_MS = 300;
 const DETECTION_OFFLINE_RETRY_INTERVAL_MS = 5000;
 const MOBILE_BREAKPOINT_PX = 980;
+const PHONE_BREAKPOINT_PX = 640;
 
 function getDetectorStatusMessage(
   detections: LiveDetectionsResponse | null,
@@ -759,6 +760,7 @@ export function MvpDashboard({
   const [isSavingRegion, setIsSavingRegion] = useState(false);
   const [cancelingPredictionIds, setCancelingPredictionIds] = useState<string[]>([]);
   const [isMobileViewport, setIsMobileViewport] = useState(false);
+  const [isPhoneViewport, setIsPhoneViewport] = useState(false);
   const nextToastIdRef = useRef(0);
   const toastsRef = useRef<ToastRecord[]>([]);
   const toastTimeoutsRef = useRef(new Map<number, ReturnType<typeof setTimeout>>());
@@ -1729,23 +1731,32 @@ export function MvpDashboard({
       return;
     }
 
-    const mediaQuery = window.matchMedia(`(max-width: ${MOBILE_BREAKPOINT_PX}px)`);
+    const mobileMediaQuery = window.matchMedia(`(max-width: ${MOBILE_BREAKPOINT_PX}px)`);
+    const phoneMediaQuery = window.matchMedia(`(max-width: ${PHONE_BREAKPOINT_PX}px)`);
     const updateViewport = () => {
-      setIsMobileViewport(mediaQuery.matches);
+      setIsMobileViewport(mobileMediaQuery.matches);
+      setIsPhoneViewport(phoneMediaQuery.matches);
     };
 
     updateViewport();
 
-    if (typeof mediaQuery.addEventListener === "function") {
-      mediaQuery.addEventListener("change", updateViewport);
+    if (
+      typeof mobileMediaQuery.addEventListener === "function" &&
+      typeof phoneMediaQuery.addEventListener === "function"
+    ) {
+      mobileMediaQuery.addEventListener("change", updateViewport);
+      phoneMediaQuery.addEventListener("change", updateViewport);
       return () => {
-        mediaQuery.removeEventListener("change", updateViewport);
+        mobileMediaQuery.removeEventListener("change", updateViewport);
+        phoneMediaQuery.removeEventListener("change", updateViewport);
       };
     }
 
-    mediaQuery.addListener(updateViewport);
+    mobileMediaQuery.addListener(updateViewport);
+    phoneMediaQuery.addListener(updateViewport);
     return () => {
-      mediaQuery.removeListener(updateViewport);
+      mobileMediaQuery.removeListener(updateViewport);
+      phoneMediaQuery.removeListener(updateViewport);
     };
   }, []);
 
@@ -2453,7 +2464,6 @@ export function MvpDashboard({
     setOpenRightPanel(null);
   }
 
-  const mobileRegionFocusEnabled = !canEditRegion && regionPoints.length >= 3;
   const rangeMarketLabel = `${selectedRangeMin || getDefaultRangeMin(displayedThreshold)}-${selectedRangeMax || getDefaultRangeMax(displayedThreshold)}`;
   const exactMarketLabel = selectedExactValue || `${displayedThreshold}`;
   const mobileRoundProgressRatio = (() => {
@@ -2480,13 +2490,6 @@ export function MvpDashboard({
 
     return 0;
   })();
-  const mobileSpotlightKicker = showResolvedRoundCard
-    ? selectedResultPresentation.eyebrow
-    : showLiveRoundCard
-      ? "Round live"
-      : showBettingControls
-        ? "Betting window open"
-        : standbyLabel;
   const mobileSpotlightTitle = showResolvedRoundCard
     ? selectedResultPresentation.headline
     : showBettingControls
@@ -2501,15 +2504,6 @@ export function MvpDashboard({
       : showBettingControls
         ? "Pick your market, tune the stake, and fire before the window closes."
         : standbyNote;
-  const mobileOverlayCountValue =
-    showResolvedRoundCard && selectedSession
-      ? `${selectedSession.final_count ?? "--"}`
-      : livePeopleCountDisplay;
-  const mobileOverlayCountLabel = showResolvedRoundCard
-    ? "final"
-    : livePeopleCount === null
-      ? "counter"
-      : "walkers";
   const mobileMarketChoices = [
     {
       side: "under" as const,
@@ -2554,52 +2548,51 @@ export function MvpDashboard({
       : "--";
   const mobilePotentialWinLabel =
     selectedPricingGrossPayout !== null ? `${selectedPricingGrossPayout}` : "--";
-  const mobileStageCardTitle = showBettingControls
-    ? "How many walkers?"
-    : showLiveRoundCard
-      ? "Round live"
-      : showResolvedRoundCard
-        ? "Round settled"
-        : "Watching the board";
-  const mobileStageCardCopy = showBettingControls
-    ? "Bet on the highlighted crossing before the window closes."
-    : showLiveRoundCard
-      ? "Betting is locked while the current count plays out."
-      : showResolvedRoundCard
-        ? `${selectedResultPresentation.secondaryLabel} ${selectedResultPresentation.secondaryValue}`
-        : "The highlighted region stays centered here while we wait for the next round.";
+  const mobileFeedStatusLabel = showResolvedRoundCard
+    ? "Result posted"
+    : showBettingControls
+      ? "Bets open"
+      : showLiveRoundCard
+        ? "Round live"
+        : "Live feed";
+  const mobileFeedMetaLabel = hasSelectedSession
+    ? `${sessionMetricLabel} ${sessionMetricValue}`
+    : "Tommy Walkway";
+  const mobileDockTitle = showBettingControls
+    ? "Place your bet"
+    : showResolvedRoundCard
+      ? selectedResultPresentation.headline
+      : showLiveRoundCard
+        ? "Round in progress"
+        : mobileSpotlightTitle;
+  const mobileDockCopy = showBettingControls
+    ? "Choose a market, set your stake, and lock it in before the window closes."
+    : !user && !hasSelectedSession
+      ? "Sign in now so you're ready when the next round is posted."
+      : mobileSpotlightCopy;
   const bettingWidgetContent = (
     <div className="mobile-betting-dock-shell">
-      <div className="mobile-dock-overview">
-        <div className="mobile-dock-overview-copy">
-          <p className="mobile-dock-kicker">{mobileSpotlightKicker}</p>
-          <strong>{mobileStageCardTitle}</strong>
-          <span>{mobileStageCardCopy}</span>
-        </div>
-        <div className="mobile-dock-count-shell">
-          <strong>{mobileOverlayCountValue}</strong>
-          <span>{mobileOverlayCountLabel}</span>
-        </div>
-      </div>
-
-      <div className="mobile-dock-chip-row">
-        <span className={selectedState ? `status status-${selectedState}` : "status"}>
-          {selectedState ? getSessionStateLabel(selectedState) : "Standby"}
-        </span>
-        {hasSelectedSession ? <span className="round-chip">{displayedModeSeconds}s round</span> : null}
-        {hasSelectedSession ? <span className="round-chip">Threshold {displayedThreshold}</span> : null}
-      </div>
-
-      <div className="mobile-stage-progress-row">
-        <span>{sessionMetricLabel}</span>
-        <strong>{sessionMetricValue}</strong>
-      </div>
-      <div className="mobile-stage-progress-track" aria-hidden="true">
-        <span style={{ width: `${mobileRoundProgressRatio * 100}%` }} />
-      </div>
-
       {showBettingControls ? (
         <>
+          <div className="mobile-dock-header">
+            <div className="mobile-dock-header-copy">
+              <strong>{mobileDockTitle}</strong>
+              <span>{mobileDockCopy}</span>
+            </div>
+          </div>
+
+          <div className="mobile-dock-chip-row">
+            <span className={selectedState ? `status status-${selectedState}` : "status"}>
+              {selectedState ? getSessionStateLabel(selectedState) : "Standby"}
+            </span>
+            {hasSelectedSession ? <span className="round-chip">{mobileFeedMetaLabel}</span> : null}
+            {hasSelectedSession ? <span className="round-chip">{displayedThreshold}+ over line</span> : null}
+          </div>
+
+          <div className="mobile-stage-progress-track" aria-hidden="true">
+            <span style={{ width: `${mobileRoundProgressRatio * 100}%` }} />
+          </div>
+
           <div className="mobile-betting-dock-topline">
             <div className="mobile-betting-dock-stat">
               <span>Bet amount</span>
@@ -2773,33 +2766,50 @@ export function MvpDashboard({
           </div>
         </>
       ) : (
-        <div className="mobile-dock-status-card">
-          <span className="mobile-dock-status-kicker">{mobileSpotlightKicker}</span>
-          <strong>{mobileSpotlightTitle}</strong>
-          <p>{mobileSpotlightCopy}</p>
-          {selectedSessionPredictionCount > 0 ? (
-            <div className="mobile-slip-banner">
-              <span>Your live slips</span>
-              <strong>
-                {selectedSessionPredictionCount > 1
-                  ? `${selectedSessionPredictionCount} tickets on this round`
-                  : formatPredictionLabel(selectedPrediction, selectedSession)}
-              </strong>
-              <span>{selectedSessionStakedTokens} tokens committed</span>
+        <>
+          <div className="mobile-dock-status-card">
+            <div className="mobile-dock-header">
+              <div className="mobile-dock-header-copy">
+                <strong>{mobileDockTitle}</strong>
+                <span>{mobileDockCopy}</span>
+              </div>
+              <span className={selectedState ? `status status-${selectedState}` : "status"}>
+                {selectedState ? getSessionStateLabel(selectedState) : "Standby"}
+              </span>
             </div>
-          ) : null}
-          {!user ? (
-            <button
-              type="button"
-              className="mobile-bet-cta mobile-bet-cta-secondary"
-              onClick={hasSelectedSession ? handleRoundAuthAction : handleEmptyStateSignupAction}
-            >
-              <span className="mobile-bet-cta-accent">Join</span>
-              <strong>{standbyActionLabel ?? "Sign In / Sign Up"}</strong>
-              <span>Get ready for the next live walkway round.</span>
-            </button>
-          ) : null}
-        </div>
+            {selectedSessionPredictionCount > 0 ? (
+              <div className="mobile-slip-banner">
+                <span>Your live slips</span>
+                <strong>
+                  {selectedSessionPredictionCount > 1
+                    ? `${selectedSessionPredictionCount} tickets on this round`
+                    : formatPredictionLabel(selectedPrediction, selectedSession)}
+                </strong>
+                <span>{selectedSessionStakedTokens} tokens committed</span>
+              </div>
+            ) : null}
+            {!user ? (
+              <button
+                type="button"
+                className="mobile-bet-cta mobile-bet-cta-secondary"
+                  onClick={hasSelectedSession ? handleRoundAuthAction : handleEmptyStateSignupAction}
+              >
+                <span className="mobile-bet-cta-accent">Join</span>
+                <strong>{standbyActionLabel ?? "Sign In / Sign Up"}</strong>
+                <span>Be ready as soon as the next window opens.</span>
+              </button>
+            ) : null}
+            {isAdmin ? (
+              <button
+                type="button"
+                className="mobile-dock-inline-action"
+                onClick={() => toggleRightPanel("admin")}
+              >
+                Open Admin
+              </button>
+            ) : null}
+          </div>
+        </>
       )}
     </div>
   );
@@ -2863,7 +2873,15 @@ export function MvpDashboard({
   ) : null;
 
   return (
-    <main className={isMobileViewport ? "betting-screen betting-screen-mobile" : "betting-screen"}>
+    <main
+      className={
+        isMobileViewport
+          ? isPhoneViewport
+            ? "betting-screen betting-screen-mobile betting-screen-mobile-phone"
+            : "betting-screen betting-screen-mobile"
+          : "betting-screen"
+      }
+    >
       {showWinConfetti ? (
         <div className="screen-confetti" aria-hidden="true">
           {SCREEN_CONFETTI_PIECES.map((piece, index) => (
@@ -2886,28 +2904,6 @@ export function MvpDashboard({
         <>
           <div className="mobile-screen-shell">
             <section className="mobile-game-stage">
-              <div className="mobile-game-feed">
-                <LiveFeed
-                  src={hlsUrl}
-                  imageSrc={liveFrameUrl}
-                  mediaAspectRatio={liveFeedAspectRatio}
-                  region={regionPoints}
-                  fullScreen
-                  personBoxes={livePersonBoxes}
-                  statusMessage={activeVisionApiUrl ? liveFeedStatusMessage : null}
-                  regionEditorEnabled={canEditRegion}
-                  onRegionChange={canEditRegion ? setRegionPoints : null}
-                  focusRegion={mobileRegionFocusEnabled}
-                  focusPadding={{
-                    top: 0.08,
-                    right: 0.3,
-                    bottom: 0.16,
-                    left: 0.03
-                  }}
-                />
-                <div className="feed-mask mobile-arena-mask" />
-              </div>
-
               <header className="mobile-stage-header">
                 <div className="mobile-stage-brand">
                   <p className="mobile-stage-kicker">Tommy Walkway</p>
@@ -2951,6 +2947,50 @@ export function MvpDashboard({
                   ) : null}
                 </div>
               </header>
+
+              <div className="mobile-stage-hero">
+                <div className="mobile-feed-frame">
+                  <div className="mobile-game-feed">
+                    <LiveFeed
+                      src={hlsUrl}
+                      imageSrc={liveFrameUrl}
+                      mediaAspectRatio={liveFeedAspectRatio}
+                      region={regionPoints}
+                      personBoxes={livePersonBoxes}
+                      statusMessage={activeVisionApiUrl ? liveFeedStatusMessage : null}
+                      regionEditorEnabled={canEditRegion}
+                      onRegionChange={canEditRegion ? setRegionPoints : null}
+                    />
+                    <div className="feed-mask mobile-arena-mask" />
+                  </div>
+
+                  <div className="mobile-feed-overlay">
+                    {showBettingControls || showLiveRoundCard || showResolvedRoundCard ? (
+                      <div className="mobile-feed-badge-row">
+                        <span
+                          className={
+                            showBettingControls
+                              ? "status status-live-badge mobile-feed-live-badge"
+                              : selectedState
+                                ? `status status-${selectedState}`
+                                : "status"
+                          }
+                        >
+                          {showBettingControls ? <span className="status-live-dot" aria-hidden="true" /> : null}
+                          {mobileFeedStatusLabel}
+                        </span>
+                        <span className="round-chip mobile-feed-meta-chip">{mobileFeedMetaLabel}</span>
+                      </div>
+                    ) : null}
+                    {showResolvedRoundCard ? (
+                      <div className="mobile-feed-result-pill">
+                        <span>Final</span>
+                        <strong>{selectedSession?.final_count ?? "--"}</strong>
+                      </div>
+                    ) : null}
+                  </div>
+                </div>
+              </div>
 
               {regionEditorDock ? (
                 <div className="mobile-region-editor-shell">{regionEditorDock}</div>

@@ -37,11 +37,21 @@ type LiveFeedProps = {
         bottom?: number;
         left?: number;
       };
+  focusWindow?:
+    | {
+        left: number;
+        top: number;
+        width: number;
+        height: number;
+      }
+    | null;
 };
 
 type StageSize = {
   width: number;
   height: number;
+  visibleWidthFraction: number;
+  visibleHeightFraction: number;
 };
 
 type FocusViewport = {
@@ -115,29 +125,48 @@ function resolveFocusPadding(padding: LiveFeedProps["focusPadding"]) {
 
 function getFocusViewport(
   region: RegionPoint[] | null,
-  padding: LiveFeedProps["focusPadding"]
+  padding: LiveFeedProps["focusPadding"],
+  stageSize: StageSize | null,
+  focusWindow: LiveFeedProps["focusWindow"]
 ): FocusViewport | null {
-  if (!region || region.length < 3) {
+  if ((!region || region.length < 3) && !focusWindow) {
     return null;
   }
 
   const insets = resolveFocusPadding(padding);
-  const xValues = region.map((point) => point.x);
-  const yValues = region.map((point) => point.y);
-  const minX = clamp(Math.min(...xValues) - insets.left, 0, 1);
-  const maxX = clamp(Math.max(...xValues) + insets.right, 0, 1);
-  const minY = clamp(Math.min(...yValues) - insets.top, 0, 1);
-  const maxY = clamp(Math.max(...yValues) + insets.bottom, 0, 1);
+  const resolvedRegion = region ?? [];
+  const minX = focusWindow
+    ? clamp(focusWindow.left, 0, 1)
+    : clamp(Math.min(...resolvedRegion.map((point) => point.x)) - insets.left, 0, 1);
+  const maxX = focusWindow
+    ? clamp(focusWindow.left + focusWindow.width, 0, 1)
+    : clamp(Math.max(...resolvedRegion.map((point) => point.x)) + insets.right, 0, 1);
+  const minY = focusWindow
+    ? clamp(focusWindow.top, 0, 1)
+    : clamp(Math.min(...resolvedRegion.map((point) => point.y)) - insets.top, 0, 1);
+  const maxY = focusWindow
+    ? clamp(focusWindow.top + focusWindow.height, 0, 1)
+    : clamp(Math.max(...resolvedRegion.map((point) => point.y)) + insets.bottom, 0, 1);
   const cropWidth = Math.max(maxX - minX, 0.18);
   const cropHeight = Math.max(maxY - minY, 0.18);
-  const scale = clamp(Math.min(1 / cropWidth, 1 / cropHeight), 1, 3.8);
+  const visibleWidthFraction = stageSize?.visibleWidthFraction ?? 1;
+  const visibleHeightFraction = stageSize?.visibleHeightFraction ?? 1;
+  const scale = clamp(
+    Math.min(visibleWidthFraction / cropWidth, visibleHeightFraction / cropHeight),
+    1,
+    3.8
+  );
   const centerX = (minX + maxX) / 2;
   const centerY = (minY + maxY) / 2;
+  const minLeftPct = (0.5 + visibleWidthFraction / 2 - scale) * 100;
+  const maxLeftPct = (0.5 - visibleWidthFraction / 2) * 100;
+  const minTopPct = (0.5 + visibleHeightFraction / 2 - scale) * 100;
+  const maxTopPct = (0.5 - visibleHeightFraction / 2) * 100;
 
   return {
     scale,
-    leftPct: clamp((0.5 - centerX * scale) * 100, (1 - scale) * 100, 0),
-    topPct: clamp((0.5 - centerY * scale) * 100, (1 - scale) * 100, 0)
+    leftPct: clamp((0.5 - centerX * scale) * 100, minLeftPct, maxLeftPct),
+    topPct: clamp((0.5 - centerY * scale) * 100, minTopPct, maxTopPct)
   };
 }
 
@@ -152,7 +181,8 @@ export function LiveFeed({
   regionEditorEnabled = false,
   onRegionChange = null,
   focusRegion = false,
-  focusPadding = DEFAULT_FOCUS_PADDING
+  focusPadding = DEFAULT_FOCUS_PADDING,
+  focusWindow = null
 }: LiveFeedProps) {
   const shellRef = useRef<HTMLDivElement | null>(null);
   const stageRef = useRef<HTMLDivElement | null>(null);
@@ -170,7 +200,7 @@ export function LiveFeed({
       : DEFAULT_MEDIA_ASPECT_RATIO;
   const overlayState = statusMessage ?? playbackState;
   const focusViewport = focusRegion
-    ? getFocusViewport(normalizedRegion, focusPadding)
+    ? getFocusViewport(normalizedRegion, focusPadding, stageSize, focusWindow)
     : null;
 
   function updateRegionPoint(clientX: number, clientY: number) {
@@ -223,20 +253,36 @@ export function LiveFeed({
         ? shellAspectRatio > resolvedAspectRatio
           ? {
               width: Math.round(bounds.width),
-              height: Math.round(bounds.width / resolvedAspectRatio)
+              height: Math.round(bounds.width / resolvedAspectRatio),
+              visibleWidthFraction: 1,
+              visibleHeightFraction: clamp(
+                bounds.height / Math.max(Math.round(bounds.width / resolvedAspectRatio), 1),
+                0,
+                1
+              )
             }
           : {
               width: Math.round(bounds.height * resolvedAspectRatio),
-              height: Math.round(bounds.height)
+              height: Math.round(bounds.height),
+              visibleWidthFraction: clamp(
+                bounds.width / Math.max(Math.round(bounds.height * resolvedAspectRatio), 1),
+                0,
+                1
+              ),
+              visibleHeightFraction: 1
             }
         : shellAspectRatio > resolvedAspectRatio
           ? {
               width: Math.round(bounds.height * resolvedAspectRatio),
-              height: Math.round(bounds.height)
+              height: Math.round(bounds.height),
+              visibleWidthFraction: 1,
+              visibleHeightFraction: 1
             }
           : {
               width: Math.round(bounds.width),
-              height: Math.round(bounds.width / resolvedAspectRatio)
+              height: Math.round(bounds.width / resolvedAspectRatio),
+              visibleWidthFraction: 1,
+              visibleHeightFraction: 1
             };
 
       setStageSize((current) => {
