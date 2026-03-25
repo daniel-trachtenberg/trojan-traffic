@@ -891,9 +891,6 @@ export function MvpDashboard({
       : dailyClaimState.detail;
   const showLiveRoundCard = Boolean(selectedSession && selectedState === "live");
   const showResolvedRoundCard = Boolean(selectedSession && selectedState === "resolved");
-  const showMobileRoundActivityCard = Boolean(
-    selectedSession && (selectedState === "live" || selectedState === "resolving")
-  );
   const emptyStateSignupEnabled = !hasSelectedSession && !user;
   const betButtonDisabled = hasSelectedSession ? !canConfigureSelected : !emptyStateSignupEnabled;
   const betButtonLabel = hasSelectedSession
@@ -2474,20 +2471,6 @@ export function MvpDashboard({
     setOpenRightPanel(null);
   }
 
-  const mobileSpotlightTitle = showResolvedRoundCard
-    ? selectedResultPresentation.headline
-    : showBettingControls
-      ? "How many walkers?"
-      : showLiveRoundCard
-        ? "Track the live walkway"
-        : standbyValue;
-  const mobileSpotlightCopy = showResolvedRoundCard
-    ? selectedResultPresentation.copy
-    : showLiveRoundCard
-      ? `Focused on the yellow box while the ${displayedModeSeconds}s round runs.`
-      : showBettingControls
-        ? "Pick your market, tune the stake, and fire before the window closes."
-        : standbyNote;
   const mobileMarketChoices = [
     {
       side: "under" as const,
@@ -2532,15 +2515,7 @@ export function MvpDashboard({
   const mobilePotentialWinLabel =
     selectedPricingGrossPayout !== null ? `${selectedPricingGrossPayout}` : "--";
   const shouldFocusMobileFeed = regionPoints.length >= 3 && !canEditRegion;
-  const mobileFeedStatusLabel = showResolvedRoundCard
-    ? "Result posted"
-    : showBettingControls
-      ? "Bets open"
-      : showMobileRoundActivityCard
-        ? selectedState === "resolving"
-          ? "Reviewing round"
-          : "Round live"
-        : "Live feed";
+  const mobileFeedStatusLabel = showResolvedRoundCard ? "Result posted" : "Live feed";
   const mobileFeedMetaLabel = hasSelectedSession
     ? `${sessionMetricLabel} ${sessionMetricValue}`
     : "Tommy Walkway";
@@ -2548,14 +2523,14 @@ export function MvpDashboard({
     ? "Place your bet"
     : showResolvedRoundCard
       ? selectedResultPresentation.headline
-      : showLiveRoundCard
-        ? "Round in progress"
-        : mobileSpotlightTitle;
+      : selectedState === "upcoming"
+        ? "Next betting window"
+        : standbyValue;
   const mobileDockCopy = showBettingControls
     ? "Choose a market, set your stake, and lock it in before the window closes."
     : !user && !hasSelectedSession
       ? "Sign in now so you're ready when the next round is posted."
-      : mobileSpotlightCopy;
+      : standbyNote;
   const mobileBetCtaMeta =
     mobilePotentialWinLabel === "--"
       ? `${mobileSelectedChoice.multiplier} payout`
@@ -2569,17 +2544,6 @@ export function MvpDashboard({
     .join(" • ");
   const showMobileOpenBetWidget = showBettingControls && selectedSessionPredictionCount > 0;
   const mobileLiveCountDisplay = livePeopleCount === null ? "--" : livePeopleCountDisplay;
-  const mobileLiveHeaderKicker = selectedState === "resolving" ? "Round closed" : "Round live";
-  const mobileLiveHeaderTitle =
-    selectedState === "resolving" ? "Reviewing the final box count" : "Track the live walkway";
-  const mobileLiveTimeLabel = selectedState === "resolving" ? "Window" : "Time left";
-  const mobileLiveTimeValue = selectedState === "resolving" ? "Closed" : selectedRoundCountdown;
-  const mobileLiveTimeNote =
-    selectedState === "resolving"
-      ? selectedEndsAtLabel
-        ? `Closed at ${selectedEndsAtLabel}`
-        : "Round closed"
-      : `${displayedModeSeconds}s round • closes ${selectedEndsAtLabel ?? "soon"}`;
   const mobileLiveCountNote =
     livePeopleCount === null
       ? selectedState === "resolving"
@@ -2621,30 +2585,6 @@ export function MvpDashboard({
       : displayedThreshold > 0
         ? clamp((liveCountValue / displayedThreshold) * mobileLiveThresholdMarkerPercent, 0, 100)
         : 0;
-  const mobileLiveTicketEyebrow =
-    selectedSessionPredictionCount > 1
-      ? `${selectedSessionPredictionCount} live tickets`
-      : selectedPrediction
-        ? "Your ticket"
-        : selectedState === "resolving"
-          ? "Result pending"
-          : "Watch mode";
-  const mobileLiveTicketHeadline =
-    selectedSessionPredictionCount > 1
-      ? `${selectedSessionStakedTokens} tokens in play`
-      : selectedPrediction && selectedSession
-        ? formatPredictionLabel(selectedPrediction, selectedSession)
-        : selectedState === "resolving"
-          ? "Final count coming in now"
-          : "Bets are locked for this round";
-  const mobileLiveTicketNote =
-    selectedSessionPredictionCount > 1
-      ? "All live tickets settle as soon as the result posts."
-      : selectedPrediction
-        ? `${selectedPrediction.wager_tokens} tokens • ${formatPayoutMultiplier(getStoredPredictionPayoutMultiplierBps(selectedPrediction))}`
-        : selectedState === "resolving"
-          ? "We will post the official result here automatically."
-          : "The next betting window opens on the following round.";
   const mobileModeInputLabel =
     selectedSide === "exact"
       ? "Exact count"
@@ -2663,6 +2603,36 @@ export function MvpDashboard({
       : selectedSide === "range"
         ? `${selectedRangeMin}${selectedRangeMax ? `-${selectedRangeMax}` : ""}`
         : "";
+  const showMobileIdleDock = !selectedSession;
+  const showMobileUpcomingDock = Boolean(selectedSession && selectedState === "upcoming");
+  const showMobileLiveDock = Boolean(selectedSession && selectedState === "live");
+  const showMobileResolvingDock = Boolean(selectedSession && selectedState === "resolving");
+  const mobileOpenFieldGridClassName = mobileModeInputLabel
+    ? "mobile-open-dock-field-grid mobile-open-dock-field-grid-parameterized"
+    : "mobile-open-dock-field-grid";
+  const mobileLiveOverlayTimeNote = selectedEndsAtLabel
+    ? `Closes at ${selectedEndsAtLabel}`
+    : `${displayedModeSeconds}s round`;
+  const mobileLiveOverlayTicketSummary =
+    selectedSessionPredictionCount > 1
+      ? `${selectedSessionPredictionCount} bets live`
+      : selectedPrediction && selectedSession
+        ? formatPredictionLabel(selectedPrediction, selectedSession)
+        : "Watch mode";
+  const mobileResolvedPrimaryStatLabel =
+    selectedSessionPredictionCount > 1
+      ? "Tickets settled"
+      : selectedPrediction
+        ? "Your ticket"
+        : "Winning side";
+  const mobileResolvedPrimaryStatValue =
+    selectedSessionPredictionCount > 1
+      ? `${selectedSessionPredictionCount}`
+      : selectedPrediction && selectedSession
+        ? formatPredictionLabel(selectedPrediction, selectedSession)
+        : selectedWinningSide
+          ? selectedWinningSide.toUpperCase()
+          : "Pending";
   const mobileDockMetaItems =
     showResolvedRoundCard && selectedSession
       ? [
@@ -2715,7 +2685,13 @@ export function MvpDashboard({
       }
     >
       {showBettingControls ? (
-        <>
+        <div
+          className={
+            mobileModeInputLabel
+              ? "mobile-open-dock mobile-open-dock-parameterized"
+              : "mobile-open-dock mobile-open-dock-simple"
+          }
+        >
           <div className="mobile-market-tab-row" role="tablist" aria-label="Market types">
             {mobileMarketChoices.map((choice) => (
               <button
@@ -2743,35 +2719,45 @@ export function MvpDashboard({
             ))}
           </div>
 
-          {mobileModeInputLabel ? (
-            <label className="mobile-dock-inline-field mobile-dock-inline-field-parameter">
-              <span>{mobileModeInputLabel}</span>
-              <input
-                key={`${selectedSession?.id ?? "none"}-${selectedSide}`}
-                type="text"
-                inputMode={selectedSide === "exact" ? "numeric" : "text"}
-                defaultValue={mobileModeInputDefaultValue}
-                placeholder={mobileModeInputPlaceholder}
-                onChange={(event) => {
-                  if (!selectedSession) {
-                    return;
-                  }
+          <div className={mobileOpenFieldGridClassName}>
+            {mobileModeInputLabel ? (
+              <label className="mobile-dock-inline-field mobile-dock-inline-field-parameter">
+                <span>{mobileModeInputLabel}</span>
+                <input
+                  key={`${selectedSession?.id ?? "none"}-${selectedSide}`}
+                  type="text"
+                  inputMode={selectedSide === "exact" ? "numeric" : "text"}
+                  defaultValue={mobileModeInputDefaultValue}
+                  placeholder={mobileModeInputPlaceholder}
+                  onChange={(event) => {
+                    if (!selectedSession) {
+                      return;
+                    }
 
-                  if (selectedSide === "exact") {
-                    updateSelectedExactValue(selectedSession.id, event.target.value);
-                    return;
-                  }
+                    if (selectedSide === "exact") {
+                      updateSelectedExactValue(selectedSession.id, event.target.value);
+                      return;
+                    }
 
-                  if (selectedSide === "range") {
-                    updateSelectedMobileRangeValue(selectedSession.id, event.target.value);
-                  }
-                }}
-                disabled={!canConfigureSelected}
-              />
-            </label>
-          ) : null}
+                    if (selectedSide === "range") {
+                      updateSelectedMobileRangeValue(selectedSession.id, event.target.value);
+                    }
+                  }}
+                  disabled={!canConfigureSelected}
+                />
+              </label>
+            ) : (
+              <div
+                className={`mobile-open-preview-card mobile-open-preview-card-${mobileSelectedChoice.accent}`}
+              >
+                <span>Selected market</span>
+                <strong>{mobileSelectedChoice.label}</strong>
+                <p>
+                  {mobileSelectedChoice.detail} • {mobileSelectedChoice.multiplier}
+                </p>
+              </div>
+            )}
 
-          <div className="mobile-dock-amount-stack">
             <label className="mobile-dock-inline-field mobile-dock-inline-field-amount">
               <span>Amount</span>
               <input
@@ -2786,7 +2772,9 @@ export function MvpDashboard({
                 disabled={!canConfigureSelected}
               />
             </label>
+          </div>
 
+          <div className="mobile-open-dock-footer">
             <div className="mobile-stake-chip-row" aria-label="Stake shortcuts">
               <button type="button" className="mobile-stake-chip" onClick={() => applyMobileWagerPreset("min")}>
                 Min
@@ -2804,58 +2792,41 @@ export function MvpDashboard({
                 2x
               </button>
             </div>
-          </div>
 
-          <button
-            type="button"
-            className="mobile-bet-cta mobile-bet-cta-inline"
-            disabled={betButtonDisabled}
-            onClick={() => {
-              if (selectedSession) {
-                handleBetAction(selectedSession);
-                return;
-              }
+            <button
+              type="button"
+              className="mobile-bet-cta mobile-bet-cta-inline mobile-bet-cta-mobile-open"
+              disabled={betButtonDisabled}
+              onClick={() => {
+                if (selectedSession) {
+                  handleBetAction(selectedSession);
+                  return;
+                }
 
-              handleEmptyStateSignupAction();
-            }}
-          >
-            <span className="mobile-bet-cta-accent">{mobileSelectedChoice.label}</span>
-            <strong>{betButtonLabel}</strong>
-            <span className="mobile-bet-cta-meta">{mobileBetCtaMeta}</span>
-          </button>
-        </>
-      ) : showMobileRoundActivityCard && selectedSession ? (
-        <div className={`mobile-live-dock mobile-live-dock-${selectedState}`}>
-          <div className="mobile-live-dock-header">
-            <div className="mobile-live-dock-header-copy">
-              <span className="mobile-live-dock-kicker">{mobileLiveHeaderKicker}</span>
-              <strong>{mobileLiveHeaderTitle}</strong>
-            </div>
-            <span
-              className={
-                selectedState === "resolving"
-                  ? "status status-resolving mobile-live-dock-status"
-                  : "status status-live-badge mobile-live-dock-status"
-              }
+                handleEmptyStateSignupAction();
+              }}
             >
-              {selectedState === "resolving" ? null : <span className="status-live-dot" aria-hidden="true" />}
-              {selectedState === "resolving" ? "Reviewing" : "Live"}
-            </span>
+              <span className="mobile-bet-cta-accent">{mobileSelectedChoice.label}</span>
+              <strong>{betButtonLabel}</strong>
+              <span className="mobile-bet-cta-meta">{mobileBetCtaMeta}</span>
+            </button>
           </div>
-
-          <div className="mobile-live-dock-scoreboard">
-            <div className="mobile-live-dock-focus-card mobile-live-dock-focus-card-time">
-              <span>{mobileLiveTimeLabel}</span>
-              <strong>{mobileLiveTimeValue}</strong>
-              <p>{mobileLiveTimeNote}</p>
+        </div>
+      ) : showMobileLiveDock && selectedSession ? (
+        <div className="mobile-round-dock mobile-round-dock-live">
+          <div className="mobile-round-dock-header">
+            <div className="mobile-round-dock-copy">
+              <span className="mobile-round-dock-kicker">Round live</span>
+              <strong>Line {displayedThreshold} is in play</strong>
+              <p>
+                Bets are locked while the live counter runs. We will settle every ticket as soon as
+                the official count posts.
+              </p>
             </div>
-
-            <div className="mobile-live-dock-focus-card mobile-live-dock-focus-card-count">
-              <span>People in box</span>
-              <div className="mobile-live-dock-count-orb" aria-hidden="true" />
-              <strong>{mobileLiveCountDisplay}</strong>
-              <p>{mobileLiveCountNote}</p>
-            </div>
+            <span className="status status-live-badge mobile-round-dock-status">
+              <span className="status-live-dot" aria-hidden="true" />
+              Live
+            </span>
           </div>
 
           <div className={`mobile-live-dock-meter-card mobile-live-dock-meter-card-${mobileLiveMeterStateTone}`}>
@@ -2881,74 +2852,179 @@ export function MvpDashboard({
             </div>
           </div>
 
-          <div className="mobile-live-dock-ticket">
-            <span>{mobileLiveTicketEyebrow}</span>
-            <strong>{mobileLiveTicketHeadline}</strong>
-            <span>{mobileLiveTicketNote}</span>
+          <div className="mobile-round-dock-footer-grid">
+            <div className="mobile-round-dock-footer-card">
+              <span>{selectedSessionPredictionCount > 0 ? "Your position" : "Watching"}</span>
+              <strong>
+                {selectedSessionPredictionCount > 1
+                  ? `${selectedSessionPredictionCount} bets • ${selectedSessionStakedTokens} tokens`
+                  : selectedPrediction
+                    ? `${selectedPrediction.wager_tokens} tokens • ${formatPayoutMultiplier(getStoredPredictionPayoutMultiplierBps(selectedPrediction))}`
+                    : "No tickets on this round"}
+              </strong>
+            </div>
+            <div className="mobile-round-dock-footer-card">
+              <span>Window</span>
+              <strong>{mobileLiveOverlayTimeNote}</strong>
+            </div>
           </div>
         </div>
-      ) : (
-        <>
-          <div className="mobile-dock-state-surface">
-            <div className="mobile-dock-topbar">
-              <div className="mobile-dock-topbar-copy">
-                <span className="mobile-dock-kicker">{hasSelectedSession ? sessionMetricLabel : "Tommy Walkway"}</span>
-                <strong>{mobileDockTitle}</strong>
-              </div>
-              <span className={selectedState ? `status status-${selectedState}` : "status"}>
-                {selectedState ? getSessionStateLabel(selectedState) : "Standby"}
-              </span>
+      ) : showMobileResolvingDock && selectedSession ? (
+        <div className="mobile-review-dock">
+          <div className="mobile-review-dock-copy">
+            <span className="mobile-review-dock-kicker">Resolving</span>
+            <strong>Checking the final box count</strong>
+            <p>
+              The round is closed and we are reviewing the live feed now. Your result will appear
+              here automatically.
+            </p>
+          </div>
+
+          <div className="mobile-review-dock-meta-grid">
+            <div className="mobile-review-dock-meta-card">
+              <span>Closed</span>
+              <strong>{selectedEndsAtLabel ?? "Just now"}</strong>
             </div>
+            <div className="mobile-review-dock-meta-card">
+              <span>Betting line</span>
+              <strong>{displayedThreshold}</strong>
+            </div>
+          </div>
 
-            <p className="mobile-dock-state-copy">{mobileDockCopy}</p>
+          <div className="mobile-review-dock-ticket">
+            <span>{selectedSessionPredictionCount > 0 ? "Settling" : "Watch mode"}</span>
+            <strong>
+              {selectedSessionPredictionCount > 1
+                ? `${selectedSessionPredictionCount} bets are waiting for settlement`
+                : selectedPrediction && selectedSession
+                  ? `${formatPredictionLabel(selectedPrediction, selectedSession)} is waiting for the result`
+                  : "Final count is syncing from the live feed"}
+            </strong>
+            <span>
+              {selectedSessionPredictionCount > 0
+                ? `${selectedSessionStakedTokens} tokens in play`
+                : "We will post the official result as soon as it lands."}
+            </span>
+          </div>
+        </div>
+      ) : showResolvedRoundCard && selectedSession ? (
+        <div className={`mobile-result-dock mobile-result-dock-${selectedResultTone}`}>
+          <div className="mobile-result-dock-topline">
+            <span className="mobile-result-dock-kicker">{selectedResultPresentation.eyebrow}</span>
+            <strong>{selectedResultPresentation.headline}</strong>
+            <p>{selectedResultPresentation.copy}</p>
+          </div>
 
-            <div className="mobile-dock-state-meta-grid">
-              {mobileDockMetaItems.map((item) => (
-                <div className="mobile-dock-state-meta-card" key={`${item.label}-${item.value}`}>
-                  <span>{item.label}</span>
-                  <strong>{item.value}</strong>
+          <div className="mobile-result-dock-scoreboard">
+            <div className="mobile-result-dock-score-card">
+              <span>Final count</span>
+              <strong>{selectedSession.final_count ?? "--"}</strong>
+            </div>
+            <div className="mobile-result-dock-score-card">
+              <span>Betting line</span>
+              <strong>{displayedThreshold}</strong>
+            </div>
+          </div>
+
+          <div className="mobile-result-dock-summary">
+            <span>{mobileResolvedPrimaryStatLabel}</span>
+            <strong>{mobileResolvedPrimaryStatValue}</strong>
+            <span>
+              {selectedResultPresentation.secondaryLabel}: {selectedResultPresentation.secondaryValue}
+            </span>
+          </div>
+
+          {selectedSessionPredictionCount > 0 ? (
+            <div className="mobile-result-dock-ticket-row">
+              {selectedSessionPreviewPredictions.map((prediction) => (
+                <div
+                  className={`mobile-result-dock-ticket-chip mobile-result-dock-ticket-chip-${prediction.side}`}
+                  key={prediction.id}
+                >
+                  <strong>{formatPredictionLabel(prediction, selectedSession)}</strong>
+                  <span>{prediction.wager_tokens} tokens</span>
                 </div>
               ))}
+              {selectedSessionOverflowPredictionCount > 0 ? (
+                <span className="mobile-result-dock-ticket-more">
+                  +{selectedSessionOverflowPredictionCount} more
+                </span>
+              ) : null}
             </div>
+          ) : null}
 
-            {selectedSessionPredictionCount > 0 ? (
-              <div className="mobile-slip-banner">
-                <span>Your live slips</span>
-                <strong>
-                  {selectedSessionPredictionCount > 1
-                    ? `${selectedSessionPredictionCount} tickets on this round`
-                    : formatPredictionLabel(selectedPrediction, selectedSession)}
-                </strong>
-                <span>{selectedSessionStakedTokens} tokens committed</span>
-              </div>
-            ) : null}
-
-            {!user || isAdmin ? (
-              <div className="mobile-dock-state-actions">
-                {!user ? (
-                  <button
-                    type="button"
-                    className="mobile-bet-cta mobile-bet-cta-secondary"
-                    onClick={hasSelectedSession ? handleRoundAuthAction : handleEmptyStateSignupAction}
-                  >
-                    <span className="mobile-bet-cta-accent">Join</span>
-                    <strong>{standbyActionLabel ?? "Sign In / Sign Up"}</strong>
-                    <span className="mobile-bet-cta-meta">Be ready as soon as the next window opens.</span>
-                  </button>
-                ) : null}
-                {isAdmin ? (
-                  <button
-                    type="button"
-                    className="mobile-dock-inline-action"
-                    onClick={() => toggleRightPanel("admin")}
-                  >
-                    Open Admin
-                  </button>
-                ) : null}
-              </div>
-            ) : null}
+          <span className="mobile-result-dock-footer">{selectedResultPresentation.footer}</span>
+        </div>
+      ) : (
+        <div
+          className={
+            !selectedSession
+              ? "mobile-idle-dock mobile-idle-dock-idle"
+              : selectedState
+                ? `mobile-idle-dock mobile-idle-dock-${selectedState}`
+                : "mobile-idle-dock"
+          }
+        >
+          <div className="mobile-idle-dock-hero">
+            <span className="mobile-idle-dock-kicker">
+              {showMobileUpcomingDock ? "Next round scheduled" : standbyLabel}
+            </span>
+            <strong>
+              {showMobileIdleDock
+                ? "No live game posted"
+                : showMobileUpcomingDock
+                  ? "Waiting for the betting window"
+                  : mobileDockTitle}
+            </strong>
+            <p>
+              {showMobileIdleDock
+                ? "We are waiting for an admin to post the next Tommy Walkway live game. This screen updates automatically the moment a new round is ready."
+                : standbyTitle}
+            </p>
           </div>
-        </>
+
+          <div className="mobile-idle-dock-meta-grid">
+            {mobileDockMetaItems.map((item) => (
+              <div className="mobile-idle-dock-meta-card" key={`${item.label}-${item.value}`}>
+                <span>{item.label}</span>
+                <strong>{item.value}</strong>
+              </div>
+            ))}
+          </div>
+
+          <p className="mobile-idle-dock-note">
+            {showMobileIdleDock
+              ? standbyNote
+              : showMobileUpcomingDock
+                ? standbyNote
+                : mobileDockCopy}
+          </p>
+
+          {!user || isAdmin ? (
+            <div className="mobile-dock-state-actions">
+              {!user ? (
+                <button
+                  type="button"
+                  className="mobile-bet-cta mobile-bet-cta-secondary"
+                  onClick={hasSelectedSession ? handleRoundAuthAction : handleEmptyStateSignupAction}
+                >
+                  <span className="mobile-bet-cta-accent">Join</span>
+                  <strong>{standbyActionLabel ?? "Sign In / Sign Up"}</strong>
+                  <span className="mobile-bet-cta-meta">Be ready as soon as the next window opens.</span>
+                </button>
+              ) : null}
+              {isAdmin ? (
+                <button
+                  type="button"
+                  className="mobile-dock-inline-action"
+                  onClick={() => toggleRightPanel("admin")}
+                >
+                  Open Admin
+                </button>
+              ) : null}
+            </div>
+          ) : null}
+        </div>
       )}
     </div>
   );
@@ -3016,8 +3092,13 @@ export function MvpDashboard({
         "betting-screen",
         "betting-screen-mobile",
         isPhoneViewport ? "betting-screen-mobile-phone" : null,
-        showMobileRoundActivityCard ? "betting-screen-mobile-round-active" : null,
-        showBettingControls ? "betting-screen-mobile-dock-open" : null
+        showBettingControls ? "betting-screen-mobile-open" : null,
+        showMobileLiveDock ? "betting-screen-mobile-live" : null,
+        showMobileResolvingDock ? "betting-screen-mobile-resolving" : null,
+        showResolvedRoundCard ? "betting-screen-mobile-resolved" : null,
+        showMobileUpcomingDock ? "betting-screen-mobile-upcoming" : null,
+        showMobileIdleDock ? "betting-screen-mobile-idle" : null,
+        showBettingControls && mobileModeInputLabel ? "betting-screen-mobile-open-parameterized" : null
       ]
         .filter(Boolean)
         .join(" ")
@@ -3027,6 +3108,9 @@ export function MvpDashboard({
     <main
       className={mobileScreenClassName}
     >
+      {isMobileViewport && showResolvedRoundCard && selectedResultTone !== "neutral" ? (
+        <div className={`screen-result-aura screen-result-aura-${selectedResultTone}`} aria-hidden="true" />
+      ) : null}
       {showWinConfetti ? (
         <div className="screen-confetti" aria-hidden="true">
           {SCREEN_CONFETTI_PIECES.map((piece, index) => (
@@ -3076,8 +3160,8 @@ export function MvpDashboard({
 
                   <div
                     className={
-                      showBettingControls
-                        ? "mobile-feed-overlay mobile-feed-overlay-open"
+                      showBettingControls || showMobileLiveDock || showMobileResolvingDock
+                        ? "mobile-feed-overlay mobile-feed-overlay-scroll"
                         : "mobile-feed-overlay"
                     }
                   >
@@ -3126,18 +3210,90 @@ export function MvpDashboard({
                           ))
                         ) : null}
                       </>
-                    ) : showMobileRoundActivityCard || showResolvedRoundCard ? (
+                    ) : showMobileLiveDock && selectedSession ? (
+                      <>
+                        <div className="mobile-live-floating-card mobile-live-floating-card-time">
+                          <span className="mobile-live-floating-card-kicker">Round live</span>
+                          <strong>{selectedRoundCountdown}</strong>
+                          <span>{mobileLiveOverlayTimeNote}</span>
+                        </div>
+
+                        <div
+                          className={`mobile-live-floating-card mobile-live-floating-card-count mobile-live-floating-card-${mobileLiveMeterStateTone}`}
+                        >
+                          <span className="mobile-live-floating-card-kicker">People in box</span>
+                          <strong>{mobileLiveCountDisplay}</strong>
+                          <span>{mobileLiveCountNote}</span>
+                        </div>
+
+                        {selectedSessionPredictionCount > 0 ? (
+                          selectedSessionPredictions.map((prediction, index) => (
+                            <div
+                              className={`mobile-live-ticket-card mobile-live-ticket-card-${prediction.side}`}
+                              key={prediction.id}
+                            >
+                              <span className="mobile-live-ticket-card-kicker">
+                                {selectedSessionPredictionCount > 1 ? `Bet ${index + 1}` : "Your bet"}
+                              </span>
+                              <strong>{formatPredictionLabel(prediction, selectedSession)}</strong>
+                              <span>
+                                {prediction.wager_tokens} tokens •{" "}
+                                {formatPayoutMultiplier(getStoredPredictionPayoutMultiplierBps(prediction))}
+                              </span>
+                            </div>
+                          ))
+                        ) : (
+                          <div className="mobile-live-ticket-card mobile-live-ticket-card-watch">
+                            <span className="mobile-live-ticket-card-kicker">Watch mode</span>
+                            <strong>{mobileLiveOverlayTicketSummary}</strong>
+                            <span>Track the live counter above the dock while this round runs.</span>
+                          </div>
+                        )}
+                      </>
+                    ) : showMobileResolvingDock && selectedSession ? (
+                      <>
+                        <div className="mobile-review-floating-card">
+                          <span className="mobile-review-floating-card-kicker">Resolving</span>
+                          <strong>Reviewing the final box count</strong>
+                          <span>
+                            {selectedEndsAtLabel ? `Window closed at ${selectedEndsAtLabel}` : "Window closed"}
+                          </span>
+                        </div>
+
+                        {selectedSessionPredictionCount > 0 ? (
+                          selectedSessionPredictions.map((prediction) => (
+                            <div
+                              className={`mobile-live-ticket-card mobile-live-ticket-card-${prediction.side}`}
+                              key={prediction.id}
+                            >
+                              <span className="mobile-live-ticket-card-kicker">Settling</span>
+                              <strong>{formatPredictionLabel(prediction, selectedSession)}</strong>
+                              <span>
+                                {prediction.wager_tokens} tokens •{" "}
+                                {formatPayoutMultiplier(getStoredPredictionPayoutMultiplierBps(prediction))}
+                              </span>
+                            </div>
+                          ))
+                        ) : (
+                          <div className="mobile-live-ticket-card mobile-live-ticket-card-watch">
+                            <span className="mobile-live-ticket-card-kicker">Reviewing</span>
+                            <strong>Final count syncing</strong>
+                            <span>The result card below updates automatically when the official count lands.</span>
+                          </div>
+                        )}
+                      </>
+                    ) : showResolvedRoundCard ? (
                       <div className="mobile-feed-badge-row">
                         <span
                           className={
-                            showBettingControls || (showMobileRoundActivityCard && selectedState === "live")
+                            selectedState === "live"
                               ? "status status-live-badge mobile-feed-live-badge"
                               : selectedState
                                 ? `status status-${selectedState}`
                                 : "status"
                           }
                         >
-                          {showBettingControls || (showMobileRoundActivityCard && selectedState === "live") ? (
+                          {selectedState === "live" ? (
                             <span className="status-live-dot" aria-hidden="true" />
                           ) : null}
                           {mobileFeedStatusLabel}
