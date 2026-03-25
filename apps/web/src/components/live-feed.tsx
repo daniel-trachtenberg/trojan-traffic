@@ -24,10 +24,19 @@ type LiveFeedProps = {
   mediaAspectRatio?: number | null;
   region?: RegionPoint[] | null;
   fullScreen?: boolean;
+  fullScreenStageFit?: "cover" | "fill";
   personBoxes?: PersonDetectionBox[];
   statusMessage?: string | null;
   regionEditorEnabled?: boolean;
   onRegionChange?: ((points: RegionPoint[]) => void) | null;
+  displayWindow?:
+    | {
+        left: number;
+        top: number;
+        width: number;
+        height: number;
+      }
+    | null;
   focusRegion?: boolean;
   focusPadding?:
     | number
@@ -73,6 +82,15 @@ const DEFAULT_FOCUS_PADDING = {
 
 function clamp(value: number, min: number, max: number) {
   return Math.min(Math.max(value, min), max);
+}
+
+function getViewportStyle(viewport: NonNullable<LiveFeedProps["displayWindow"]>) {
+  return {
+    width: `${(1 / viewport.width) * 100}%`,
+    height: `${(1 / viewport.height) * 100}%`,
+    left: `${(-viewport.left / viewport.width) * 100}%`,
+    top: `${(-viewport.top / viewport.height) * 100}%`
+  };
 }
 
 function toNormalizedPoints(points: RegionPoint[]) {
@@ -209,10 +227,12 @@ export function LiveFeed({
   mediaAspectRatio = DEFAULT_MEDIA_ASPECT_RATIO,
   region = null,
   fullScreen = false,
+  fullScreenStageFit = "cover",
   personBoxes = [],
   statusMessage = null,
   regionEditorEnabled = false,
   onRegionChange = null,
+  displayWindow = null,
   focusRegion = false,
   focusPadding = DEFAULT_FOCUS_PADDING,
   focusWindow = null,
@@ -234,7 +254,7 @@ export function LiveFeed({
       ? mediaAspectRatio
       : DEFAULT_MEDIA_ASPECT_RATIO;
   const overlayState = statusMessage ?? playbackState;
-  const focusViewport = focusRegion
+  const focusViewport = focusRegion && !displayWindow
     ? getFocusViewport(
         normalizedRegion,
         focusPadding,
@@ -292,27 +312,34 @@ export function LiveFeed({
 
       const shellAspectRatio = bounds.width / bounds.height;
       const nextSize = fullScreen
-        ? shellAspectRatio > resolvedAspectRatio
+        ? fullScreenStageFit === "fill"
           ? {
               width: Math.round(bounds.width),
-              height: Math.round(bounds.width / resolvedAspectRatio),
-              visibleWidthFraction: 1,
-              visibleHeightFraction: clamp(
-                bounds.height / Math.max(Math.round(bounds.width / resolvedAspectRatio), 1),
-                0,
-                1
-              )
-            }
-          : {
-              width: Math.round(bounds.height * resolvedAspectRatio),
               height: Math.round(bounds.height),
-              visibleWidthFraction: clamp(
-                bounds.width / Math.max(Math.round(bounds.height * resolvedAspectRatio), 1),
-                0,
-                1
-              ),
+              visibleWidthFraction: 1,
               visibleHeightFraction: 1
             }
+          : shellAspectRatio > resolvedAspectRatio
+            ? {
+                width: Math.round(bounds.width),
+                height: Math.round(bounds.width / resolvedAspectRatio),
+                visibleWidthFraction: 1,
+                visibleHeightFraction: clamp(
+                  bounds.height / Math.max(Math.round(bounds.width / resolvedAspectRatio), 1),
+                  0,
+                  1
+                )
+              }
+            : {
+                width: Math.round(bounds.height * resolvedAspectRatio),
+                height: Math.round(bounds.height),
+                visibleWidthFraction: clamp(
+                  bounds.width / Math.max(Math.round(bounds.height * resolvedAspectRatio), 1),
+                  0,
+                  1
+                ),
+                visibleHeightFraction: 1
+              }
         : shellAspectRatio > resolvedAspectRatio
           ? {
               width: Math.round(bounds.height * resolvedAspectRatio),
@@ -349,7 +376,7 @@ export function LiveFeed({
     return () => {
       observer.disconnect();
     };
-  }, [fullScreen, resolvedAspectRatio]);
+  }, [fullScreen, fullScreenStageFit, resolvedAspectRatio]);
 
   useEffect(() => {
     const video = videoRef.current;
@@ -449,7 +476,9 @@ export function LiveFeed({
               : "video-stage-content"
           }
           style={
-            focusViewport
+            displayWindow
+              ? getViewportStyle(displayWindow)
+              : focusViewport
               ? {
                   width: `${focusViewport.scale * 100}%`,
                   height: `${focusViewport.scale * 100}%`,

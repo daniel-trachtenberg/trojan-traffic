@@ -3063,14 +3063,12 @@ export function MvpDashboard({
                       mediaAspectRatio={liveFeedAspectRatio}
                       region={regionPoints}
                       fullScreen
+                      fullScreenStageFit="fill"
                       personBoxes={livePersonBoxes}
                       statusMessage={activeVisionApiUrl ? liveFeedStatusMessage : null}
                       regionEditorEnabled={canEditRegion}
                       onRegionChange={canEditRegion ? setRegionPoints : null}
-                      focusRegion={shouldFocusMobileFeed}
-                      focusPadding={{ top: 0.08, right: 0.08, bottom: 0.18, left: 0.08 }}
-                      focusHorizontalAlignment="right"
-                      stageHorizontalAlignment="right"
+                      displayWindow={{ left: 1 / 2, top: 0, width: 1 / 2, height: 1 }}
                     />
                     <div className="feed-mask mobile-arena-mask" />
                   </div>
