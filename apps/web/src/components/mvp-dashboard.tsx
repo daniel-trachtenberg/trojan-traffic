@@ -783,7 +783,7 @@ export function MvpDashboard({
   const [rangeMinBySession, setRangeMinBySession] = useState<Record<string, string>>({});
   const [rangeMaxBySession, setRangeMaxBySession] = useState<Record<string, string>>({});
   const [mobileStandbyWager, setMobileStandbyWager] = useState(DEFAULT_WAGER);
-  const [mobileStandbySide, setMobileStandbySide] = useState<PredictionSide>("under");
+  const [mobileStandbySide, setMobileStandbySide] = useState<PredictionSide>("over");
   const [mobileStandbyExactValue, setMobileStandbyExactValue] = useState(DEFAULT_EXACT_VALUE);
   const [mobileStandbyRangeMin, setMobileStandbyRangeMin] = useState(
     getDefaultRangeMin(DEFAULT_STANDBY_THRESHOLD)
@@ -941,7 +941,7 @@ export function MvpDashboard({
   const selectedWager = selectedSession
     ? (wagerBySession[selectedSession.id] ?? DEFAULT_WAGER)
     : mobileStandbyWager;
-  const selectedSide = selectedSession ? (sideBySession[selectedSession.id] ?? "under") : mobileStandbySide;
+  const selectedSide = selectedSession ? (sideBySession[selectedSession.id] ?? "over") : mobileStandbySide;
   const selectedExactValue = selectedSession
     ? (exactValueBySession[selectedSession.id] ?? DEFAULT_EXACT_VALUE)
     : mobileStandbyExactValue;
@@ -2224,7 +2224,7 @@ export function MvpDashboard({
       return;
     }
 
-    const side = sideBySession[session.id] ?? "under";
+    const side = sideBySession[session.id] ?? "over";
     const exactValueRaw = exactValueBySession[session.id] ?? String(session.threshold);
     const exactValue = Number.parseInt(exactValueRaw, 10);
     const rangeMinRaw = rangeMinBySession[session.id] ?? getDefaultRangeMin(session.threshold);
