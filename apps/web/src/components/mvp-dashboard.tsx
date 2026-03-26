@@ -12,9 +12,7 @@ import {
 import {
   formatPayoutMultiplier,
   getPredictionGrossPayoutTokens,
-  getPredictionNetWinTokens,
-  getPredictionPayoutMultiplierBps,
-  getRangeWidth
+  getPredictionPayoutMultiplierBps
 } from "@/lib/prediction-payouts";
 import { getBrowserSupabaseClient } from "@/lib/supabase/client";
 
@@ -136,7 +134,6 @@ type PredictionHistoryTone = "win" | "loss" | "pending" | "cancelled";
 const DEFAULT_WAGER = "10";
 const DEFAULT_EXACT_VALUE = "5";
 const DEFAULT_STANDBY_THRESHOLD = 5;
-const WAGER_STEPS = [1, 5, 10, 20];
 const HUMAN_OVERLAY_PREVIEW_ENABLED = false;
 const BETTING_OPEN_WINDOW_MS = 5 * 60 * 1000;
 const DAILY_CLAIM_TIMEZONE = "America/Los_Angeles";
@@ -948,24 +945,12 @@ export function MvpDashboard({
     Number.isFinite(selectedConfiguredRangeMin) ? selectedConfiguredRangeMin : null;
   const selectedPricingRangeMax =
     Number.isFinite(selectedConfiguredRangeMax) ? selectedConfiguredRangeMax : null;
-  const selectedPricingRangeWidth = getRangeWidth(selectedPricingRangeMin, selectedPricingRangeMax);
   const selectedPricingMultiplierBps =
     getPredictionPayoutMultiplierBps(selectedPricingSide, selectedPricingRangeMin, selectedPricingRangeMax);
   const selectedPricingGrossPayout =
     selectedPricingWager !== null
       ? getPredictionGrossPayoutTokens(selectedPricingWager, selectedPricingMultiplierBps)
       : null;
-  const selectedPricingNetWin =
-    selectedPricingWager !== null
-      ? getPredictionNetWinTokens(selectedPricingWager, selectedPricingMultiplierBps)
-      : null;
-  const selectedPricingLabel = hasSelectedSessionPredictions ? "Next Ticket" : "Odds";
-  const selectedPricingNote =
-    selectedPricingWager === null || selectedPricingMultiplierBps === null || selectedPricingGrossPayout === null
-      ? "Set a valid wager to preview the payout."
-      : selectedPricingSide === "range" && selectedPricingRangeWidth !== null
-        ? `${selectedPricingWager} in, ${selectedPricingGrossPayout} back. Covers ${selectedPricingRangeWidth} exact counts.`
-        : `${selectedPricingWager} in, ${selectedPricingGrossPayout} back. Profit +${selectedPricingNetWin ?? 0}.`;
   const selectedWagerValue =
     Number.isFinite(selectedConfiguredWager) && selectedConfiguredWager > 0
       ? selectedConfiguredWager
@@ -1028,29 +1013,9 @@ export function MvpDashboard({
         ? "Locked"
         : selectedState === "resolving"
           ? "Resolving"
-          : selectedState
+        : selectedState
             ? getSessionStateLabel(selectedState)
             : "Waiting";
-  const sessionMetricNote =
-    selectedState === "upcoming"
-      ? selectedSession
-        ? `Betting unlocks at ${new Date(
-            new Date(selectedSession.starts_at).getTime() - BETTING_OPEN_WINDOW_MS
-          ).toLocaleTimeString([], {
-            hour: "numeric",
-            minute: "2-digit"
-          })}`
-        : "Betting opens shortly before the round begins."
-      : selectedState === "open"
-      ? `${displayedModeSeconds}s window`
-      : selectedState === "resolved" && selectedSession
-        ? new Date(selectedSession.ends_at).toLocaleTimeString([], {
-            hour: "numeric",
-            minute: "2-digit"
-          })
-        : selectedSession
-          ? `${displayedModeSeconds}s round`
-          : "Next round not scheduled yet";
   const selectedStartsAtLabel = selectedSession
     ? new Date(selectedSession.starts_at).toLocaleTimeString([], {
         hour: "numeric",
@@ -2810,6 +2775,7 @@ export function MvpDashboard({
   const mobileOpenControlGridClassName = showMobileParameterInputs
     ? "mobile-open-control-grid mobile-open-control-grid-split"
     : "mobile-open-control-grid mobile-open-control-grid-stake-only";
+  const showDesktopBettingScreen = showBettingControls || showMobileIdleDock;
   const mobileLiveOverlayTimeNote = selectedEndsAtLabel
     ? `Closes at ${selectedEndsAtLabel}`
     : `${displayedModeSeconds}s round`;
@@ -2876,6 +2842,216 @@ export function MvpDashboard({
       </button>
     </div>
   );
+  const sharedOpenDockSections = (
+    <>
+      <div className="mobile-market-tab-row" role="tablist" aria-label="Market types">
+        {mobileMarketChoices.map((choice) => (
+          <button
+            key={choice.side}
+            type="button"
+            role="tab"
+            aria-selected={selectedSide === choice.side}
+            className={
+              selectedSide === choice.side
+                ? `mobile-market-tab mobile-market-tab-${choice.accent} active`
+                : `mobile-market-tab mobile-market-tab-${choice.accent}`
+            }
+            onClick={() => updateMobileDockSide(choice.side)}
+            disabled={!canInteractWithMobileDockControls}
+          >
+            <span className="mobile-market-tab-icon" aria-hidden="true">
+              {choice.icon}
+            </span>
+            <span className="mobile-market-tab-label">{choice.label}</span>
+          </button>
+        ))}
+      </div>
+
+      <div className="mobile-open-dock-body">
+        <div className={`mobile-open-info-strip mobile-open-info-strip-${mobileSelectedChoice.accent}`}>
+          <strong>{mobileOpenInfoTitle}</strong>
+          <p>{mobileOpenInfoCopy}</p>
+        </div>
+
+        <div className={mobileOpenControlGridClassName}>
+          {showMobileParameterInputs ? (
+            <div className={`mobile-open-panel mobile-open-panel-parameter mobile-open-panel-${mobileSelectedChoice.accent}`}>
+              <div className="mobile-open-panel-header">
+                <span>{selectedSide === "exact" ? "Exact count" : "Set range"}</span>
+                <strong>
+                  {selectedSide === "exact"
+                    ? `${selectedExactCountValue}`
+                    : `${selectedRangeMinValue} to ${selectedRangeMaxValue}`}
+                </strong>
+              </div>
+
+              {selectedSide === "exact" ? (
+                <div className="mobile-touch-stepper mobile-touch-stepper-panel">
+                  <button
+                    type="button"
+                    className="mobile-touch-stepper-button"
+                    aria-label="Decrease exact count"
+                    onClick={() => adjustMobileDockExactValue(-1)}
+                    disabled={!canInteractWithMobileDockControls}
+                  >
+                    -
+                  </button>
+
+                  <label className="mobile-touch-stepper-field">
+                    <span>Exact</span>
+                    <input
+                      type="number"
+                      min={0}
+                      step={1}
+                      inputMode="numeric"
+                      value={selectedExactValue}
+                      onChange={(event) => updateMobileDockExactValue(event.target.value)}
+                      disabled={!canInteractWithMobileDockControls}
+                    />
+                  </label>
+
+                  <button
+                    type="button"
+                    className="mobile-touch-stepper-button"
+                    aria-label="Increase exact count"
+                    onClick={() => adjustMobileDockExactValue(1)}
+                    disabled={!canInteractWithMobileDockControls}
+                  >
+                    +
+                  </button>
+                </div>
+              ) : (
+                <div className="mobile-touch-range-input-grid mobile-touch-range-input-grid-panel">
+                  <label className="mobile-touch-input-field">
+                    <span>Min</span>
+                    <input
+                      type="number"
+                      min={0}
+                      step={1}
+                      inputMode="numeric"
+                      value={selectedRangeMin}
+                      onChange={(event) => updateMobileDockRangeMin(event.target.value)}
+                      disabled={!canInteractWithMobileDockControls}
+                    />
+                  </label>
+
+                  <label className="mobile-touch-input-field">
+                    <span>Max</span>
+                    <input
+                      type="number"
+                      min={0}
+                      step={1}
+                      inputMode="numeric"
+                      value={selectedRangeMax}
+                      onChange={(event) => updateMobileDockRangeMax(event.target.value)}
+                      disabled={!canInteractWithMobileDockControls}
+                    />
+                  </label>
+                </div>
+              )}
+            </div>
+          ) : null}
+
+          <div className="mobile-open-panel mobile-open-panel-stake">
+            <div className="mobile-open-panel-header">
+              <span>Stake</span>
+              <strong>{selectedWagerValue}</strong>
+            </div>
+
+            <div className="mobile-touch-stepper mobile-touch-stepper-panel">
+              <button
+                type="button"
+                className="mobile-touch-stepper-button"
+                aria-label="Decrease wager"
+                onClick={() => adjustMobileDockWager(-1)}
+                disabled={!canInteractWithMobileDockControls}
+              >
+                -
+              </button>
+
+              <label className="mobile-touch-stepper-field">
+                <span>Amount</span>
+                <input
+                  type="number"
+                  min={1}
+                  step={1}
+                  inputMode="numeric"
+                  value={selectedWager}
+                  onChange={(event) => updateMobileDockWager(event.target.value)}
+                  disabled={!canInteractWithMobileDockControls}
+                />
+              </label>
+
+              <button
+                type="button"
+                className="mobile-touch-stepper-button"
+                aria-label="Increase wager"
+                onClick={() => adjustMobileDockWager(1)}
+                disabled={!canInteractWithMobileDockControls}
+              >
+                +
+              </button>
+            </div>
+
+            <div className="mobile-touch-chip-row mobile-touch-chip-row-stake" aria-label="Stake shortcuts">
+              <button
+                type="button"
+                className={selectedWagerValue === 1 ? "mobile-touch-chip mobile-touch-chip-active" : "mobile-touch-chip"}
+                onClick={() => applyMobileWagerPreset("min")}
+                disabled={!canInteractWithMobileDockControls}
+              >
+                Min
+              </button>
+              <button
+                type="button"
+                className="mobile-touch-chip"
+                onClick={() => applyMobileWagerPreset(5)}
+                disabled={!canInteractWithMobileDockControls}
+              >
+                +5
+              </button>
+              <button
+                type="button"
+                className="mobile-touch-chip"
+                onClick={() => applyMobileWagerPreset(10)}
+                disabled={!canInteractWithMobileDockControls}
+              >
+                +10
+              </button>
+              <button
+                type="button"
+                className="mobile-touch-chip"
+                onClick={() => applyMobileWagerPreset("double")}
+                disabled={!canInteractWithMobileDockControls}
+              >
+                2x
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="mobile-open-dock-footer">
+        <button
+          type="button"
+          className="mobile-bet-cta mobile-bet-cta-inline mobile-bet-cta-mobile-open"
+          disabled={mobileDockBetButtonDisabled}
+          onClick={() => {
+            if (selectedSession) {
+              handleBetAction(selectedSession);
+              return;
+            }
+
+            handleEmptyStateSignupAction();
+          }}
+        >
+          <span className="mobile-bet-cta-accent">{mobileDockBetButtonAccent}</span>
+          <strong>{mobileDockBetButtonLabel}</strong>
+          <span className="mobile-bet-cta-meta">{mobileDockBetButtonMeta}</span>
+        </button>
+      </div>
+    </>
+  );
   const bettingWidgetContent = (
     <div
       className={
@@ -2886,212 +3062,7 @@ export function MvpDashboard({
     >
       {showMobileOpenDock ? (
         <div className="mobile-open-dock">
-          <div className="mobile-market-tab-row" role="tablist" aria-label="Market types">
-            {mobileMarketChoices.map((choice) => (
-              <button
-                key={choice.side}
-                type="button"
-                role="tab"
-                aria-selected={selectedSide === choice.side}
-                className={
-                  selectedSide === choice.side
-                    ? `mobile-market-tab mobile-market-tab-${choice.accent} active`
-                    : `mobile-market-tab mobile-market-tab-${choice.accent}`
-                }
-                onClick={() => updateMobileDockSide(choice.side)}
-                disabled={!canInteractWithMobileDockControls}
-              >
-                <span className="mobile-market-tab-icon" aria-hidden="true">
-                  {choice.icon}
-                </span>
-                <span className="mobile-market-tab-label">{choice.label}</span>
-              </button>
-            ))}
-          </div>
-
-          <div className="mobile-open-dock-body">
-            <div className={`mobile-open-info-strip mobile-open-info-strip-${mobileSelectedChoice.accent}`}>
-              <strong>{mobileOpenInfoTitle}</strong>
-              <p>{mobileOpenInfoCopy}</p>
-            </div>
-
-            <div className={mobileOpenControlGridClassName}>
-              {showMobileParameterInputs ? (
-                <div className={`mobile-open-panel mobile-open-panel-parameter mobile-open-panel-${mobileSelectedChoice.accent}`}>
-                  <div className="mobile-open-panel-header">
-                    <span>{selectedSide === "exact" ? "Exact count" : "Set range"}</span>
-                    <strong>
-                      {selectedSide === "exact"
-                        ? `${selectedExactCountValue}`
-                        : `${selectedRangeMinValue} to ${selectedRangeMaxValue}`}
-                    </strong>
-                  </div>
-
-                  {selectedSide === "exact" ? (
-                    <div className="mobile-touch-stepper mobile-touch-stepper-panel">
-                      <button
-                        type="button"
-                        className="mobile-touch-stepper-button"
-                        aria-label="Decrease exact count"
-                        onClick={() => adjustMobileDockExactValue(-1)}
-                        disabled={!canInteractWithMobileDockControls}
-                      >
-                        -
-                      </button>
-
-                      <label className="mobile-touch-stepper-field">
-                        <span>Exact</span>
-                        <input
-                          type="number"
-                          min={0}
-                          step={1}
-                          inputMode="numeric"
-                          value={selectedExactValue}
-                          onChange={(event) => updateMobileDockExactValue(event.target.value)}
-                          disabled={!canInteractWithMobileDockControls}
-                        />
-                      </label>
-
-                      <button
-                        type="button"
-                        className="mobile-touch-stepper-button"
-                        aria-label="Increase exact count"
-                        onClick={() => adjustMobileDockExactValue(1)}
-                        disabled={!canInteractWithMobileDockControls}
-                      >
-                        +
-                      </button>
-                    </div>
-                  ) : (
-                    <div className="mobile-touch-range-input-grid mobile-touch-range-input-grid-panel">
-                      <label className="mobile-touch-input-field">
-                        <span>Min</span>
-                        <input
-                          type="number"
-                          min={0}
-                          step={1}
-                          inputMode="numeric"
-                          value={selectedRangeMin}
-                          onChange={(event) => updateMobileDockRangeMin(event.target.value)}
-                          disabled={!canInteractWithMobileDockControls}
-                        />
-                      </label>
-
-                      <label className="mobile-touch-input-field">
-                        <span>Max</span>
-                        <input
-                          type="number"
-                          min={0}
-                          step={1}
-                          inputMode="numeric"
-                          value={selectedRangeMax}
-                          onChange={(event) => updateMobileDockRangeMax(event.target.value)}
-                          disabled={!canInteractWithMobileDockControls}
-                        />
-                      </label>
-                    </div>
-                  )}
-                </div>
-              ) : null}
-
-              <div className="mobile-open-panel mobile-open-panel-stake">
-                <div className="mobile-open-panel-header">
-                  <span>Stake</span>
-                  <strong>{selectedWagerValue}</strong>
-                </div>
-
-                <div className="mobile-touch-stepper mobile-touch-stepper-panel">
-                  <button
-                    type="button"
-                    className="mobile-touch-stepper-button"
-                    aria-label="Decrease wager"
-                    onClick={() => adjustMobileDockWager(-1)}
-                    disabled={!canInteractWithMobileDockControls}
-                  >
-                    -
-                  </button>
-
-                  <label className="mobile-touch-stepper-field">
-                    <span>Amount</span>
-                    <input
-                      type="number"
-                      min={1}
-                      step={1}
-                      inputMode="numeric"
-                      value={selectedWager}
-                      onChange={(event) => updateMobileDockWager(event.target.value)}
-                      disabled={!canInteractWithMobileDockControls}
-                    />
-                  </label>
-
-                  <button
-                    type="button"
-                    className="mobile-touch-stepper-button"
-                    aria-label="Increase wager"
-                    onClick={() => adjustMobileDockWager(1)}
-                    disabled={!canInteractWithMobileDockControls}
-                  >
-                    +
-                  </button>
-                </div>
-
-                <div className="mobile-touch-chip-row mobile-touch-chip-row-stake" aria-label="Stake shortcuts">
-                  <button
-                    type="button"
-                    className={selectedWagerValue === 1 ? "mobile-touch-chip mobile-touch-chip-active" : "mobile-touch-chip"}
-                    onClick={() => applyMobileWagerPreset("min")}
-                    disabled={!canInteractWithMobileDockControls}
-                  >
-                    Min
-                  </button>
-                  <button
-                    type="button"
-                    className="mobile-touch-chip"
-                    onClick={() => applyMobileWagerPreset(5)}
-                    disabled={!canInteractWithMobileDockControls}
-                  >
-                    +5
-                  </button>
-                  <button
-                    type="button"
-                    className="mobile-touch-chip"
-                    onClick={() => applyMobileWagerPreset(10)}
-                    disabled={!canInteractWithMobileDockControls}
-                  >
-                    +10
-                  </button>
-                  <button
-                    type="button"
-                    className="mobile-touch-chip"
-                    onClick={() => applyMobileWagerPreset("double")}
-                    disabled={!canInteractWithMobileDockControls}
-                  >
-                    2x
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div className="mobile-open-dock-footer">
-            <button
-              type="button"
-              className="mobile-bet-cta mobile-bet-cta-inline mobile-bet-cta-mobile-open"
-              disabled={mobileDockBetButtonDisabled}
-              onClick={() => {
-                if (selectedSession) {
-                  handleBetAction(selectedSession);
-                  return;
-                }
-
-                handleEmptyStateSignupAction();
-              }}
-            >
-              <span className="mobile-bet-cta-accent">{mobileDockBetButtonAccent}</span>
-              <strong>{mobileDockBetButtonLabel}</strong>
-              <span className="mobile-bet-cta-meta">{mobileDockBetButtonMeta}</span>
-            </button>
-          </div>
+          {sharedOpenDockSections}
         </div>
       ) : showMobileLiveDock && selectedSession ? (
         <div className="mobile-round-dock mobile-round-dock-live">
@@ -3936,7 +3907,13 @@ export function MvpDashboard({
       ) : null}
 
       <div className="floating-widgets">
-        <section className="floating-widget bet-widget">
+        <section
+          className={
+            showDesktopBettingScreen
+              ? "floating-widget bet-widget bet-widget-open-dock"
+              : "floating-widget bet-widget"
+          }
+        >
           <header className="widget-header bet-widget-header">
             <div className="widget-title-block">
               <p className="widget-kicker">Tommy Walkway</p>
@@ -3948,247 +3925,19 @@ export function MvpDashboard({
             </span>
           </header>
 
-          <div className="market-meta-row">
-            <span className={selectedState ? `status status-${selectedState}` : "status"}>
-              {selectedState ? getSessionStateLabel(selectedState) : "Standby"}
-            </span>
-            {hasSelectedSession ? <span className="round-chip">{displayedModeSeconds}s round</span> : null}
-            {hasSelectedSession ? <span className="round-chip">Threshold {displayedThreshold}</span> : null}
-          </div>
+          {!showDesktopBettingScreen ? (
+            <div className="market-meta-row">
+              <span className={selectedState ? `status status-${selectedState}` : "status"}>
+                {selectedState ? getSessionStateLabel(selectedState) : "Standby"}
+              </span>
+              {hasSelectedSession ? <span className="round-chip">{displayedModeSeconds}s round</span> : null}
+              {hasSelectedSession ? <span className="round-chip">Threshold {displayedThreshold}</span> : null}
+            </div>
+          ) : null}
 
           <div className="market-board">
-            {showBettingControls ? (
-              <>
-                <div className="market-choice-grid">
-                  <button
-                    type="button"
-                    className={
-                      hasSelectedSession && selectedSide === "under"
-                        ? "market-choice-card market-choice-under active"
-                        : "market-choice-card market-choice-under"
-                    }
-                    onClick={() => {
-                      if (selectedSession) {
-                        updateSelectedSide(selectedSession.id, "under");
-                      }
-                    }}
-                    disabled={!canConfigureSelected}
-                  >
-                    <span className="market-choice-icon" aria-hidden="true">
-                      ↓
-                    </span>
-                    <span className="market-choice-title">Under</span>
-                    <span className="market-choice-subtitle">Below {displayedThreshold}</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    className={
-                      hasSelectedSession && selectedSide === "over"
-                        ? "market-choice-card market-choice-over active"
-                        : "market-choice-card market-choice-over"
-                    }
-                    onClick={() => {
-                      if (selectedSession) {
-                        updateSelectedSide(selectedSession.id, "over");
-                      }
-                    }}
-                    disabled={!canConfigureSelected}
-                  >
-                    <span className="market-choice-icon" aria-hidden="true">
-                      ↑
-                    </span>
-                    <span className="market-choice-title">Over</span>
-                    <span className="market-choice-subtitle">{displayedThreshold} or more</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    className={
-                      hasSelectedSession && selectedSide === "exact"
-                        ? "market-choice-card market-choice-exact active"
-                        : "market-choice-card market-choice-exact"
-                    }
-                    onClick={() => {
-                      if (selectedSession) {
-                        updateSelectedSide(selectedSession.id, "exact");
-                      }
-                    }}
-                    disabled={!canConfigureSelected}
-                  >
-                    <span className="market-choice-icon" aria-hidden="true">
-                      =
-                    </span>
-                    <span className="market-choice-title">Exact</span>
-                    <span className="market-choice-subtitle">
-                      {selectedExactValue ? `Call ${selectedExactValue}` : "Name the final count"}
-                    </span>
-                  </button>
-
-                  <button
-                    type="button"
-                    className={
-                      hasSelectedSession && selectedSide === "range"
-                        ? "market-choice-card market-choice-range active"
-                        : "market-choice-card market-choice-range"
-                    }
-                    onClick={() => {
-                      if (selectedSession) {
-                        updateSelectedSide(selectedSession.id, "range");
-                      }
-                    }}
-                    disabled={!canConfigureSelected}
-                  >
-                    <span className="market-choice-icon" aria-hidden="true">
-                      ≈
-                    </span>
-                    <span className="market-choice-title">Range</span>
-                    <span className="market-choice-subtitle">
-                      {selectedRangeMin && selectedRangeMax
-                        ? `${selectedRangeMin} to ${selectedRangeMax}`
-                        : "Pick a min and max"}
-                    </span>
-                  </button>
-                </div>
-
-                {hasSelectedSession && selectedSide === "exact" ? (
-                  <div className="market-config-card">
-                    <div className="market-config-header">
-                      <span className="market-config-label">Exact count</span>
-                      <span className="market-config-hint">Whole number, zero or higher</span>
-                    </div>
-
-                    <div className="market-config-field-grid market-config-field-grid-single">
-                      <label className="market-config-field">
-                        <span>Your call</span>
-                        <input
-                          type="number"
-                          min={0}
-                          step={1}
-                          inputMode="numeric"
-                          value={selectedExactValue}
-                          onChange={(event) => {
-                            if (selectedSession) {
-                              updateSelectedExactValue(selectedSession.id, event.target.value);
-                            }
-                          }}
-                          disabled={!canConfigureSelected}
-                        />
-                      </label>
-                    </div>
-                  </div>
-                ) : null}
-
-                {hasSelectedSession && selectedSide === "range" ? (
-                  <div className="market-config-card">
-                    <div className="market-config-header">
-                      <span className="market-config-label">Inclusive range</span>
-                      <span className="market-config-hint">Whole numbers, zero or higher</span>
-                    </div>
-
-                    <div className="market-config-field-grid">
-                      <label className="market-config-field">
-                        <span>Minimum</span>
-                        <input
-                          type="number"
-                          min={0}
-                          step={1}
-                          inputMode="numeric"
-                          value={selectedRangeMin}
-                          onChange={(event) => {
-                            if (selectedSession) {
-                              updateSelectedRangeMin(selectedSession.id, event.target.value);
-                            }
-                          }}
-                          disabled={!canConfigureSelected}
-                        />
-                      </label>
-
-                      <label className="market-config-field">
-                        <span>Maximum</span>
-                        <input
-                          type="number"
-                          min={0}
-                          step={1}
-                          inputMode="numeric"
-                          value={selectedRangeMax}
-                          onChange={(event) => {
-                            if (selectedSession) {
-                              updateSelectedRangeMax(selectedSession.id, event.target.value);
-                            }
-                          }}
-                          disabled={!canConfigureSelected}
-                        />
-                      </label>
-                    </div>
-                  </div>
-                ) : null}
-
-                <div className="market-metrics-row">
-                  <div className="market-metric">
-                    <span className="market-metric-label">{sessionMetricLabel}</span>
-                    <strong>{sessionMetricValue}</strong>
-                    <span className="market-metric-note">{sessionMetricNote}</span>
-                  </div>
-                  <div className="market-metric">
-                    <span className="market-metric-label">{selectedPricingLabel}</span>
-                    <strong>{formatPayoutMultiplier(selectedPricingMultiplierBps)}</strong>
-                    <span className="market-metric-note">{selectedPricingNote}</span>
-                  </div>
-                </div>
-
-                <div className="stake-toolbar">
-                  <div className="stake-step-row">
-                    <span className="stake-label">Stake</span>
-                    <div className="stake-step-buttons">
-                      {WAGER_STEPS.map((step) => (
-                        <button
-                          key={step}
-                          type="button"
-                          className="stake-step-button"
-                          disabled={!canConfigureSelected}
-                          onClick={() => {
-                            if (selectedSession) {
-                              adjustSelectedWager(selectedSession.id, step);
-                            }
-                          }}
-                        >
-                          +{step}
-                        </button>
-                      ))}
-                      <button
-                        type="button"
-                        className="stake-step-button"
-                        disabled={!canConfigureSelected}
-                        onClick={() => {
-                          if (selectedSession) {
-                            updateSelectedWager(selectedSession.id, DEFAULT_WAGER);
-                          }
-                        }}
-                      >
-                        Reset
-                      </button>
-                    </div>
-                  </div>
-
-                  <div className="stake-summary-row compact-stake-summary-row">
-                    <label className="stake-input-card">
-                      <span>Stake</span>
-                      <input
-                        type="number"
-                        min={1}
-                        value={selectedWager}
-                        onChange={(event) => {
-                          if (selectedSession) {
-                            updateSelectedWager(selectedSession.id, event.target.value);
-                          }
-                        }}
-                        disabled={!canConfigureSelected}
-                      />
-                    </label>
-                  </div>
-                </div>
-              </>
+            {showDesktopBettingScreen ? (
+              <div className="mobile-open-dock desktop-open-dock">{sharedOpenDockSections}</div>
             ) : showLiveRoundCard && selectedSession ? (
               <div className="market-live-summary-card">
                 <span className="market-live-summary-kicker">Round live</span>
@@ -4300,7 +4049,10 @@ export function MvpDashboard({
             )}
           </div>
 
-          {selectedSessionPredictionCount > 0 && !showLiveRoundCard && !showResolvedRoundCard ? (
+          {selectedSessionPredictionCount > 0 &&
+          !showDesktopBettingScreen &&
+          !showLiveRoundCard &&
+          !showResolvedRoundCard ? (
             <div className="session-result compact-result selection-summary selection-summary-stack">
               <div className="selection-summary-header">
                 <span className="selection-summary-kicker">
@@ -4348,25 +4100,6 @@ export function MvpDashboard({
             </div>
           ) : null}
 
-          {showBettingControls ? (
-            <div className="bet-card-footer">
-              <button
-                type="button"
-                className="bet-submit-button"
-                disabled={betButtonDisabled}
-                onClick={() => {
-                  if (selectedSession) {
-                    handleBetAction(selectedSession);
-                    return;
-                  }
-
-                  handleEmptyStateSignupAction();
-                }}
-              >
-                {betButtonLabel}
-              </button>
-            </div>
-          ) : null}
         </section>
 
         <div className="right-rail">
