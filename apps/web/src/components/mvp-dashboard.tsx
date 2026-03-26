@@ -999,8 +999,8 @@ export function MvpDashboard({
       : dailyClaimState.detail;
   const showLiveRoundCard = Boolean(selectedSession && selectedState === "live");
   const showResolvedRoundCard = Boolean(selectedSession && selectedState === "resolved");
-  const emptyStateSignupEnabled = !hasSelectedSession && !user;
-  const betButtonDisabled = hasSelectedSession ? !canConfigureSelected : !emptyStateSignupEnabled;
+  const emptyStateSignInEnabled = !hasSelectedSession && !user;
+  const betButtonDisabled = hasSelectedSession ? !canConfigureSelected : !emptyStateSignInEnabled;
   const betButtonLabel = hasSelectedSession
     ? !user
       ? "Sign In to Bet"
@@ -1009,7 +1009,7 @@ export function MvpDashboard({
       : "Bet"
     : user
       ? "Waiting"
-      : "Sign Up";
+      : "Sign In to Bet";
   const sessionMetricLabel =
     selectedState === "upcoming"
       ? "Opens In"
@@ -1511,11 +1511,7 @@ export function MvpDashboard({
                 { label: "Updates", value: "Refresh soon" }
               ];
   const standbyActionLabel =
-    !user && !selectedSession
-      ? "Sign In / Sign Up"
-      : !user && hasSelectedSession
-        ? "Sign In / Sign Up to Join"
-        : null;
+    !user ? "Sign In to Bet" : null;
   const hasUnsavedRegionChanges = !bettingRegionsEqual(regionPoints, savedRegionPoints);
   const canEditRegion = isAdmin && isRegionEditModeEnabled;
   const showRegionEditDock = isAdmin && (isRegionEditModeEnabled || hasUnsavedRegionChanges);
@@ -2524,12 +2520,12 @@ export function MvpDashboard({
     void handlePlacePrediction(session, user);
   }
 
-  function handleEmptyStateSignupAction() {
-    if (!emptyStateSignupEnabled) {
+  function handleEmptyStateSignInAction() {
+    if (!emptyStateSignInEnabled) {
       return;
     }
 
-    openAuthModal("sign-up");
+    openAuthModal("sign-in");
   }
 
   function handleRoundAuthAction() {
@@ -2787,7 +2783,7 @@ export function MvpDashboard({
       ? "Betting unlocks once a game is posted."
       : mobileBetCtaMeta;
   const mobileDockBetButtonAccent = showIdleSignInCta
-    ? "Join"
+    ? "Sign In"
     : showMobileIdleDock
       ? "Standby"
       : mobileSelectedChoice.label;
@@ -3352,10 +3348,10 @@ export function MvpDashboard({
                 <button
                   type="button"
                   className="mobile-bet-cta mobile-bet-cta-secondary"
-                  onClick={hasSelectedSession ? handleRoundAuthAction : handleEmptyStateSignupAction}
+                  onClick={hasSelectedSession ? handleRoundAuthAction : handleEmptyStateSignInAction}
                 >
-                  <span className="mobile-bet-cta-accent">Join</span>
-                  <strong>{standbyActionLabel ?? "Sign In / Sign Up"}</strong>
+                  <span className="mobile-bet-cta-accent">Sign In</span>
+                  <strong>{standbyActionLabel ?? "Sign In to Bet"}</strong>
                   <span className="mobile-bet-cta-meta">Be ready as soon as the next window opens.</span>
                 </button>
               ) : null}
@@ -4137,8 +4133,8 @@ export function MvpDashboard({
                         type="button"
                         className="bet-submit-button market-standby-button"
                         onClick={
-                          emptyStateSignupEnabled
-                            ? handleEmptyStateSignupAction
+                          emptyStateSignInEnabled
+                            ? handleEmptyStateSignInAction
                             : handleRoundAuthAction
                         }
                       >
