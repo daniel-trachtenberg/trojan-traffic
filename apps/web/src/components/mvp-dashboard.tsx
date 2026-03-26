@@ -2604,12 +2604,20 @@ export function MvpDashboard({
         ? `${selectedRangeMin}${selectedRangeMax ? `-${selectedRangeMax}` : ""}`
         : "";
   const showMobileIdleDock = !selectedSession;
+  const showMobileOpenDock = showBettingControls || showMobileIdleDock;
   const showMobileUpcomingDock = Boolean(selectedSession && selectedState === "upcoming");
   const showMobileLiveDock = Boolean(selectedSession && selectedState === "live");
   const showMobileResolvingDock = Boolean(selectedSession && selectedState === "resolving");
   const mobileOpenFieldGridClassName = mobileModeInputLabel
     ? "mobile-open-dock-field-grid mobile-open-dock-field-grid-parameterized"
     : "mobile-open-dock-field-grid";
+  const mobileNoGameOverlayCopy =
+    "There is no game right now. Waiting for an admin to post the next round.";
+  const mobileDockBetButtonDisabled = showMobileIdleDock ? true : betButtonDisabled;
+  const mobileDockBetButtonLabel = showMobileIdleDock ? "Waiting for next round" : betButtonLabel;
+  const mobileDockBetButtonMeta = showMobileIdleDock ? "Betting unlocks once a game is posted." : mobileBetCtaMeta;
+  const mobileDockBetButtonAccent = showMobileIdleDock ? "Standby" : mobileSelectedChoice.label;
+  const mobileSelectedMarketLabel = showMobileIdleDock ? "Default market" : "Selected market";
   const mobileLiveOverlayTimeNote = selectedEndsAtLabel
     ? `Closes at ${selectedEndsAtLabel}`
     : `${displayedModeSeconds}s round`;
@@ -2679,12 +2687,12 @@ export function MvpDashboard({
   const bettingWidgetContent = (
     <div
       className={
-        showBettingControls
+        showMobileOpenDock
           ? "mobile-betting-dock-shell mobile-betting-dock-shell-betting"
           : "mobile-betting-dock-shell"
       }
     >
-      {showBettingControls ? (
+      {showMobileOpenDock ? (
         <div
           className={
             mobileModeInputLabel
@@ -2750,7 +2758,7 @@ export function MvpDashboard({
               <div
                 className={`mobile-open-preview-card mobile-open-preview-card-${mobileSelectedChoice.accent}`}
               >
-                <span>Selected market</span>
+                <span>{mobileSelectedMarketLabel}</span>
                 <strong>{mobileSelectedChoice.label}</strong>
                 <p>
                   {mobileSelectedChoice.detail} • {mobileSelectedChoice.multiplier}
@@ -2776,19 +2784,44 @@ export function MvpDashboard({
 
           <div className="mobile-open-dock-footer">
             <div className="mobile-stake-chip-row" aria-label="Stake shortcuts">
-              <button type="button" className="mobile-stake-chip" onClick={() => applyMobileWagerPreset("min")}>
+              <button
+                type="button"
+                className="mobile-stake-chip"
+                onClick={() => applyMobileWagerPreset("min")}
+                disabled={!canConfigureSelected}
+              >
                 Min
               </button>
-              <button type="button" className="mobile-stake-chip" onClick={() => applyMobileWagerPreset(1)}>
+              <button
+                type="button"
+                className="mobile-stake-chip"
+                onClick={() => applyMobileWagerPreset(1)}
+                disabled={!canConfigureSelected}
+              >
                 +1
               </button>
-              <button type="button" className="mobile-stake-chip" onClick={() => applyMobileWagerPreset(5)}>
+              <button
+                type="button"
+                className="mobile-stake-chip"
+                onClick={() => applyMobileWagerPreset(5)}
+                disabled={!canConfigureSelected}
+              >
                 +5
               </button>
-              <button type="button" className="mobile-stake-chip" onClick={() => applyMobileWagerPreset(10)}>
+              <button
+                type="button"
+                className="mobile-stake-chip"
+                onClick={() => applyMobileWagerPreset(10)}
+                disabled={!canConfigureSelected}
+              >
                 +10
               </button>
-              <button type="button" className="mobile-stake-chip" onClick={() => applyMobileWagerPreset("double")}>
+              <button
+                type="button"
+                className="mobile-stake-chip"
+                onClick={() => applyMobileWagerPreset("double")}
+                disabled={!canConfigureSelected}
+              >
                 2x
               </button>
             </div>
@@ -2796,7 +2829,7 @@ export function MvpDashboard({
             <button
               type="button"
               className="mobile-bet-cta mobile-bet-cta-inline mobile-bet-cta-mobile-open"
-              disabled={betButtonDisabled}
+              disabled={mobileDockBetButtonDisabled}
               onClick={() => {
                 if (selectedSession) {
                   handleBetAction(selectedSession);
@@ -2806,9 +2839,9 @@ export function MvpDashboard({
                 handleEmptyStateSignupAction();
               }}
             >
-              <span className="mobile-bet-cta-accent">{mobileSelectedChoice.label}</span>
-              <strong>{betButtonLabel}</strong>
-              <span className="mobile-bet-cta-meta">{mobileBetCtaMeta}</span>
+              <span className="mobile-bet-cta-accent">{mobileDockBetButtonAccent}</span>
+              <strong>{mobileDockBetButtonLabel}</strong>
+              <span className="mobile-bet-cta-meta">{mobileDockBetButtonMeta}</span>
             </button>
           </div>
         </div>
@@ -3166,7 +3199,13 @@ export function MvpDashboard({
                         : "mobile-feed-overlay"
                     }
                   >
-                    {showBettingControls ? (
+                    {showMobileIdleDock ? (
+                      <div className="mobile-review-floating-card mobile-review-floating-card-idle">
+                        <span className="mobile-review-floating-card-kicker">No game live</span>
+                        <strong>Waiting for the next post</strong>
+                        <span>{mobileNoGameOverlayCopy}</span>
+                      </div>
+                    ) : showBettingControls ? (
                       <>
                         <div className="mobile-open-market-widget">
                           <span className="mobile-open-market-widget-kicker">Bets open</span>

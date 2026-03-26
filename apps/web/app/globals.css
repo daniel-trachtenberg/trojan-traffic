@@ -4678,6 +4678,15 @@ body {
     min-height: 5.3rem;
   }
 
+  .mobile-review-floating-card-idle {
+    width: min(13.4rem, 62vw);
+    min-height: 5.5rem;
+    border-color: rgb(255 255 255 / 14%);
+    background:
+      radial-gradient(circle at top left, rgb(255 255 255 / 9%), transparent 56%),
+      linear-gradient(180deg, rgb(15 18 27 / 0.88) 0%, rgb(9 11 17 / 0.92) 100%);
+  }
+
   .mobile-live-ticket-card {
     width: min(10rem, 41vw);
     min-height: 5.3rem;
@@ -5859,6 +5868,11 @@ body {
     font-weight: 700;
   }
 
+  .mobile-market-tab:disabled,
+  .mobile-stake-chip:disabled {
+    opacity: 0.5;
+  }
+
   .mobile-live-dock {
     height: 100%;
     border: 1px solid rgb(255 255 255 / 11%);
@@ -6441,6 +6455,10 @@ body {
     width: min(11rem, 54vw);
   }
 
+  .betting-screen-mobile-phone .mobile-review-floating-card-idle {
+    width: min(11.8rem, 58vw);
+  }
+
   .betting-screen-mobile-phone .mobile-live-ticket-card {
     width: min(9.15rem, 40vw);
   }
@@ -6762,6 +6780,10 @@ body {
 
     .mobile-review-floating-card {
       width: min(10.2rem, 46vw);
+    }
+
+    .mobile-review-floating-card-idle {
+      width: min(10.6rem, 48vw);
     }
 
     .mobile-live-ticket-card {
