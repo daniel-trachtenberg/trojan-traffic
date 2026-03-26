@@ -6279,26 +6279,25 @@ body {
   }
 
   .betting-screen-mobile-phone .mobile-open-market-widget {
-    width: min(12rem, 55vw);
-    min-height: 4.72rem;
-    padding: 0.62rem 0.7rem;
-    border-radius: 0.96rem;
+    width: min(12.2rem, 56vw);
+    padding: 0.54rem 0.66rem;
+    border-radius: 16px;
   }
 
   .betting-screen-mobile-phone .mobile-open-bet-card {
-    width: min(8.85rem, 39vw);
-    min-height: 4.72rem;
-    padding: 0.62rem 0.7rem;
-    border-radius: 0.96rem;
-    gap: 0.24rem;
+    width: min(8.7rem, 38vw);
+    min-height: 4.95rem;
+    padding: 0.5rem 0.56rem;
+    border-radius: 16px;
+    gap: 0.28rem;
   }
 
   .betting-screen-mobile-phone .mobile-open-bet-card-title {
-    font-size: 0.8rem;
+    font-size: 0.72rem;
   }
 
   .betting-screen-mobile-phone .mobile-open-bet-card-meta {
-    font-size: 0.62rem;
+    font-size: 0.56rem;
   }
 
   .betting-screen-mobile-phone .mobile-open-bet-card-remove {
@@ -6308,44 +6307,44 @@ body {
   }
 
   .betting-screen-mobile-phone .mobile-open-market-widget strong {
-    font-size: 0.94rem;
+    font-size: 0.88rem;
   }
 
   .betting-screen-mobile-phone .mobile-open-market-widget span:last-child {
-    font-size: 0.67rem;
+    font-size: 0.63rem;
   }
 
   .betting-screen-mobile-phone .mobile-live-floating-card,
   .betting-screen-mobile-phone .mobile-review-floating-card,
   .betting-screen-mobile-phone .mobile-live-ticket-card {
-    border-radius: 0.96rem;
-    padding: 0.62rem 0.7rem;
-    min-height: 4.72rem;
+    border-radius: 16px;
+    padding: 0.52rem 0.6rem;
+    min-height: 4.8rem;
   }
 
   .betting-screen-mobile-phone .mobile-live-floating-card {
-    width: min(8rem, 36vw);
+    width: min(8.3rem, 36vw);
   }
 
   .betting-screen-mobile-phone .mobile-review-floating-card {
-    width: min(10.7rem, 52vw);
+    width: min(11rem, 54vw);
   }
 
   .betting-screen-mobile-phone .mobile-live-ticket-card {
-    width: min(8.95rem, 40vw);
+    width: min(9.15rem, 40vw);
   }
 
   .betting-screen-mobile-phone .mobile-live-ticket-card-watch {
-    width: min(10.6rem, 49vw);
+    width: min(10.9rem, 50vw);
   }
 
   .betting-screen-mobile-phone .mobile-live-floating-card strong,
   .betting-screen-mobile-phone .mobile-review-floating-card strong {
-    font-size: 0.94rem;
+    font-size: 1.08rem;
   }
 
   .betting-screen-mobile-phone .mobile-live-ticket-card strong {
-    font-size: 0.82rem;
+    font-size: 0.74rem;
   }
 
   .betting-screen-mobile-phone .mobile-feed-meta-chip {
@@ -6570,27 +6569,26 @@ body {
     }
 
     .mobile-open-market-widget {
-      width: min(11rem, 52vw);
-      min-height: 4.18rem;
-      padding: 0.52rem 0.6rem;
-      border-radius: 0.9rem;
+      width: min(11.2rem, 52vw);
+      padding: 0.5rem 0.62rem;
+      border-radius: 15px;
     }
 
     .mobile-open-bet-card {
-      width: min(8.05rem, 36vw);
-      min-height: 4.18rem;
-      padding: 0.5rem 0.58rem;
-      border-radius: 0.9rem;
-      gap: 0.18rem;
+      width: min(7.95rem, 36vw);
+      min-height: 4.25rem;
+      padding: 0.46rem 0.54rem;
+      border-radius: 14px;
+      gap: 0.22rem;
     }
 
     .mobile-open-bet-card-title {
-      font-size: 0.7rem;
+      font-size: 0.64rem;
     }
 
     .mobile-open-bet-card-kicker,
     .mobile-open-bet-card-meta {
-      font-size: 0.56rem;
+      font-size: 0.52rem;
     }
 
     .mobile-open-bet-card-remove {
@@ -6600,45 +6598,45 @@ body {
     }
 
     .mobile-open-market-widget strong {
-      font-size: 0.86rem;
+      font-size: 0.82rem;
     }
 
     .mobile-open-market-widget span:last-child {
-      font-size: 0.61rem;
+      font-size: 0.6rem;
       line-height: 1.28;
     }
 
     .mobile-live-floating-card,
     .mobile-review-floating-card,
     .mobile-live-ticket-card {
-      min-height: 4.18rem;
-      padding: 0.5rem 0.58rem;
-      border-radius: 0.9rem;
+      min-height: 4.2rem;
+      padding: 0.46rem 0.54rem;
+      border-radius: 14px;
     }
 
     .mobile-live-floating-card {
-      width: min(7.75rem, 34vw);
+      width: min(7.8rem, 34vw);
     }
 
     .mobile-review-floating-card {
-      width: min(10.1rem, 45vw);
+      width: min(10.2rem, 46vw);
     }
 
     .mobile-live-ticket-card {
-      width: min(8.5rem, 37vw);
+      width: min(8.35rem, 36vw);
     }
 
     .mobile-live-ticket-card-watch {
-      width: min(10.05rem, 43vw);
+      width: min(10rem, 42vw);
     }
 
     .mobile-live-floating-card strong,
     .mobile-review-floating-card strong {
-      font-size: 0.88rem;
+      font-size: 0.94rem;
     }
 
     .mobile-live-ticket-card strong {
-      font-size: 0.74rem;
+      font-size: 0.66rem;
     }
 
     .mobile-open-dock,
