@@ -125,6 +125,12 @@ type StandbyMetaItem = {
   value: string;
 };
 
+type AccountOverviewStat = {
+  label: string;
+  value: string;
+  note: string;
+};
+
 type PredictionHistoryTone = "win" | "loss" | "pending" | "cancelled";
 
 const DEFAULT_WAGER = "10";
@@ -706,6 +712,20 @@ function PredictionHistoryList({
   );
 }
 
+function AccountOverviewGrid({ stats }: { stats: AccountOverviewStat[] }) {
+  return (
+    <div className="account-overview-grid">
+      {stats.map((stat) => (
+        <article className="account-overview-card" key={stat.label}>
+          <span>{stat.label}</span>
+          <strong>{stat.value}</strong>
+          <p>{stat.note}</p>
+        </article>
+      ))}
+    </div>
+  );
+}
+
 function isPredictionCancelable(prediction: PredictionRow, session: SessionRow | null, nowMs: number) {
   if (!session || prediction.resolved_at !== null) {
     return false;
@@ -792,6 +812,47 @@ export function MvpDashboard({
       ? `${Math.round((wonPredictionCount / settledPredictions.length) * 100)}%`
       : "--";
   const latestResolvedPrediction = predictions.find((prediction) => prediction.resolved_at !== null) ?? null;
+  const latestResolvedResultLabel = latestResolvedPrediction?.resolved_at
+    ? latestResolvedPrediction.was_correct === true
+      ? "Last ticket won"
+      : latestResolvedPrediction.was_correct === false
+        ? "Last ticket lost"
+        : "Last ticket voided"
+    : pendingPredictionCount > 0
+      ? pendingPredictionCount === 1
+        ? "1 ticket still live"
+        : `${pendingPredictionCount} tickets still live`
+      : "No bets settled yet";
+  const accountOverviewStats: AccountOverviewStat[] = [
+    {
+      label: "Balance",
+      value: `${tokenBalance}`,
+      note: "Ready for the next round"
+    },
+    {
+      label: "Hit rate",
+      value: hitRateLabel,
+      note:
+        settledPredictions.length > 0
+          ? `${wonPredictionCount}/${settledPredictions.length} settled wins`
+          : "Settled picks will show here"
+    },
+    {
+      label: "Open risk",
+      value: `${openRiskTokens}`,
+      note:
+        pendingPredictionCount > 0
+          ? pendingPredictionCount === 1
+            ? "1 active ticket"
+            : `${pendingPredictionCount} active tickets`
+          : "Nothing open right now"
+    },
+    {
+      label: "Bets tracked",
+      value: `${predictions.length}`,
+      note: latestResolvedResultLabel
+    }
+  ];
   const focusedSession = sessions.find((session) => getSessionState(session, nowMs) === "open");
   const upcomingSession = sessions.find((session) => getSessionState(session, nowMs) === "upcoming");
   const inFlightSession =
@@ -994,6 +1055,37 @@ export function MvpDashboard({
     publicProfileSettledPredictions > 0
       ? `${Math.round((publicProfileCorrectPredictions / publicProfileSettledPredictions) * 100)}%`
       : "--";
+  const publicProfileOverviewStats: AccountOverviewStat[] = [
+    {
+      label: "Leaderboard",
+      value: publicProfileRank !== null ? `#${publicProfileRank}` : "--",
+      note:
+        publicProfileRank !== null
+          ? "Live balance rank"
+          : "Waiting for leaderboard placement"
+    },
+    {
+      label: "Bankroll",
+      value:
+        publicProfileSummary?.token_balance !== null && publicProfileSummary?.token_balance !== undefined
+          ? `${publicProfileSummary.token_balance}`
+          : "--",
+      note: "Visible to every bettor"
+    },
+    {
+      label: "Hit rate",
+      value: publicProfileHitRateLabel,
+      note:
+        publicProfileSettledPredictions > 0
+          ? `${publicProfileSettledPredictions} settled picks`
+          : "No settled picks yet"
+    },
+    {
+      label: "Bets tracked",
+      value: `${publicProfileTotalPredictions}`,
+      note: `${publicProfileCorrectPredictions} correct picks`
+    }
+  ];
   const publicProfileHistoryCountLabel =
     isPublicProfileLoading && !publicProfileSummary
       ? "Loading..."
@@ -4322,94 +4414,75 @@ export function MvpDashboard({
               user ? (
                 <div className="account-panel">
                   <section className="account-hero">
-                    <div className="account-hero-copy">
-                      <p className="account-kicker">Player account</p>
-                      <p className="account-name">{profile?.display_name ?? user.email}</p>
-                      <p className="account-subtitle">{user.email}</p>
-                      <div className="account-badge-row">
-                        <span className="account-badge">{profile?.tier ?? "Bronze"} Tier</span>
-                        <span className="account-badge">
-                          Prediction streak {streaks?.prediction_streak ?? 0}
-                        </span>
-                        <span className="account-badge">Login streak {streaks?.login_streak ?? 0}</span>
-                        <span
-                          className={
-                            latestResolvedPrediction?.was_correct === true
-                              ? "account-badge account-badge-win"
-                              : latestResolvedPrediction?.was_correct === false
-                                ? "account-badge account-badge-loss"
-                                : "account-badge"
-                          }
-                        >
-                          Last result{" "}
-                          {latestResolvedPrediction?.resolved_at
-                            ? latestResolvedPrediction.was_correct === true
-                              ? "won"
-                              : latestResolvedPrediction.was_correct === false
-                                ? "lost"
-                                : "cancelled"
-                            : "pending"}
-                        </span>
-                      </div>
-                    </div>
-
-                    <div className="account-actions">
-                      <div className="account-action-tooltip-shell">
-                        <button
-                          type="button"
-                          className="primary-button"
-                          onClick={handleClaimDailyLogin}
-                          disabled={isDailyClaimDisabled}
-                          aria-describedby={isDailyClaimDisabled ? "daily-claim-tooltip" : undefined}
-                        >
-                          {dailyClaimButtonLabel}
-                        </button>
-                        {isDailyClaimDisabled ? (
-                          <span id="daily-claim-tooltip" role="tooltip" className="account-action-tooltip">
-                            {dailyClaimHelperText}
+                    <div className="account-hero-head">
+                      <div className="account-hero-copy">
+                        <p className="account-kicker">Player account</p>
+                        <p className="account-name">{profile?.display_name ?? user.email}</p>
+                        <p className="account-subtitle">{user.email}</p>
+                        <div className="account-badge-row">
+                          <span className="account-badge">{profile?.tier ?? "Bronze"} Tier</span>
+                          <span className="account-badge">
+                            Prediction streak {streaks?.prediction_streak ?? 0}
                           </span>
-                        ) : null}
+                          <span className="account-badge">Login streak {streaks?.login_streak ?? 0}</span>
+                          <span
+                            className={
+                              latestResolvedPrediction?.was_correct === true
+                                ? "account-badge account-badge-win"
+                                : latestResolvedPrediction?.was_correct === false
+                                  ? "account-badge account-badge-loss"
+                                  : "account-badge"
+                            }
+                          >
+                            Last result{" "}
+                            {latestResolvedPrediction?.resolved_at
+                              ? latestResolvedPrediction.was_correct === true
+                                ? "won"
+                                : latestResolvedPrediction.was_correct === false
+                                  ? "lost"
+                                  : "cancelled"
+                              : "pending"}
+                          </span>
+                        </div>
                       </div>
-                      <button type="button" className="secondary-button" onClick={handleSignOut}>
-                        Sign Out
-                      </button>
-                    </div>
-                  </section>
 
-                  <section className="account-stat-grid">
-                    <article className="account-stat-card">
-                      <span>Token balance</span>
-                      <strong>{tokenBalance}</strong>
-                      <p>Available to back the next round.</p>
-                    </article>
-                    <article className="account-stat-card">
-                      <span>Bets tracked</span>
-                      <strong>{predictions.length}</strong>
-                      <p>Every pick from this account, newest first.</p>
-                    </article>
-                    <article className="account-stat-card">
-                      <span>Hit rate</span>
-                      <strong>{hitRateLabel}</strong>
-                      <p>{settledPredictions.length} settled picks in view.</p>
-                    </article>
-                    <article className="account-stat-card">
-                      <span>Tokens in play</span>
-                      <strong>{openRiskTokens}</strong>
-                      <p>{pendingPredictionCount} open or unsettled tickets.</p>
-                    </article>
+                      <div className="account-actions">
+                        <div className="account-action-tooltip-shell">
+                          <button
+                            type="button"
+                            className="primary-button"
+                            onClick={handleClaimDailyLogin}
+                            disabled={isDailyClaimDisabled}
+                            aria-describedby={isDailyClaimDisabled ? "daily-claim-tooltip" : undefined}
+                          >
+                            {dailyClaimButtonLabel}
+                          </button>
+                          {isDailyClaimDisabled ? (
+                            <span id="daily-claim-tooltip" role="tooltip" className="account-action-tooltip">
+                              {dailyClaimHelperText}
+                            </span>
+                          ) : null}
+                        </div>
+                        <button type="button" className="secondary-button" onClick={handleSignOut}>
+                          Sign Out
+                        </button>
+                      </div>
+                    </div>
+
+                    <AccountOverviewGrid stats={accountOverviewStats} />
                   </section>
 
                   <section className="account-history-section">
                     <div className="account-history-header">
                       <div>
                         <p className="account-section-kicker">Betting history</p>
-                        <h3 className="account-section-title">Every round, settled cleanly</h3>
+                        <h3 className="account-section-title">Recent bets</h3>
                         <p className="account-section-copy">
-                          Stake, line, final count, and token swing all live in one place now.
+                          Open tickets and settled rounds stay together in one tape.
                         </p>
                       </div>
                       <span className="account-history-count">
-                        {loading ? "Refreshing..." : `${predictions.length} bets`}
+                        {loading ? "Refreshing..." : `${predictions.length} total`}
                       </span>
                     </div>
                     <PredictionHistoryList
@@ -4507,47 +4580,28 @@ export function MvpDashboard({
             <div className="center-modal-body">
             <div className="account-panel">
               <section className="account-hero">
-                <div className="account-hero-copy">
-                  <p className="account-kicker">
-                    {publicProfileRank !== null
-                      ? `Public betting profile · Rank #${publicProfileRank}`
-                      : "Public betting profile"}
-                  </p>
-                  <h3 className="account-name">{publicProfileDisplayName}</h3>
-                  <p className="account-subtitle">
-                    {user && publicProfileContext.user_id === user.id
-                      ? `${publicProfileTier} bettor · This is you`
-                      : `${publicProfileTier} bettor`}
-                  </p>
-                  <div className="account-badge-row">
-                    <span className="account-badge">{publicProfileCorrectPredictions} correct picks</span>
-                    <span className="account-badge">{publicProfileTotalPredictions} bets tracked</span>
-                    <span className="account-badge">Hit rate {publicProfileHitRateLabel}</span>
+                <div className="account-hero-head">
+                  <div className="account-hero-copy">
+                    <p className="account-kicker">
+                      {publicProfileRank !== null
+                        ? `Public betting profile · Rank #${publicProfileRank}`
+                        : "Public betting profile"}
+                    </p>
+                    <h3 className="account-name">{publicProfileDisplayName}</h3>
+                    <p className="account-subtitle">
+                      {user && publicProfileContext.user_id === user.id
+                        ? `${publicProfileTier} bettor · This is you`
+                        : `${publicProfileTier} bettor`}
+                    </p>
+                    <div className="account-badge-row">
+                      <span className="account-badge">{publicProfileCorrectPredictions} correct picks</span>
+                      <span className="account-badge">{publicProfileTotalPredictions} bets tracked</span>
+                      <span className="account-badge">Hit rate {publicProfileHitRateLabel}</span>
+                    </div>
                   </div>
                 </div>
-              </section>
 
-              <section className="account-stat-grid">
-                <article className="account-stat-card">
-                  <span>Leaderboard rank</span>
-                  <strong>{publicProfileRank !== null ? `#${publicProfileRank}` : "--"}</strong>
-                  <p>Ranked by live token balance, then correct picks.</p>
-                </article>
-                <article className="account-stat-card">
-                  <span>Token balance</span>
-                  <strong>{publicProfileSummary?.token_balance ?? "--"}</strong>
-                  <p>Current bankroll visible to the whole market.</p>
-                </article>
-                <article className="account-stat-card">
-                  <span>Bets tracked</span>
-                  <strong>{publicProfileTotalPredictions}</strong>
-                  <p>Every visible ticket from this bettor.</p>
-                </article>
-                <article className="account-stat-card">
-                  <span>Hit rate</span>
-                  <strong>{publicProfileHitRateLabel}</strong>
-                  <p>{publicProfileSettledPredictions} settled picks on record.</p>
-                </article>
+                <AccountOverviewGrid stats={publicProfileOverviewStats} />
               </section>
 
               <section className="account-history-section">
@@ -4556,7 +4610,7 @@ export function MvpDashboard({
                     <p className="account-section-kicker">Public history</p>
                     <h3 className="account-section-title">{publicProfileDisplayName}&rsquo;s recent bets</h3>
                     <p className="account-section-copy">
-                      Open positions and settled rounds stay visible together in one clean tape.
+                      Open positions and settled rounds stay together in one clean tape.
                     </p>
                   </div>
                   <span className="account-history-count">{publicProfileHistoryCountLabel}</span>
