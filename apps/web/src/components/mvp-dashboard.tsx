@@ -290,6 +290,22 @@ function formatPredictionLabel(prediction: PredictionRow, session: SessionRow | 
   return `${prediction.side.toUpperCase()} ${session.threshold}`;
 }
 
+function formatPredictionSideTag(side: PredictionSide) {
+  if (side === "exact") {
+    return "Exact";
+  }
+
+  if (side === "range") {
+    return "Range";
+  }
+
+  if (side === "under") {
+    return "Under";
+  }
+
+  return "Over";
+}
+
 function formatTokenDelta(tokenDelta: number | null) {
   const safeTokenDelta = tokenDelta ?? 0;
   return safeTokenDelta > 0 ? `+${safeTokenDelta}` : `${safeTokenDelta}`;
@@ -2751,6 +2767,7 @@ export function MvpDashboard({
         ? clamp((liveCountValue / displayedThreshold) * mobileLiveThresholdMarkerPercent, 0, 100)
         : 0;
   const showMobileIdleDock = !selectedSession;
+  const showIdleSignInCta = showMobileIdleDock && !user;
   const showMobileOpenDock = showBettingControls || showMobileIdleDock;
   const canInteractWithMobileDockControls = canConfigureSelected || showMobileIdleDock;
   const showMobileUpcomingDock = Boolean(selectedSession && selectedState === "upcoming");
@@ -2758,10 +2775,22 @@ export function MvpDashboard({
   const showMobileResolvingDock = Boolean(selectedSession && selectedState === "resolving");
   const mobileNoGameOverlayCopy =
     "There is no game right now. Waiting for an admin to post the next round.";
-  const mobileDockBetButtonDisabled = showMobileIdleDock ? true : betButtonDisabled;
-  const mobileDockBetButtonLabel = showMobileIdleDock ? "Waiting for next round" : betButtonLabel;
-  const mobileDockBetButtonMeta = showMobileIdleDock ? "Betting unlocks once a game is posted." : mobileBetCtaMeta;
-  const mobileDockBetButtonAccent = showMobileIdleDock ? "Standby" : mobileSelectedChoice.label;
+  const mobileDockBetButtonDisabled = showMobileIdleDock ? !showIdleSignInCta : betButtonDisabled;
+  const mobileDockBetButtonLabel = showIdleSignInCta
+    ? "Sign In to Bet"
+    : showMobileIdleDock
+      ? "Waiting for next round"
+      : betButtonLabel;
+  const mobileDockBetButtonMeta = showIdleSignInCta
+    ? "Sign in now so you're ready when the next round is posted."
+    : showMobileIdleDock
+      ? "Betting unlocks once a game is posted."
+      : mobileBetCtaMeta;
+  const mobileDockBetButtonAccent = showIdleSignInCta
+    ? "Join"
+    : showMobileIdleDock
+      ? "Standby"
+      : mobileSelectedChoice.label;
   const mobileOpenInfoTitle = `${mobileSelectedChoice.label} • Line ${displayedThreshold} • ${mobileSelectedChoice.multiplier}`;
   const mobileOpenInfoCopy =
     selectedSide === "under"
@@ -2776,6 +2805,8 @@ export function MvpDashboard({
     ? "mobile-open-control-grid mobile-open-control-grid-split"
     : "mobile-open-control-grid mobile-open-control-grid-stake-only";
   const showDesktopBettingScreen = showBettingControls || showMobileIdleDock;
+  const desktopOpenTimerLabel = showMobileIdleDock ? "Betting window" : "Closes in";
+  const desktopOpenTimerValue = showMobileIdleDock ? "Waiting for next round" : selectedCountdown;
   const mobileLiveOverlayTimeNote = selectedEndsAtLabel
     ? `Closes at ${selectedEndsAtLabel}`
     : `${displayedModeSeconds}s round`;
@@ -3042,7 +3073,9 @@ export function MvpDashboard({
               return;
             }
 
-            handleEmptyStateSignupAction();
+            if (!user) {
+              handleRoundAuthAction();
+            }
           }}
         >
           <span className="mobile-bet-cta-accent">{mobileDockBetButtonAccent}</span>
@@ -3052,6 +3085,67 @@ export function MvpDashboard({
       </div>
     </>
   );
+  const desktopOpenFloatingTickets =
+    showDesktopBettingScreen && selectedSession ? (
+      <div className="desktop-open-floating-bets" aria-label="Placed bets">
+        {selectedSessionPredictions.map((prediction, index) => {
+          const predictionPayout = getPredictionGrossPayoutTokens(
+            prediction.wager_tokens,
+            getStoredPredictionPayoutMultiplierBps(prediction)
+          );
+
+          return (
+            <div
+              className={`desktop-open-ticket-card desktop-open-ticket-card-${prediction.side}`}
+              key={prediction.id}
+            >
+              <div className="desktop-open-ticket-card-topline">
+                <span className="desktop-open-ticket-card-kicker">
+                  {selectedSessionPredictionCount > 1 ? `Bet ${index + 1}` : "Your bet"}
+                </span>
+                <span
+                  className={`desktop-open-ticket-card-market desktop-open-ticket-card-market-${prediction.side}`}
+                >
+                  {formatPredictionSideTag(prediction.side)}
+                </span>
+              </div>
+
+              {isPredictionCancelable(prediction, selectedSession, nowMs) ? (
+                <button
+                  type="button"
+                  className="desktop-open-ticket-card-remove"
+                  onClick={() => void handleCancelPrediction(prediction)}
+                  disabled={cancelingPredictionIdSet.has(prediction.id)}
+                  aria-label={`Remove ${formatPredictionLabel(prediction, selectedSession)}`}
+                >
+                  {cancelingPredictionIdSet.has(prediction.id) ? "..." : "×"}
+                </button>
+              ) : null}
+
+              <strong className="desktop-open-ticket-card-title">
+                {formatPredictionLabel(prediction, selectedSession)}
+              </strong>
+
+              <div className="desktop-open-ticket-card-stats">
+                <div className="desktop-open-ticket-card-stat">
+                  <span>Stake</span>
+                  <strong>{prediction.wager_tokens}</strong>
+                </div>
+                <div className="desktop-open-ticket-card-stat">
+                  <span>Win</span>
+                  <strong>{predictionPayout}</strong>
+                </div>
+                <div className="desktop-open-ticket-card-stat desktop-open-ticket-card-stat-odds">
+                  <span>Odds</span>
+                  <strong>{formatPayoutMultiplier(getStoredPredictionPayoutMultiplierBps(prediction))}</strong>
+                </div>
+              </div>
+            </div>
+          );
+        })}
+        
+      </div>
+    ) : null;
   const bettingWidgetContent = (
     <div
       className={
@@ -3907,200 +4001,209 @@ export function MvpDashboard({
       ) : null}
 
       <div className="floating-widgets">
-        <section
-          className={
-            showDesktopBettingScreen
-              ? "floating-widget bet-widget bet-widget-open-dock"
-              : "floating-widget bet-widget"
-          }
-        >
-          <header className="widget-header bet-widget-header">
-            <div className="widget-title-block">
-              <p className="widget-kicker">Tommy Walkway</p>
-              <h2>Betting</h2>
-            </div>
-            <span className="status status-live-badge">
-              <span className="status-live-dot" aria-hidden="true" />
-              {isRefreshing ? "Refreshing" : "Live"}
-            </span>
-          </header>
-
-          {!showDesktopBettingScreen ? (
-            <div className="market-meta-row">
-              <span className={selectedState ? `status status-${selectedState}` : "status"}>
-                {selectedState ? getSessionStateLabel(selectedState) : "Standby"}
+        <div className="bet-widget-stack">
+          <section
+            className={
+              showDesktopBettingScreen
+                ? "floating-widget bet-widget bet-widget-open-dock"
+                : "floating-widget bet-widget"
+            }
+          >
+            <header className="widget-header bet-widget-header">
+              <div className="widget-title-block">
+                <p className="widget-kicker">Tommy Walkway</p>
+                <h2>Betting</h2>
+              </div>
+              <span className="status status-live-badge">
+                <span className="status-live-dot" aria-hidden="true" />
+                {isRefreshing ? "Refreshing" : "Live"}
               </span>
-              {hasSelectedSession ? <span className="round-chip">{displayedModeSeconds}s round</span> : null}
-              {hasSelectedSession ? <span className="round-chip">Threshold {displayedThreshold}</span> : null}
+            </header>
+
+            {!showDesktopBettingScreen ? (
+              <div className="market-meta-row">
+                <span className={selectedState ? `status status-${selectedState}` : "status"}>
+                  {selectedState ? getSessionStateLabel(selectedState) : "Standby"}
+                </span>
+                {hasSelectedSession ? <span className="round-chip">{displayedModeSeconds}s round</span> : null}
+                {hasSelectedSession ? <span className="round-chip">Threshold {displayedThreshold}</span> : null}
+              </div>
+            ) : null}
+
+            <div className="market-board">
+              {showDesktopBettingScreen ? (
+                <div className="mobile-open-dock desktop-open-dock">
+                  <div className="desktop-open-timer-bar" aria-live="polite">
+                    <span className="desktop-open-timer-label">{desktopOpenTimerLabel}</span>
+                    <strong className="desktop-open-timer-value">{desktopOpenTimerValue}</strong>
+                  </div>
+                  {sharedOpenDockSections}
+                </div>
+              ) : showLiveRoundCard && selectedSession ? (
+                <div className="market-live-summary-card">
+                  <span className="market-live-summary-kicker">Round live</span>
+                  <strong className="market-live-summary-headline">
+                    {selectedSessionPredictionCount > 1
+                      ? `${selectedSessionPredictionCount} tickets live · ${selectedSessionStakedTokens} tokens staked`
+                      : selectedPrediction
+                      ? `${formatPredictionLabel(selectedPrediction, selectedSession)} · ${selectedPrediction.wager_tokens} tokens · ${formatPayoutMultiplier(getStoredPredictionPayoutMultiplierBps(selectedPrediction))}`
+                      : "Watching this round"}
+                  </strong>
+                  <div className="market-live-summary-grid">
+                    <div className="market-live-summary-pill">
+                      <span>Betting line</span>
+                      <strong>{displayedThreshold}</strong>
+                    </div>
+                    <div className="market-live-summary-pill">
+                      <span>Closes</span>
+                      <strong>{selectedEndsAtLabel ?? "soon"}</strong>
+                    </div>
+                  </div>
+                  <p className="market-live-summary-note">
+                    The live countdown and crowd animation are centered on the feed while this round runs.
+                  </p>
+                </div>
+              ) : showResolvedRoundCard && selectedSession ? (
+                <div className={`market-result-card market-result-card-${selectedResultTone}`}>
+                  <div className="market-result-topline">
+                    <span className="market-result-kicker">{selectedResultPresentation.eyebrow}</span>
+                    <strong className="market-result-headline">{selectedResultPresentation.headline}</strong>
+                    <p className="market-result-copy">{selectedResultPresentation.copy}</p>
+                  </div>
+
+                  <div className="market-result-scoreboard">
+                    <div className="market-result-score-card">
+                      <span>Final count</span>
+                      <strong>{selectedSession.final_count ?? "--"}</strong>
+                    </div>
+                    <div className="market-result-score-card">
+                      <span>Betting line</span>
+                      <strong>{displayedThreshold}</strong>
+                    </div>
+                  </div>
+
+                  <div className="market-result-stat-grid">
+                    <div className="market-result-stat-card">
+                      <span>
+                        {selectedSessionPredictionCount > 1
+                          ? "Tickets placed"
+                          : selectedPrediction
+                            ? "Your pick"
+                            : "Winning side"}
+                      </span>
+                      <strong>
+                        {selectedSessionPredictionCount > 1
+                          ? `${selectedSessionPredictionCount}`
+                          : selectedPrediction
+                          ? formatPredictionLabel(selectedPrediction, selectedSession)
+                          : selectedWinningSide
+                            ? selectedWinningSide.toUpperCase()
+                            : "Pending"}
+                      </strong>
+                    </div>
+                    <div className="market-result-stat-card">
+                      <span>{selectedResultPresentation.secondaryLabel}</span>
+                      <strong>{selectedResultPresentation.secondaryValue}</strong>
+                    </div>
+                  </div>
+
+                  <span className="market-result-footer">{selectedResultPresentation.footer}</span>
+                </div>
+              ) : (
+                <div
+                  className={
+                    !selectedSession
+                      ? "market-standby-card market-standby-card-idle"
+                      : selectedState
+                        ? `market-standby-card market-standby-card-${selectedState}`
+                        : "market-standby-card"
+                  }
+                >
+                  <span className="market-standby-label">{standbyLabel}</span>
+                  <strong className="market-standby-value">{standbyValue}</strong>
+                  <p className="market-standby-title">{standbyTitle}</p>
+                  <div className="market-standby-meta-grid">
+                    {standbyMetaItems.map((item) => (
+                      <div className="market-standby-meta-card" key={item.label}>
+                        <span>{item.label}</span>
+                        <strong>{item.value}</strong>
+                      </div>
+                    ))}
+                  </div>
+                  <span className="market-standby-note">{standbyNote}</span>
+                  {standbyActionLabel ? (
+                    <div className="market-standby-actions">
+                      <button
+                        type="button"
+                        className="bet-submit-button market-standby-button"
+                        onClick={
+                          emptyStateSignupEnabled
+                            ? handleEmptyStateSignupAction
+                            : handleRoundAuthAction
+                        }
+                      >
+                        {standbyActionLabel}
+                      </button>
+                    </div>
+                  ) : null}
+                </div>
+              )}
             </div>
-          ) : null}
 
-          <div className="market-board">
-            {showDesktopBettingScreen ? (
-              <div className="mobile-open-dock desktop-open-dock">{sharedOpenDockSections}</div>
-            ) : showLiveRoundCard && selectedSession ? (
-              <div className="market-live-summary-card">
-                <span className="market-live-summary-kicker">Round live</span>
-                <strong className="market-live-summary-headline">
-                  {selectedSessionPredictionCount > 1
-                    ? `${selectedSessionPredictionCount} tickets live · ${selectedSessionStakedTokens} tokens staked`
-                    : selectedPrediction
-                    ? `${formatPredictionLabel(selectedPrediction, selectedSession)} · ${selectedPrediction.wager_tokens} tokens · ${formatPayoutMultiplier(getStoredPredictionPayoutMultiplierBps(selectedPrediction))}`
-                    : "Watching this round"}
-                </strong>
-                <div className="market-live-summary-grid">
-                  <div className="market-live-summary-pill">
-                    <span>Betting line</span>
-                    <strong>{displayedThreshold}</strong>
-                  </div>
-                  <div className="market-live-summary-pill">
-                    <span>Closes</span>
-                    <strong>{selectedEndsAtLabel ?? "soon"}</strong>
-                  </div>
-                </div>
-                <p className="market-live-summary-note">
-                  The live countdown and crowd animation are centered on the feed while this round runs.
-                </p>
-              </div>
-            ) : showResolvedRoundCard && selectedSession ? (
-              <div className={`market-result-card market-result-card-${selectedResultTone}`}>
-                <div className="market-result-topline">
-                  <span className="market-result-kicker">{selectedResultPresentation.eyebrow}</span>
-                  <strong className="market-result-headline">{selectedResultPresentation.headline}</strong>
-                  <p className="market-result-copy">{selectedResultPresentation.copy}</p>
+            {selectedSessionPredictionCount > 0 &&
+            !showDesktopBettingScreen &&
+            !showLiveRoundCard &&
+            !showResolvedRoundCard ? (
+              <div className="session-result compact-result selection-summary selection-summary-stack">
+                <div className="selection-summary-header">
+                  <span className="selection-summary-kicker">
+                    {selectedSessionPredictionCount > 1 ? "Round tickets" : "Locked in"}
+                  </span>
+                  <strong className="selection-summary-title">
+                    {selectedSessionPredictionCount > 1
+                      ? `${selectedSessionPredictionCount} bets placed`
+                      : formatPredictionLabel(selectedPrediction, selectedSession)}
+                  </strong>
+                  <span className="selection-summary-meta">
+                    {selectedSessionStakedTokens} tokens total
+                  </span>
                 </div>
 
-                <div className="market-result-scoreboard">
-                  <div className="market-result-score-card">
-                    <span>Final count</span>
-                    <strong>{selectedSession.final_count ?? "--"}</strong>
-                  </div>
-                  <div className="market-result-score-card">
-                    <span>Betting line</span>
-                    <strong>{displayedThreshold}</strong>
-                  </div>
-                </div>
-
-                <div className="market-result-stat-grid">
-                  <div className="market-result-stat-card">
-                    <span>
-                      {selectedSessionPredictionCount > 1
-                        ? "Tickets placed"
-                        : selectedPrediction
-                          ? "Your pick"
-                          : "Winning side"}
-                    </span>
-                    <strong>
-                      {selectedSessionPredictionCount > 1
-                        ? `${selectedSessionPredictionCount}`
-                        : selectedPrediction
-                        ? formatPredictionLabel(selectedPrediction, selectedSession)
-                        : selectedWinningSide
-                          ? selectedWinningSide.toUpperCase()
-                          : "Pending"}
-                    </strong>
-                  </div>
-                  <div className="market-result-stat-card">
-                    <span>{selectedResultPresentation.secondaryLabel}</span>
-                    <strong>{selectedResultPresentation.secondaryValue}</strong>
-                  </div>
-                </div>
-
-                <span className="market-result-footer">{selectedResultPresentation.footer}</span>
-              </div>
-            ) : (
-              <div
-                className={
-                  !selectedSession
-                    ? "market-standby-card market-standby-card-idle"
-                    : selectedState
-                      ? `market-standby-card market-standby-card-${selectedState}`
-                      : "market-standby-card"
-                }
-              >
-                <span className="market-standby-label">{standbyLabel}</span>
-                <strong className="market-standby-value">{standbyValue}</strong>
-                <p className="market-standby-title">{standbyTitle}</p>
-                <div className="market-standby-meta-grid">
-                  {standbyMetaItems.map((item) => (
-                    <div className="market-standby-meta-card" key={item.label}>
-                      <span>{item.label}</span>
-                      <strong>{item.value}</strong>
+                <div className="selection-ticket-list">
+                  {selectedSessionPreviewPredictions.map((prediction) => (
+                    <div className="selection-ticket-chip" key={prediction.id}>
+                      <div className="selection-ticket-chip-copy">
+                        <strong>{formatPredictionLabel(prediction, selectedSession)}</strong>
+                        <span>
+                          {prediction.wager_tokens} tokens ·{" "}
+                          {formatPayoutMultiplier(getStoredPredictionPayoutMultiplierBps(prediction))}
+                        </span>
+                      </div>
+                      {isPredictionCancelable(prediction, selectedSession, nowMs) ? (
+                        <button
+                          type="button"
+                          className="selection-ticket-cancel-button"
+                          onClick={() => void handleCancelPrediction(prediction)}
+                          disabled={cancelingPredictionIdSet.has(prediction.id)}
+                        >
+                          {cancelingPredictionIdSet.has(prediction.id) ? "Removing..." : "Remove"}
+                        </button>
+                      ) : null}
                     </div>
                   ))}
                 </div>
-                <span className="market-standby-note">{standbyNote}</span>
-                {standbyActionLabel ? (
-                  <div className="market-standby-actions">
-                    <button
-                      type="button"
-                      className="bet-submit-button market-standby-button"
-                      onClick={
-                        emptyStateSignupEnabled
-                          ? handleEmptyStateSignupAction
-                          : handleRoundAuthAction
-                      }
-                    >
-                      {standbyActionLabel}
-                    </button>
-                  </div>
+
+                {selectedSessionOverflowPredictionCount > 0 ? (
+                  <span className="selection-summary-more">
+                    +{selectedSessionOverflowPredictionCount} more tickets in this round
+                  </span>
                 ) : null}
               </div>
-            )}
-          </div>
+            ) : null}
+          </section>
 
-          {selectedSessionPredictionCount > 0 &&
-          !showDesktopBettingScreen &&
-          !showLiveRoundCard &&
-          !showResolvedRoundCard ? (
-            <div className="session-result compact-result selection-summary selection-summary-stack">
-              <div className="selection-summary-header">
-                <span className="selection-summary-kicker">
-                  {selectedSessionPredictionCount > 1 ? "Round tickets" : "Locked in"}
-                </span>
-                <strong className="selection-summary-title">
-                  {selectedSessionPredictionCount > 1
-                    ? `${selectedSessionPredictionCount} bets placed`
-                    : formatPredictionLabel(selectedPrediction, selectedSession)}
-                </strong>
-                <span className="selection-summary-meta">
-                  {selectedSessionStakedTokens} tokens total
-                </span>
-              </div>
-
-              <div className="selection-ticket-list">
-                {selectedSessionPreviewPredictions.map((prediction) => (
-                  <div className="selection-ticket-chip" key={prediction.id}>
-                    <div className="selection-ticket-chip-copy">
-                      <strong>{formatPredictionLabel(prediction, selectedSession)}</strong>
-                      <span>
-                        {prediction.wager_tokens} tokens ·{" "}
-                        {formatPayoutMultiplier(getStoredPredictionPayoutMultiplierBps(prediction))}
-                      </span>
-                    </div>
-                    {isPredictionCancelable(prediction, selectedSession, nowMs) ? (
-                      <button
-                        type="button"
-                        className="selection-ticket-cancel-button"
-                        onClick={() => void handleCancelPrediction(prediction)}
-                        disabled={cancelingPredictionIdSet.has(prediction.id)}
-                      >
-                        {cancelingPredictionIdSet.has(prediction.id) ? "Removing..." : "Remove"}
-                      </button>
-                    ) : null}
-                  </div>
-                ))}
-              </div>
-
-              {selectedSessionOverflowPredictionCount > 0 ? (
-                <span className="selection-summary-more">
-                  +{selectedSessionOverflowPredictionCount} more tickets in this round
-                </span>
-              ) : null}
-            </div>
-          ) : null}
-
-        </section>
+          {desktopOpenFloatingTickets}
+        </div>
 
         <div className="right-rail">
           <div className="quick-actions">
