@@ -1105,8 +1105,8 @@ body {
 
 .bet-widget-open-dock .mobile-open-panel-header {
   display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
+  align-items: center;
+  justify-content: flex-start;
   gap: 0.5rem;
 }
 
@@ -1160,6 +1160,13 @@ body {
   justify-items: center;
 }
 
+.bet-widget-open-dock .mobile-touch-stepper-field-value-only {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+}
+
 .bet-widget-open-dock .mobile-touch-stepper-field span,
 .bet-widget-open-dock .mobile-touch-input-field span {
   font-size: 0.68rem;
@@ -1180,6 +1187,10 @@ body {
   font-weight: 700;
   text-align: center;
   font-variant-numeric: tabular-nums;
+}
+
+.bet-widget-open-dock .mobile-touch-stepper-field-value-only input {
+  align-self: center;
 }
 
 .bet-widget-open-dock .mobile-touch-stepper-field input::placeholder,
@@ -6133,8 +6144,8 @@ body {
 
   .mobile-open-panel-header {
     display: flex;
-    align-items: flex-start;
-    justify-content: space-between;
+    align-items: center;
+    justify-content: flex-start;
     gap: 0.5rem;
   }
 
@@ -6193,6 +6204,13 @@ body {
     justify-items: center;
   }
 
+  .mobile-touch-stepper-field-value-only {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0;
+  }
+
   .mobile-touch-stepper-field input,
   .mobile-touch-input-field input {
     width: 100%;
@@ -6207,6 +6225,10 @@ body {
     font-weight: 700;
     text-align: center;
     font-variant-numeric: tabular-nums;
+  }
+
+  .mobile-touch-stepper-field-value-only input {
+    align-self: center;
   }
 
   .mobile-open-panel-stake .mobile-touch-stepper-field input {

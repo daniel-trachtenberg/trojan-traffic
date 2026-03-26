@@ -971,17 +971,6 @@ export function MvpDashboard({
     Number.isFinite(selectedConfiguredWager) && selectedConfiguredWager > 0
       ? selectedConfiguredWager
       : Number.parseInt(DEFAULT_WAGER, 10);
-  const parsedSelectedExactValue = Number.parseInt(selectedExactValue, 10);
-  const selectedExactCountValue =
-    Number.isFinite(parsedSelectedExactValue) && parsedSelectedExactValue >= 0
-      ? parsedSelectedExactValue
-      : Number.parseInt(DEFAULT_EXACT_VALUE, 10);
-  const selectedRangeMinValue = Number.isFinite(selectedConfiguredRangeMin)
-    ? Math.max(selectedConfiguredRangeMin, 0)
-    : Number.parseInt(getDefaultRangeMin(displayedThreshold), 10);
-  const selectedRangeMaxValue = Number.isFinite(selectedConfiguredRangeMax)
-    ? Math.max(selectedConfiguredRangeMax, 0)
-    : Number.parseInt(getDefaultRangeMax(displayedThreshold), 10);
   const canConfigureSelected = Boolean(selectedSession && selectedState === "open");
   const showBettingControls = Boolean(selectedSession && selectedState === "open");
   const dailyClaimState = getDailyClaimState(streaks?.last_login_date ?? null, nowMs);
@@ -2905,11 +2894,6 @@ export function MvpDashboard({
             <div className={`mobile-open-panel mobile-open-panel-parameter mobile-open-panel-${mobileSelectedChoice.accent}`}>
               <div className="mobile-open-panel-header">
                 <span>{selectedSide === "exact" ? "Exact count" : "Set range"}</span>
-                <strong>
-                  {selectedSide === "exact"
-                    ? `${selectedExactCountValue}`
-                    : `${selectedRangeMinValue} to ${selectedRangeMaxValue}`}
-                </strong>
               </div>
 
               {selectedSide === "exact" ? (
@@ -2924,13 +2908,13 @@ export function MvpDashboard({
                     -
                   </button>
 
-                  <label className="mobile-touch-stepper-field">
-                    <span>Exact</span>
+                  <label className="mobile-touch-stepper-field mobile-touch-stepper-field-value-only">
                     <input
                       type="number"
                       min={0}
                       step={1}
                       inputMode="numeric"
+                      aria-label="Exact count"
                       value={selectedExactValue}
                       onChange={(event) => updateMobileDockExactValue(event.target.value)}
                       disabled={!canInteractWithMobileDockControls}
@@ -2982,7 +2966,6 @@ export function MvpDashboard({
           <div className="mobile-open-panel mobile-open-panel-stake">
             <div className="mobile-open-panel-header">
               <span>Stake</span>
-              <strong>{selectedWagerValue}</strong>
             </div>
 
             <div className="mobile-touch-stepper mobile-touch-stepper-panel">
