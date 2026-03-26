@@ -474,6 +474,13 @@ function getPredictionHistoryNote(prediction: PredictionRow, session: SessionRow
   return "Outcome is syncing to your account.";
 }
 
+function shouldHidePredictionFromProfile(
+  prediction: Pick<PredictionRow, "resolved_at" | "was_correct">,
+  isCancelledSession: boolean
+) {
+  return isCancelledSession || (prediction.resolved_at !== null && prediction.was_correct === null);
+}
+
 function getSessionState(session: SessionRow, nowMs: number): SessionState {
   if (session.status === "cancelled") {
     return "cancelled";
@@ -799,19 +806,31 @@ export function MvpDashboard({
   const publicProfileLoadIdRef = useRef(0);
 
   const sessionLookup = new Map(sessions.map((session) => [session.id, session]));
-  const pendingPredictionCount = predictions.filter((prediction) => prediction.resolved_at === null).length;
-  const settledPredictions = predictions.filter((prediction) => prediction.was_correct !== null);
+  const visibleAccountPredictions = predictions.filter((prediction) => {
+    const session = sessionLookup.get(prediction.session_id) ?? null;
+    return !shouldHidePredictionFromProfile(
+      prediction,
+      session ? getSessionState(session, nowMs) === "cancelled" : false
+    );
+  });
+  const pendingPredictionCount = visibleAccountPredictions.filter(
+    (prediction) => prediction.resolved_at === null
+  ).length;
+  const settledPredictions = visibleAccountPredictions.filter(
+    (prediction) => prediction.was_correct !== null
+  );
   const wonPredictionCount = settledPredictions.filter(
     (prediction) => prediction.was_correct === true
   ).length;
-  const openRiskTokens = predictions
+  const openRiskTokens = visibleAccountPredictions
     .filter((prediction) => prediction.resolved_at === null)
     .reduce((total, prediction) => total + prediction.wager_tokens, 0);
   const hitRateLabel =
     settledPredictions.length > 0
       ? `${Math.round((wonPredictionCount / settledPredictions.length) * 100)}%`
       : "--";
-  const latestResolvedPrediction = predictions.find((prediction) => prediction.resolved_at !== null) ?? null;
+  const latestResolvedPrediction =
+    visibleAccountPredictions.find((prediction) => prediction.resolved_at !== null) ?? null;
   const latestResolvedResultLabel = latestResolvedPrediction?.resolved_at
     ? latestResolvedPrediction.was_correct === true
       ? "Last ticket won"
@@ -849,7 +868,7 @@ export function MvpDashboard({
     },
     {
       label: "Bets tracked",
-      value: `${predictions.length}`,
+      value: `${visibleAccountPredictions.length}`,
       note: latestResolvedResultLabel
     }
   ];
@@ -947,6 +966,46 @@ export function MvpDashboard({
       : selectedPricingSide === "range" && selectedPricingRangeWidth !== null
         ? `${selectedPricingWager} in, ${selectedPricingGrossPayout} back. Covers ${selectedPricingRangeWidth} exact counts.`
         : `${selectedPricingWager} in, ${selectedPricingGrossPayout} back. Profit +${selectedPricingNetWin ?? 0}.`;
+  const selectedWagerValue =
+    Number.isFinite(selectedConfiguredWager) && selectedConfiguredWager > 0
+      ? selectedConfiguredWager
+      : Number.parseInt(DEFAULT_WAGER, 10);
+  const parsedSelectedExactValue = Number.parseInt(selectedExactValue, 10);
+  const selectedExactCountValue =
+    Number.isFinite(parsedSelectedExactValue) && parsedSelectedExactValue >= 0
+      ? parsedSelectedExactValue
+      : displayedThreshold;
+  const selectedRangeMinValue = Number.isFinite(selectedConfiguredRangeMin)
+    ? Math.max(selectedConfiguredRangeMin, 0)
+    : Number.parseInt(getDefaultRangeMin(displayedThreshold), 10);
+  const selectedRangeMaxValue = Number.isFinite(selectedConfiguredRangeMax)
+    ? Math.max(selectedConfiguredRangeMax, 0)
+    : Number.parseInt(getDefaultRangeMax(displayedThreshold), 10);
+  const mobileExactQuickPickValues = Array.from(
+    new Set([
+      Math.max(0, displayedThreshold - 1),
+      Math.max(0, displayedThreshold),
+      displayedThreshold + 1,
+      displayedThreshold + 2
+    ])
+  );
+  const mobileRangePresetChoices = [
+    {
+      label: "Around line",
+      min: Number.parseInt(getDefaultRangeMin(displayedThreshold), 10),
+      max: Number.parseInt(getDefaultRangeMax(displayedThreshold), 10)
+    },
+    {
+      label: "Low side",
+      min: Math.max(0, displayedThreshold - 2),
+      max: displayedThreshold
+    },
+    {
+      label: "High side",
+      min: displayedThreshold,
+      max: displayedThreshold + 2
+    }
+  ];
   const canConfigureSelected = Boolean(selectedSession && selectedState === "open");
   const showBettingControls = Boolean(selectedSession && selectedState === "open");
   const dailyClaimState = getDailyClaimState(streaks?.last_login_date ?? null, nowMs);
@@ -1043,14 +1102,17 @@ export function MvpDashboard({
     publicProfileSummary?.display_name ?? publicProfileContext?.display_name ?? "Public Profile";
   const publicProfileTier = publicProfileSummary?.tier ?? publicProfileContext?.tier ?? "Trader";
   const publicProfileRank = publicProfileSummary?.rank ?? publicProfileContext?.rank ?? null;
+  const visiblePublicProfilePredictions = publicProfilePredictions.filter(
+    (prediction) => !shouldHidePredictionFromProfile(prediction, prediction.status === "cancelled")
+  );
   const publicProfileTotalPredictions =
-    publicProfileSummary?.total_predictions ?? publicProfilePredictions.length;
+    publicProfileSummary?.total_predictions ?? visiblePublicProfilePredictions.length;
   const publicProfileCorrectPredictions =
     publicProfileSummary?.correct_predictions ??
-    publicProfilePredictions.filter((prediction) => prediction.was_correct === true).length;
+    visiblePublicProfilePredictions.filter((prediction) => prediction.was_correct === true).length;
   const publicProfileSettledPredictions =
     publicProfileSummary?.settled_predictions ??
-    publicProfilePredictions.filter((prediction) => prediction.was_correct !== null).length;
+    visiblePublicProfilePredictions.filter((prediction) => prediction.was_correct !== null).length;
   const publicProfileHitRateLabel =
     publicProfileSettledPredictions > 0
       ? `${Math.round((publicProfileCorrectPredictions / publicProfileSettledPredictions) * 100)}%`
@@ -1089,11 +1151,11 @@ export function MvpDashboard({
   const publicProfileHistoryCountLabel =
     isPublicProfileLoading && !publicProfileSummary
       ? "Loading..."
-      : publicProfileSummary && publicProfileSummary.total_predictions > publicProfilePredictions.length
-        ? `Latest ${publicProfilePredictions.length} of ${publicProfileSummary.total_predictions} bets`
+      : publicProfileSummary && publicProfileSummary.total_predictions > visiblePublicProfilePredictions.length
+        ? `Latest ${visiblePublicProfilePredictions.length} of ${publicProfileSummary.total_predictions} bets`
         : `${publicProfileTotalPredictions} bets`;
   const publicProfileSessionRows = mergeSessionRows(
-    publicProfilePredictions.map((prediction) => ({
+    visiblePublicProfilePredictions.map((prediction) => ({
       id: prediction.session_id,
       mode_seconds: prediction.mode_seconds,
       threshold: prediction.threshold,
@@ -2430,13 +2492,6 @@ export function MvpDashboard({
     }));
   }
 
-  function updateSelectedMobileRangeValue(sessionId: string, nextRangeValue: string) {
-    const nextParts = nextRangeValue.match(/\d+/g) ?? [];
-
-    updateSelectedRangeMin(sessionId, nextParts[0] ?? "");
-    updateSelectedRangeMax(sessionId, nextParts[1] ?? "");
-  }
-
   function updateSelectedWager(sessionId: string, nextWager: string) {
     setWagerBySession((current) => ({
       ...current,
@@ -2462,16 +2517,22 @@ export function MvpDashboard({
     setMobileStandbyExactValue(nextExactValue);
   }
 
-  function updateMobileDockRangeValue(nextRangeValue: string) {
-    const nextParts = nextRangeValue.match(/\d+/g) ?? [];
-
+  function updateMobileDockRangeMin(nextRangeMin: string) {
     if (selectedSession) {
-      updateSelectedMobileRangeValue(selectedSession.id, nextRangeValue);
+      updateSelectedRangeMin(selectedSession.id, nextRangeMin);
       return;
     }
 
-    setMobileStandbyRangeMin(nextParts[0] ?? "");
-    setMobileStandbyRangeMax(nextParts[1] ?? "");
+    setMobileStandbyRangeMin(nextRangeMin);
+  }
+
+  function updateMobileDockRangeMax(nextRangeMax: string) {
+    if (selectedSession) {
+      updateSelectedRangeMax(selectedSession.id, nextRangeMax);
+      return;
+    }
+
+    setMobileStandbyRangeMax(nextRangeMax);
   }
 
   function updateMobileDockWager(nextWager: string) {
@@ -2544,6 +2605,52 @@ export function MvpDashboard({
     const currentWager = Number.parseInt(selectedWager, 10);
     const safeWager = Number.isFinite(currentWager) ? currentWager : Number.parseInt(DEFAULT_WAGER, 10);
     updateMobileDockWager(String(Math.max(1, safeWager + preset)));
+  }
+
+  function adjustMobileDockWager(delta: number) {
+    const currentWager = Number.parseInt(selectedWager, 10);
+    const safeWager = Number.isFinite(currentWager) ? currentWager : Number.parseInt(DEFAULT_WAGER, 10);
+    updateMobileDockWager(String(Math.max(1, safeWager + delta)));
+  }
+
+  function adjustMobileDockExactValue(delta: number) {
+    const currentExactValue = Number.parseInt(selectedExactValue, 10);
+    const safeExactValue = Number.isFinite(currentExactValue) ? currentExactValue : displayedThreshold;
+    updateMobileDockExactValue(String(Math.max(0, safeExactValue + delta)));
+  }
+
+  function adjustMobileDockRangeBound(bound: "min" | "max", delta: number) {
+    const currentRangeMin = Number.parseInt(selectedRangeMin, 10);
+    const currentRangeMax = Number.parseInt(selectedRangeMax, 10);
+    const safeRangeMin = Number.isFinite(currentRangeMin)
+      ? currentRangeMin
+      : Number.parseInt(getDefaultRangeMin(displayedThreshold), 10);
+    const safeRangeMax = Number.isFinite(currentRangeMax)
+      ? currentRangeMax
+      : Number.parseInt(getDefaultRangeMax(displayedThreshold), 10);
+
+    if (bound === "min") {
+      const nextRangeMin = Math.max(0, safeRangeMin + delta);
+      updateMobileDockRangeMin(String(nextRangeMin));
+
+      if (nextRangeMin > safeRangeMax) {
+        updateMobileDockRangeMax(String(nextRangeMin));
+      }
+
+      return;
+    }
+
+    const nextRangeMax = Math.max(0, safeRangeMax + delta);
+    updateMobileDockRangeMax(String(nextRangeMax));
+
+    if (nextRangeMax < safeRangeMin) {
+      updateMobileDockRangeMin(String(nextRangeMax));
+    }
+  }
+
+  function applyMobileRangePreset(nextRangeMin: number, nextRangeMax: number) {
+    updateMobileDockRangeMin(String(nextRangeMin));
+    updateMobileDockRangeMax(String(nextRangeMax));
   }
 
   function handleAccountAction() {
@@ -2735,33 +2842,12 @@ export function MvpDashboard({
       : displayedThreshold > 0
         ? clamp((liveCountValue / displayedThreshold) * mobileLiveThresholdMarkerPercent, 0, 100)
         : 0;
-  const mobileModeInputLabel =
-    selectedSide === "exact"
-      ? "Exact count"
-      : selectedSide === "range"
-        ? "Range"
-        : null;
-  const mobileModeInputPlaceholder =
-    selectedSide === "exact"
-      ? `${displayedThreshold}`
-      : selectedSide === "range"
-        ? `${getDefaultRangeMin(displayedThreshold)}-${getDefaultRangeMax(displayedThreshold)}`
-        : "";
-  const mobileModeInputDefaultValue =
-    selectedSide === "exact"
-      ? selectedExactValue
-      : selectedSide === "range"
-        ? `${selectedRangeMin}${selectedRangeMax ? `-${selectedRangeMax}` : ""}`
-        : "";
   const showMobileIdleDock = !selectedSession;
   const showMobileOpenDock = showBettingControls || showMobileIdleDock;
   const canInteractWithMobileDockControls = canConfigureSelected || showMobileIdleDock;
   const showMobileUpcomingDock = Boolean(selectedSession && selectedState === "upcoming");
   const showMobileLiveDock = Boolean(selectedSession && selectedState === "live");
   const showMobileResolvingDock = Boolean(selectedSession && selectedState === "resolving");
-  const mobileOpenFieldGridClassName = mobileModeInputLabel
-    ? "mobile-open-dock-field-grid mobile-open-dock-field-grid-parameterized"
-    : "mobile-open-dock-field-grid";
   const mobileNoGameOverlayCopy =
     "There is no game right now. Waiting for an admin to post the next round.";
   const mobileDockBetButtonDisabled = showMobileIdleDock ? true : betButtonDisabled;
@@ -2769,6 +2855,12 @@ export function MvpDashboard({
   const mobileDockBetButtonMeta = showMobileIdleDock ? "Betting unlocks once a game is posted." : mobileBetCtaMeta;
   const mobileDockBetButtonAccent = showMobileIdleDock ? "Standby" : mobileSelectedChoice.label;
   const mobileSelectedMarketLabel = showMobileIdleDock ? "Default market" : "Selected market";
+  const mobileOpenAssistLabel =
+    selectedSide === "exact"
+      ? "Tap the arrows or type the exact final count."
+      : selectedSide === "range"
+        ? "Set an inclusive minimum and maximum range."
+        : "Use quick chips or type a custom stake anytime.";
   const mobileLiveOverlayTimeNote = selectedEndsAtLabel
     ? `Closes at ${selectedEndsAtLabel}`
     : `${displayedModeSeconds}s round`;
@@ -2844,13 +2936,7 @@ export function MvpDashboard({
       }
     >
       {showMobileOpenDock ? (
-        <div
-          className={
-            mobileModeInputLabel
-              ? "mobile-open-dock mobile-open-dock-parameterized"
-              : "mobile-open-dock mobile-open-dock-simple"
-          }
-        >
+        <div className="mobile-open-dock">
           <div className="mobile-market-tab-row" role="tablist" aria-label="Market types">
             {mobileMarketChoices.map((choice) => (
               <button
@@ -2874,97 +2960,303 @@ export function MvpDashboard({
             ))}
           </div>
 
-          <div className={mobileOpenFieldGridClassName}>
-            {mobileModeInputLabel ? (
-              <label className="mobile-dock-inline-field mobile-dock-inline-field-parameter">
-                <span>{mobileModeInputLabel}</span>
-                <input
-                  key={`${selectedSession?.id ?? "none"}-${selectedSide}`}
-                  type="text"
-                  inputMode={selectedSide === "exact" ? "numeric" : "text"}
-                  defaultValue={mobileModeInputDefaultValue}
-                  placeholder={mobileModeInputPlaceholder}
-                  onChange={(event) => {
-                    if (selectedSide === "exact") {
-                      updateMobileDockExactValue(event.target.value);
-                      return;
-                    }
-
-                    if (selectedSide === "range") {
-                      updateMobileDockRangeValue(event.target.value);
-                    }
-                  }}
-                  disabled={!canInteractWithMobileDockControls}
-                />
-              </label>
-            ) : (
-              <div
-                className={`mobile-open-preview-card mobile-open-preview-card-${mobileSelectedChoice.accent}`}
-              >
+          <div className="mobile-open-dock-body">
+            <div className={`mobile-open-market-summary mobile-open-market-summary-${mobileSelectedChoice.accent}`}>
+              <div className="mobile-open-market-summary-copy">
                 <span>{mobileSelectedMarketLabel}</span>
                 <strong>{mobileSelectedChoice.label}</strong>
-                <p>
-                  {mobileSelectedChoice.detail} • {mobileSelectedChoice.multiplier}
-                </p>
+                <p>{mobileSelectedChoice.detail}</p>
               </div>
-            )}
+              <div className="mobile-open-market-summary-meta">
+                <div className="mobile-open-market-summary-pill">
+                  <span>Line</span>
+                  <strong>{displayedThreshold}</strong>
+                </div>
+                <div className="mobile-open-market-summary-pill mobile-open-market-summary-pill-highlight">
+                  <span>{selectedPricingLabel}</span>
+                  <strong>{mobileSelectedChoice.multiplier}</strong>
+                </div>
+              </div>
+            </div>
 
-            <label className="mobile-dock-inline-field mobile-dock-inline-field-amount">
-              <span>Amount</span>
-              <input
-                type="number"
-                min={1}
-                value={selectedWager}
-                onChange={(event) => updateMobileDockWager(event.target.value)}
-                disabled={!canInteractWithMobileDockControls}
-              />
-            </label>
+            <div
+              className={
+                selectedSide === "range"
+                  ? "mobile-open-control-grid mobile-open-control-grid-range"
+                  : "mobile-open-control-grid"
+              }
+            >
+              {selectedSide === "exact" ? (
+                <div className="mobile-touch-control-card mobile-touch-control-card-exact">
+                  <div className="mobile-touch-control-header">
+                    <span>Exact count</span>
+                    <strong>{selectedExactValue || `${selectedExactCountValue}`}</strong>
+                  </div>
+
+                  <div className="mobile-touch-stepper">
+                    <button
+                      type="button"
+                      className="mobile-touch-stepper-button"
+                      aria-label="Decrease exact count"
+                      onClick={() => adjustMobileDockExactValue(-1)}
+                      disabled={!canInteractWithMobileDockControls}
+                    >
+                      -
+                    </button>
+
+                    <label className="mobile-touch-stepper-field">
+                      <span>Your call</span>
+                      <input
+                        type="number"
+                        min={0}
+                        step={1}
+                        inputMode="numeric"
+                        value={selectedExactValue}
+                        onChange={(event) => updateMobileDockExactValue(event.target.value)}
+                        disabled={!canInteractWithMobileDockControls}
+                      />
+                    </label>
+
+                    <button
+                      type="button"
+                      className="mobile-touch-stepper-button"
+                      aria-label="Increase exact count"
+                      onClick={() => adjustMobileDockExactValue(1)}
+                      disabled={!canInteractWithMobileDockControls}
+                    >
+                      +
+                    </button>
+                  </div>
+
+                  <div className="mobile-touch-chip-row" aria-label="Exact count quick picks">
+                    {mobileExactQuickPickValues.map((value) => (
+                      <button
+                        key={value}
+                        type="button"
+                        className={
+                          selectedExactCountValue === value
+                            ? "mobile-touch-chip mobile-touch-chip-active"
+                            : "mobile-touch-chip"
+                        }
+                        onClick={() => updateMobileDockExactValue(String(value))}
+                        disabled={!canInteractWithMobileDockControls}
+                      >
+                        {value}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ) : selectedSide === "range" ? (
+                <div className="mobile-touch-control-card mobile-touch-control-card-range">
+                  <div className="mobile-touch-control-header">
+                    <span>Inclusive range</span>
+                    <strong>
+                      {selectedRangeMinValue} - {selectedRangeMaxValue}
+                    </strong>
+                  </div>
+
+                  <div className="mobile-touch-range-grid">
+                    <div className="mobile-touch-stepper-shell">
+                      <span>Min</span>
+                      <div className="mobile-touch-stepper mobile-touch-stepper-compact">
+                        <button
+                          type="button"
+                          className="mobile-touch-stepper-button"
+                          aria-label="Decrease range minimum"
+                          onClick={() => adjustMobileDockRangeBound("min", -1)}
+                          disabled={!canInteractWithMobileDockControls}
+                        >
+                          -
+                        </button>
+
+                        <label className="mobile-touch-stepper-field">
+                          <span>Minimum</span>
+                          <input
+                            type="number"
+                            min={0}
+                            step={1}
+                            inputMode="numeric"
+                            value={selectedRangeMin}
+                            onChange={(event) => updateMobileDockRangeMin(event.target.value)}
+                            disabled={!canInteractWithMobileDockControls}
+                          />
+                        </label>
+
+                        <button
+                          type="button"
+                          className="mobile-touch-stepper-button"
+                          aria-label="Increase range minimum"
+                          onClick={() => adjustMobileDockRangeBound("min", 1)}
+                          disabled={!canInteractWithMobileDockControls}
+                        >
+                          +
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="mobile-touch-stepper-shell">
+                      <span>Max</span>
+                      <div className="mobile-touch-stepper mobile-touch-stepper-compact">
+                        <button
+                          type="button"
+                          className="mobile-touch-stepper-button"
+                          aria-label="Decrease range maximum"
+                          onClick={() => adjustMobileDockRangeBound("max", -1)}
+                          disabled={!canInteractWithMobileDockControls}
+                        >
+                          -
+                        </button>
+
+                        <label className="mobile-touch-stepper-field">
+                          <span>Maximum</span>
+                          <input
+                            type="number"
+                            min={0}
+                            step={1}
+                            inputMode="numeric"
+                            value={selectedRangeMax}
+                            onChange={(event) => updateMobileDockRangeMax(event.target.value)}
+                            disabled={!canInteractWithMobileDockControls}
+                          />
+                        </label>
+
+                        <button
+                          type="button"
+                          className="mobile-touch-stepper-button"
+                          aria-label="Increase range maximum"
+                          onClick={() => adjustMobileDockRangeBound("max", 1)}
+                          disabled={!canInteractWithMobileDockControls}
+                        >
+                          +
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="mobile-touch-chip-row" aria-label="Range quick picks">
+                    {mobileRangePresetChoices.map((preset) => (
+                      <button
+                        key={preset.label}
+                        type="button"
+                        className={
+                          selectedRangeMinValue === preset.min && selectedRangeMaxValue === preset.max
+                            ? "mobile-touch-chip mobile-touch-chip-active"
+                            : "mobile-touch-chip"
+                        }
+                        onClick={() => applyMobileRangePreset(preset.min, preset.max)}
+                        disabled={!canInteractWithMobileDockControls}
+                      >
+                        {preset.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <div
+                  className={`mobile-touch-control-card mobile-touch-control-card-market mobile-touch-control-card-market-${mobileSelectedChoice.accent}`}
+                >
+                  <span className="mobile-touch-control-kicker">{mobileSelectedChoice.label} ticket</span>
+                  <strong>{mobileSelectedChoice.detail}</strong>
+                  <p>{selectedPricingNote}</p>
+                </div>
+              )}
+
+              <div className="mobile-touch-control-card mobile-touch-control-card-amount">
+                <div className="mobile-touch-control-header">
+                  <span>Stake</span>
+                  <strong>{selectedWagerValue}</strong>
+                </div>
+
+                <div className="mobile-touch-stepper">
+                  <button
+                    type="button"
+                    className="mobile-touch-stepper-button"
+                    aria-label="Decrease wager"
+                    onClick={() => adjustMobileDockWager(-1)}
+                    disabled={!canInteractWithMobileDockControls}
+                  >
+                    -
+                  </button>
+
+                  <label className="mobile-touch-stepper-field">
+                    <span>Amount</span>
+                    <input
+                      type="number"
+                      min={1}
+                      step={1}
+                      inputMode="numeric"
+                      value={selectedWager}
+                      onChange={(event) => updateMobileDockWager(event.target.value)}
+                      disabled={!canInteractWithMobileDockControls}
+                    />
+                  </label>
+
+                  <button
+                    type="button"
+                    className="mobile-touch-stepper-button"
+                    aria-label="Increase wager"
+                    onClick={() => adjustMobileDockWager(1)}
+                    disabled={!canInteractWithMobileDockControls}
+                  >
+                    +
+                  </button>
+                </div>
+
+                <div className="mobile-touch-chip-row mobile-touch-chip-row-stake" aria-label="Stake shortcuts">
+                  <button
+                    type="button"
+                    className={selectedWagerValue === 1 ? "mobile-touch-chip mobile-touch-chip-active" : "mobile-touch-chip"}
+                    onClick={() => applyMobileWagerPreset("min")}
+                    disabled={!canInteractWithMobileDockControls}
+                  >
+                    Min
+                  </button>
+                  <button
+                    type="button"
+                    className="mobile-touch-chip"
+                    onClick={() => applyMobileWagerPreset(1)}
+                    disabled={!canInteractWithMobileDockControls}
+                  >
+                    +1
+                  </button>
+                  <button
+                    type="button"
+                    className="mobile-touch-chip"
+                    onClick={() => applyMobileWagerPreset(5)}
+                    disabled={!canInteractWithMobileDockControls}
+                  >
+                    +5
+                  </button>
+                  <button
+                    type="button"
+                    className="mobile-touch-chip"
+                    onClick={() => applyMobileWagerPreset(10)}
+                    disabled={!canInteractWithMobileDockControls}
+                  >
+                    +10
+                  </button>
+                  <button
+                    type="button"
+                    className="mobile-touch-chip"
+                    onClick={() => applyMobileWagerPreset("double")}
+                    disabled={!canInteractWithMobileDockControls}
+                  >
+                    2x
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div className="mobile-open-assist-card">
+              <div className="mobile-open-assist-topline">
+                <span>{selectedPricingLabel}</span>
+                <strong>{selectedPricingNote}</strong>
+              </div>
+              <p>{mobileOpenAssistLabel}</p>
+            </div>
           </div>
 
           <div className="mobile-open-dock-footer">
-            <div className="mobile-stake-chip-row" aria-label="Stake shortcuts">
-              <button
-                type="button"
-                className="mobile-stake-chip"
-                onClick={() => applyMobileWagerPreset("min")}
-                disabled={!canInteractWithMobileDockControls}
-              >
-                Min
-              </button>
-              <button
-                type="button"
-                className="mobile-stake-chip"
-                onClick={() => applyMobileWagerPreset(1)}
-                disabled={!canInteractWithMobileDockControls}
-              >
-                +1
-              </button>
-              <button
-                type="button"
-                className="mobile-stake-chip"
-                onClick={() => applyMobileWagerPreset(5)}
-                disabled={!canInteractWithMobileDockControls}
-              >
-                +5
-              </button>
-              <button
-                type="button"
-                className="mobile-stake-chip"
-                onClick={() => applyMobileWagerPreset(10)}
-                disabled={!canInteractWithMobileDockControls}
-              >
-                +10
-              </button>
-              <button
-                type="button"
-                className="mobile-stake-chip"
-                onClick={() => applyMobileWagerPreset("double")}
-                disabled={!canInteractWithMobileDockControls}
-              >
-                2x
-              </button>
-            </div>
-
             <button
               type="button"
               className="mobile-bet-cta mobile-bet-cta-inline mobile-bet-cta-mobile-open"
@@ -3270,7 +3562,9 @@ export function MvpDashboard({
         showResolvedRoundCard ? "betting-screen-mobile-resolved" : null,
         showMobileUpcomingDock ? "betting-screen-mobile-upcoming" : null,
         showMobileIdleDock ? "betting-screen-mobile-idle" : null,
-        showBettingControls && mobileModeInputLabel ? "betting-screen-mobile-open-parameterized" : null
+        showBettingControls && (selectedSide === "exact" || selectedSide === "range")
+          ? "betting-screen-mobile-open-parameterized"
+          : null
       ]
         .filter(Boolean)
         .join(" ")
@@ -4482,11 +4776,11 @@ export function MvpDashboard({
                         </p>
                       </div>
                       <span className="account-history-count">
-                        {loading ? "Refreshing..." : `${predictions.length} total`}
+                        {loading ? "Refreshing..." : `${visibleAccountPredictions.length} total`}
                       </span>
                     </div>
                     <PredictionHistoryList
-                      predictions={predictions}
+                      predictions={visibleAccountPredictions}
                       sessionLookup={sessionLookup}
                       nowMs={nowMs}
                       emptyKicker="No bets yet"
@@ -4622,7 +4916,7 @@ export function MvpDashboard({
                   <p className="public-profile-status-card">Loading recent activity...</p>
                 ) : (
                   <PredictionHistoryList
-                    predictions={publicProfilePredictions}
+                    predictions={visiblePublicProfilePredictions}
                     sessionLookup={publicProfileSessionLookup}
                     nowMs={nowMs}
                     emptyKicker="No public bets yet"
