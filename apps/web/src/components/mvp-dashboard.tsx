@@ -2979,13 +2979,13 @@ export function MvpDashboard({
                 -
               </button>
 
-              <label className="mobile-touch-stepper-field">
-                <span>Amount</span>
+              <label className="mobile-touch-stepper-field mobile-touch-stepper-field-value-only">
                 <input
                   type="number"
                   min={1}
                   step={1}
                   inputMode="numeric"
+                  aria-label="Stake amount"
                   value={selectedWager}
                   onChange={(event) => updateMobileDockWager(event.target.value)}
                   disabled={!canInteractWithMobileDockControls}
