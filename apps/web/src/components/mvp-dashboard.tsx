@@ -2656,7 +2656,7 @@ export function MvpDashboard({
       ) : null}
       <button
         type="button"
-        className="mobile-floating-icon-button"
+        className="mobile-floating-icon-button mobile-floating-icon-button-leaderboard"
         onClick={() => toggleRightPanel("leaderboard")}
         aria-label="Open leaderboard panel"
       >

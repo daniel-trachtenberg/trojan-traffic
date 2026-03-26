@@ -4281,14 +4281,14 @@ body {
   .betting-screen-mobile {
     --mobile-dock-side-gap: 0.14rem;
     --mobile-dock-stack-gap: 1rem;
-    --mobile-dock-height-third: calc(100dvh / 3);
-    --mobile-dock-height-idle: var(--mobile-dock-height-third);
-    --mobile-dock-height-upcoming: var(--mobile-dock-height-third);
-    --mobile-dock-height-open: var(--mobile-dock-height-third);
-    --mobile-dock-height-open-parameterized: var(--mobile-dock-height-third);
-    --mobile-dock-height-live: var(--mobile-dock-height-third);
-    --mobile-dock-height-resolving: var(--mobile-dock-height-third);
-    --mobile-dock-height-resolved: var(--mobile-dock-height-third);
+    --mobile-dock-height-tall: 40dvh;
+    --mobile-dock-height-idle: var(--mobile-dock-height-tall);
+    --mobile-dock-height-upcoming: var(--mobile-dock-height-tall);
+    --mobile-dock-height-open: var(--mobile-dock-height-tall);
+    --mobile-dock-height-open-parameterized: var(--mobile-dock-height-tall);
+    --mobile-dock-height-live: var(--mobile-dock-height-tall);
+    --mobile-dock-height-resolving: var(--mobile-dock-height-tall);
+    --mobile-dock-height-resolved: var(--mobile-dock-height-tall);
     --mobile-dock-height: var(--mobile-dock-height-idle);
     height: 100dvh;
     min-height: 100dvh;
@@ -4437,6 +4437,10 @@ body {
     width: 1.18rem;
     height: 1.18rem;
     fill: currentColor;
+  }
+
+  .mobile-floating-icon-button-leaderboard svg {
+    transform: translateY(0.04rem);
   }
 
   .mobile-stage-kicker,
@@ -6228,14 +6232,14 @@ body {
   .betting-screen-mobile-phone {
     --mobile-dock-side-gap: 0.12rem;
     --mobile-dock-stack-gap: 0.78rem;
-    --mobile-dock-height-third: calc(100dvh / 3);
-    --mobile-dock-height-idle: var(--mobile-dock-height-third);
-    --mobile-dock-height-upcoming: var(--mobile-dock-height-third);
-    --mobile-dock-height-open: var(--mobile-dock-height-third);
-    --mobile-dock-height-open-parameterized: var(--mobile-dock-height-third);
-    --mobile-dock-height-live: var(--mobile-dock-height-third);
-    --mobile-dock-height-resolving: var(--mobile-dock-height-third);
-    --mobile-dock-height-resolved: var(--mobile-dock-height-third);
+    --mobile-dock-height-tall: 40dvh;
+    --mobile-dock-height-idle: var(--mobile-dock-height-tall);
+    --mobile-dock-height-upcoming: var(--mobile-dock-height-tall);
+    --mobile-dock-height-open: var(--mobile-dock-height-tall);
+    --mobile-dock-height-open-parameterized: var(--mobile-dock-height-tall);
+    --mobile-dock-height-live: var(--mobile-dock-height-tall);
+    --mobile-dock-height-resolving: var(--mobile-dock-height-tall);
+    --mobile-dock-height-resolved: var(--mobile-dock-height-tall);
     --mobile-dock-height: var(--mobile-dock-height-idle);
   }
 
@@ -6257,6 +6261,10 @@ body {
   .betting-screen-mobile-phone .mobile-floating-icon-button svg {
     width: 1.05rem;
     height: 1.05rem;
+  }
+
+  .betting-screen-mobile-phone .mobile-floating-icon-button-leaderboard svg {
+    transform: translateY(0.04rem);
   }
 
   .betting-screen-mobile-phone .mobile-feed-frame {
@@ -6537,14 +6545,14 @@ body {
     .betting-screen-mobile {
       --mobile-dock-side-gap: 0.08rem;
       --mobile-dock-stack-gap: 0.7rem;
-      --mobile-dock-height-third: calc(100dvh / 3);
-      --mobile-dock-height-idle: var(--mobile-dock-height-third);
-      --mobile-dock-height-upcoming: var(--mobile-dock-height-third);
-      --mobile-dock-height-open: var(--mobile-dock-height-third);
-      --mobile-dock-height-open-parameterized: var(--mobile-dock-height-third);
-      --mobile-dock-height-live: var(--mobile-dock-height-third);
-      --mobile-dock-height-resolving: var(--mobile-dock-height-third);
-      --mobile-dock-height-resolved: var(--mobile-dock-height-third);
+      --mobile-dock-height-tall: 40dvh;
+      --mobile-dock-height-idle: var(--mobile-dock-height-tall);
+      --mobile-dock-height-upcoming: var(--mobile-dock-height-tall);
+      --mobile-dock-height-open: var(--mobile-dock-height-tall);
+      --mobile-dock-height-open-parameterized: var(--mobile-dock-height-tall);
+      --mobile-dock-height-live: var(--mobile-dock-height-tall);
+      --mobile-dock-height-resolving: var(--mobile-dock-height-tall);
+      --mobile-dock-height-resolved: var(--mobile-dock-height-tall);
     }
 
     .mobile-betting-dock {
