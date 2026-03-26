@@ -5057,16 +5057,26 @@ body {
     overflow: visible;
   }
 
+  .mobile-open-dock > *,
+  .mobile-round-dock > *,
+  .mobile-review-dock > *,
+  .mobile-result-dock > *,
+  .mobile-idle-dock > * {
+    min-width: 0;
+  }
+
   .mobile-open-dock {
     display: grid;
-    align-content: stretch;
-    gap: 0.56rem;
+    grid-template-rows: auto minmax(0, 1fr) auto;
+    gap: 0.72rem;
   }
 
   .mobile-open-dock-field-grid {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 0.38rem;
+    min-height: 0;
+    align-content: center;
+    gap: 0.46rem;
   }
 
   .mobile-open-dock-field-grid-parameterized {
@@ -5074,14 +5084,16 @@ body {
   }
 
   .mobile-open-preview-card {
-    min-height: 3.1rem;
+    min-height: 3.34rem;
     border: 1px solid var(--line);
-    border-radius: 15px;
-    padding: 0.56rem 0.7rem;
-    background: rgb(255 255 255 / 3%);
+    border-radius: 18px;
+    padding: 0.66rem 0.76rem;
+    background:
+      linear-gradient(180deg, rgb(255 255 255 / 6%) 0%, rgb(255 255 255 / 3%) 100%);
+    box-shadow: inset 0 1px 0 rgb(255 255 255 / 6%);
     display: grid;
     align-content: center;
-    gap: 0.12rem;
+    gap: 0.16rem;
   }
 
   .mobile-open-preview-card-under {
@@ -5159,15 +5171,17 @@ body {
   }
 
   .mobile-open-dock-footer {
-    margin-top: auto;
+    margin-top: 0;
     display: grid;
-    gap: 0.48rem;
+    gap: 0.56rem;
+    padding-top: 0.32rem;
+    border-top: 1px solid rgb(255 255 255 / 8%);
   }
 
   .mobile-round-dock {
     display: grid;
-    align-content: start;
-    gap: 0.52rem;
+    grid-template-rows: auto minmax(0, 1fr) auto;
+    gap: 0.62rem;
   }
 
   .mobile-round-dock-header,
@@ -5181,12 +5195,12 @@ body {
 
   .mobile-round-dock-header {
     grid-template-columns: minmax(0, 1fr) auto;
-    align-items: start;
+    align-items: stretch;
   }
 
   .mobile-round-dock-footer-grid {
     display: grid;
-    gap: 0.42rem;
+    gap: 0.48rem;
   }
 
   .mobile-round-dock-copy,
@@ -5194,8 +5208,36 @@ body {
   .mobile-result-dock-topline,
   .mobile-idle-dock-hero {
     display: grid;
-    gap: 0.16rem;
+    gap: 0.2rem;
     min-width: 0;
+    padding: 0.84rem 0.9rem;
+    border: 1px solid rgb(255 255 255 / 10%);
+    border-radius: 20px;
+    box-shadow: inset 0 1px 0 rgb(255 255 255 / 6%);
+  }
+
+  .mobile-round-dock-copy {
+    background:
+      radial-gradient(circle at top left, rgb(255 204 0 / 11%), transparent 58%),
+      linear-gradient(180deg, rgb(255 255 255 / 7%) 0%, rgb(255 255 255 / 3%) 100%);
+  }
+
+  .mobile-review-dock-copy {
+    background:
+      radial-gradient(circle at top left, rgb(255 204 0 / 10%), transparent 58%),
+      linear-gradient(180deg, rgb(255 255 255 / 7%) 0%, rgb(255 255 255 / 3%) 100%);
+  }
+
+  .mobile-result-dock-topline {
+    background:
+      radial-gradient(circle at top left, rgb(255 255 255 / 8%), transparent 58%),
+      linear-gradient(180deg, rgb(255 255 255 / 7%) 0%, rgb(255 255 255 / 3%) 100%);
+  }
+
+  .mobile-idle-dock-hero {
+    background:
+      radial-gradient(circle at top left, rgb(255 255 255 / 8%), transparent 58%),
+      linear-gradient(180deg, rgb(255 255 255 / 7%) 0%, rgb(255 255 255 / 3%) 100%);
   }
 
   .mobile-round-dock-status {
@@ -5216,11 +5258,13 @@ body {
   .mobile-result-dock-summary,
   .mobile-idle-dock-meta-card {
     border: 1px solid rgb(255 255 255 / 10%);
-    border-radius: 16px;
-    padding: 0.62rem 0.7rem;
-    background: rgb(255 255 255 / 4%);
+    border-radius: 18px;
+    padding: 0.72rem 0.8rem;
+    background:
+      linear-gradient(180deg, rgb(255 255 255 / 6%) 0%, rgb(255 255 255 / 3%) 100%);
+    box-shadow: inset 0 1px 0 rgb(255 255 255 / 5%);
     display: grid;
-    gap: 0.14rem;
+    gap: 0.16rem;
   }
 
   .mobile-round-dock-footer-card strong,
@@ -5235,16 +5279,22 @@ body {
     color: #fff5dd;
   }
 
+  .mobile-review-dock-ticket,
+  .mobile-result-dock-summary {
+    min-height: 0;
+    align-content: space-between;
+  }
+
   .mobile-review-dock {
     display: grid;
-    align-content: start;
-    gap: 0.52rem;
+    grid-template-rows: auto auto minmax(0, 1fr);
+    gap: 0.62rem;
   }
 
   .mobile-result-dock {
     display: grid;
-    align-content: start;
-    gap: 0.52rem;
+    grid-template-rows: auto auto auto minmax(0, 1fr) auto;
+    gap: 0.62rem;
   }
 
   .mobile-result-dock-win {
@@ -5253,6 +5303,18 @@ body {
 
   .mobile-result-dock-loss {
     border-color: transparent;
+  }
+
+  .mobile-result-dock-win .mobile-result-dock-topline {
+    background:
+      radial-gradient(circle at top left, rgb(72 214 113 / 12%), transparent 58%),
+      linear-gradient(180deg, rgb(255 255 255 / 7%) 0%, rgb(255 255 255 / 3%) 100%);
+  }
+
+  .mobile-result-dock-loss .mobile-result-dock-topline {
+    background:
+      radial-gradient(circle at top left, rgb(153 0 0 / 12%), transparent 58%),
+      linear-gradient(180deg, rgb(255 255 255 / 7%) 0%, rgb(255 255 255 / 3%) 100%);
   }
 
   .mobile-result-dock-win .mobile-result-dock-topline strong {
@@ -5267,6 +5329,7 @@ body {
     display: flex;
     gap: 0.34rem;
     overflow-x: auto;
+    align-self: end;
     padding-bottom: 0.08rem;
     scrollbar-width: none;
     -webkit-overflow-scrolling: touch;
@@ -5317,9 +5380,9 @@ body {
   }
 
   .mobile-idle-dock {
-    display: grid;
-    align-content: start;
-    gap: 0.56rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.62rem;
   }
 
   .mobile-idle-dock-idle {
@@ -5334,6 +5397,18 @@ body {
     background: none;
   }
 
+  .mobile-idle-dock-upcoming .mobile-idle-dock-hero {
+    background:
+      radial-gradient(circle at top left, rgb(255 204 0 / 10%), transparent 58%),
+      linear-gradient(180deg, rgb(255 255 255 / 7%) 0%, rgb(255 255 255 / 3%) 100%);
+  }
+
+  .mobile-idle-dock-cancelled .mobile-idle-dock-hero {
+    background:
+      radial-gradient(circle at top left, rgb(153 0 0 / 11%), transparent 58%),
+      linear-gradient(180deg, rgb(255 255 255 / 7%) 0%, rgb(255 255 255 / 3%) 100%);
+  }
+
   .mobile-result-dock-score-card strong {
     font-size: 1.52rem;
     line-height: 0.92;
@@ -5345,7 +5420,13 @@ body {
   }
 
   .mobile-idle-dock-note {
-    margin-top: -0.08rem;
+    margin-top: auto;
+    border: 1px solid rgb(255 255 255 / 10%);
+    border-radius: 18px;
+    padding: 0.74rem 0.8rem;
+    background:
+      linear-gradient(180deg, rgb(255 255 255 / 5%) 0%, rgb(255 255 255 / 3%) 100%);
+    box-shadow: inset 0 1px 0 rgb(255 255 255 / 5%);
   }
 
   .mobile-dock-topbar {
@@ -5385,25 +5466,34 @@ body {
   .mobile-market-tab-row {
     display: grid;
     grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: 0.34rem;
+    gap: 0.38rem;
+    padding: 0.22rem;
+    border: 1px solid rgb(255 255 255 / 9%);
+    border-radius: 18px;
+    background:
+      linear-gradient(180deg, rgb(255 255 255 / 5%) 0%, rgb(255 255 255 / 2%) 100%);
+    box-shadow: inset 0 1px 0 rgb(255 255 255 / 5%);
   }
 
   .mobile-market-tab {
-    min-height: 2.56rem;
+    min-height: 3.12rem;
     border: 1px solid var(--line);
-    border-radius: 14px;
-    padding: 0.34rem 0.42rem;
+    border-radius: 15px;
+    padding: 0.4rem 0.34rem;
     background: rgb(255 255 255 / 3%);
     color: var(--text);
     font: inherit;
     display: flex;
+    flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: 0.34rem;
+    gap: 0.22rem;
   }
 
   .mobile-market-tab.active {
     background: rgb(255 255 255 / 5%);
+    transform: translateY(-1px);
+    box-shadow: 0 10px 20px rgb(0 0 0 / 16%);
   }
 
   .mobile-market-tab-under.active {
@@ -5427,8 +5517,8 @@ body {
   }
 
   .mobile-market-tab-icon {
-    width: 1.16rem;
-    height: 1.16rem;
+    width: 1.28rem;
+    height: 1.28rem;
     border-radius: 999px;
     border: 1px solid var(--line);
     background: rgb(255 255 255 / 4%);
@@ -5439,6 +5529,11 @@ body {
     font-weight: 700;
     color: #eef2fb;
     flex: 0 0 auto;
+  }
+
+  .mobile-market-tab.active .mobile-market-tab-icon {
+    border-color: rgb(255 255 255 / 18%);
+    background: rgb(255 255 255 / 10%);
   }
 
   .mobile-market-tab-under .mobile-market-tab-icon {
@@ -5458,19 +5553,21 @@ body {
   }
 
   .mobile-market-tab-label {
-    font-size: 0.68rem;
+    font-size: 0.7rem;
     font-weight: 700;
-    line-height: 1;
-    letter-spacing: -0.01em;
+    line-height: 1.04;
+    letter-spacing: -0.02em;
     white-space: nowrap;
   }
 
   .mobile-dock-inline-field {
     border: 1px solid var(--line);
-    border-radius: 15px;
-    min-height: 3.05rem;
-    padding: 0.52rem 0.72rem;
-    background: rgb(255 255 255 / 3%);
+    border-radius: 18px;
+    min-height: 3.22rem;
+    padding: 0.58rem 0.76rem;
+    background:
+      linear-gradient(180deg, rgb(255 255 255 / 6%) 0%, rgb(255 255 255 / 3%) 100%);
+    box-shadow: inset 0 1px 0 rgb(255 255 255 / 5%);
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -5741,7 +5838,7 @@ body {
     display: flex;
     gap: 0.28rem;
     overflow-x: auto;
-    padding-bottom: 0.08rem;
+    padding-bottom: 0.12rem;
     scrollbar-width: none;
     -webkit-overflow-scrolling: touch;
   }
@@ -5895,9 +5992,12 @@ body {
   }
 
   .mobile-live-dock-meter-card {
-    padding: 0.62rem 0.72rem 0.58rem;
+    height: 100%;
+    min-height: 0;
+    padding: 0.72rem 0.8rem 0.66rem;
     display: grid;
-    gap: 0.38rem;
+    align-content: space-between;
+    gap: 0.44rem;
   }
 
   .mobile-live-dock-meter-card-under {
@@ -6158,7 +6258,7 @@ body {
   }
 
   .mobile-dock-state-actions {
-    margin-top: auto;
+    margin-top: 0.52rem;
     display: grid;
     gap: 0.48rem;
   }
@@ -6396,9 +6496,33 @@ body {
     gap: 0.32rem;
   }
 
+  .betting-screen-mobile-phone .mobile-open-dock-footer {
+    gap: 0.44rem;
+    padding-top: 0.24rem;
+  }
+
   .betting-screen-mobile-phone .mobile-open-preview-card {
     min-height: 2.8rem;
     padding: 0.48rem 0.58rem;
+  }
+
+  .betting-screen-mobile-phone .mobile-round-dock-copy,
+  .betting-screen-mobile-phone .mobile-review-dock-copy,
+  .betting-screen-mobile-phone .mobile-result-dock-topline,
+  .betting-screen-mobile-phone .mobile-idle-dock-hero {
+    padding: 0.72rem 0.76rem;
+    border-radius: 18px;
+  }
+
+  .betting-screen-mobile-phone .mobile-round-dock-footer-card,
+  .betting-screen-mobile-phone .mobile-review-dock-meta-card,
+  .betting-screen-mobile-phone .mobile-review-dock-ticket,
+  .betting-screen-mobile-phone .mobile-result-dock-score-card,
+  .betting-screen-mobile-phone .mobile-result-dock-summary,
+  .betting-screen-mobile-phone .mobile-idle-dock-meta-card,
+  .betting-screen-mobile-phone .mobile-idle-dock-note {
+    border-radius: 16px;
+    padding: 0.64rem 0.68rem;
   }
 
   .betting-screen-mobile-phone .mobile-open-preview-card strong,
@@ -6424,9 +6548,16 @@ body {
     font-size: 0.68rem;
   }
 
+  .betting-screen-mobile-phone .mobile-market-tab-row {
+    gap: 0.3rem;
+    padding: 0.18rem;
+    border-radius: 16px;
+  }
+
   .betting-screen-mobile-phone .mobile-market-tab {
-    min-height: 2.28rem;
-    padding: 0.3rem 0.34rem;
+    min-height: 2.58rem;
+    padding: 0.32rem 0.28rem;
+    gap: 0.18rem;
   }
 
   .betting-screen-mobile-phone .mobile-market-tab-label {
@@ -6434,7 +6565,7 @@ body {
   }
 
   .betting-screen-mobile-phone .mobile-dock-inline-field {
-    min-height: 2.7rem;
+    min-height: 2.86rem;
     padding: 0.44rem 0.58rem;
   }
 
@@ -6661,9 +6792,33 @@ body {
       gap: 0.28rem;
     }
 
+    .mobile-open-dock-footer {
+      gap: 0.36rem;
+      padding-top: 0.18rem;
+    }
+
     .mobile-open-preview-card {
       min-height: 2.34rem;
       padding: 0.42rem 0.5rem;
+    }
+
+    .mobile-round-dock-copy,
+    .mobile-review-dock-copy,
+    .mobile-result-dock-topline,
+    .mobile-idle-dock-hero {
+      padding: 0.58rem 0.62rem;
+      border-radius: 16px;
+    }
+
+    .mobile-round-dock-footer-card,
+    .mobile-review-dock-meta-card,
+    .mobile-review-dock-ticket,
+    .mobile-result-dock-score-card,
+    .mobile-result-dock-summary,
+    .mobile-idle-dock-meta-card,
+    .mobile-idle-dock-note {
+      border-radius: 14px;
+      padding: 0.5rem 0.54rem;
     }
 
     .mobile-open-preview-card strong,
@@ -6749,11 +6904,14 @@ body {
     .mobile-market-tab-row {
       grid-template-columns: repeat(4, minmax(0, 1fr));
       gap: 0.24rem;
+      padding: 0.14rem;
+      border-radius: 14px;
     }
 
     .mobile-market-tab {
-      min-height: 2rem;
+      min-height: 2.16rem;
       padding: 0.24rem 0.3rem;
+      gap: 0.14rem;
     }
 
     .mobile-market-tab-icon {
@@ -6767,7 +6925,7 @@ body {
     }
 
     .mobile-dock-inline-field {
-      min-height: 2.14rem;
+      min-height: 2.22rem;
       padding: 0.38rem 0.5rem;
     }
 
