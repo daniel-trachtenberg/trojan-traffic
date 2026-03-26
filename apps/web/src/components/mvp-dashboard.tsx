@@ -129,6 +129,7 @@ type PredictionHistoryTone = "win" | "loss" | "pending" | "cancelled";
 
 const DEFAULT_WAGER = "10";
 const DEFAULT_EXACT_VALUE = "0";
+const DEFAULT_STANDBY_THRESHOLD = 5;
 const WAGER_STEPS = [1, 5, 10, 20];
 const HUMAN_OVERLAY_PREVIEW_ENABLED = false;
 const BETTING_OPEN_WINDOW_MS = 5 * 60 * 1000;
@@ -741,6 +742,15 @@ export function MvpDashboard({
   const [exactValueBySession, setExactValueBySession] = useState<Record<string, string>>({});
   const [rangeMinBySession, setRangeMinBySession] = useState<Record<string, string>>({});
   const [rangeMaxBySession, setRangeMaxBySession] = useState<Record<string, string>>({});
+  const [mobileStandbyWager, setMobileStandbyWager] = useState(DEFAULT_WAGER);
+  const [mobileStandbySide, setMobileStandbySide] = useState<PredictionSide>("over");
+  const [mobileStandbyExactValue, setMobileStandbyExactValue] = useState(DEFAULT_EXACT_VALUE);
+  const [mobileStandbyRangeMin, setMobileStandbyRangeMin] = useState(
+    getDefaultRangeMin(DEFAULT_STANDBY_THRESHOLD)
+  );
+  const [mobileStandbyRangeMax, setMobileStandbyRangeMax] = useState(
+    getDefaultRangeMax(DEFAULT_STANDBY_THRESHOLD)
+  );
   const [openRightPanel, setOpenRightPanel] = useState<"account" | "leaderboard" | "admin" | null>(
     null
   );
@@ -828,24 +838,26 @@ export function MvpDashboard({
   );
   const selectedState = selectedSession ? getSessionState(selectedSession, nowMs) : null;
   const displayedModeSeconds = selectedSession?.mode_seconds ?? 30;
-  const displayedThreshold = selectedSession?.threshold ?? 5;
+  const displayedThreshold = selectedSession?.threshold ?? DEFAULT_STANDBY_THRESHOLD;
   const selectedStartsAtMs = selectedSession ? new Date(selectedSession.starts_at).getTime() : null;
   const selectedEndsAtMs = selectedSession ? new Date(selectedSession.ends_at).getTime() : null;
   const selectedCountdown = selectedStartsAtMs !== null ? formatCountdown(selectedStartsAtMs - nowMs) : "00:00";
   const selectedOpensInLabel = selectedSession
     ? formatReadableDuration(new Date(selectedSession.starts_at).getTime() - nowMs - BETTING_OPEN_WINDOW_MS)
     : "Soon";
-  const selectedWager = selectedSession ? (wagerBySession[selectedSession.id] ?? DEFAULT_WAGER) : DEFAULT_WAGER;
-  const selectedSide = selectedSession ? (sideBySession[selectedSession.id] ?? "over") : "over";
+  const selectedWager = selectedSession
+    ? (wagerBySession[selectedSession.id] ?? DEFAULT_WAGER)
+    : mobileStandbyWager;
+  const selectedSide = selectedSession ? (sideBySession[selectedSession.id] ?? "over") : mobileStandbySide;
   const selectedExactValue = selectedSession
     ? (exactValueBySession[selectedSession.id] ?? String(selectedSession.threshold ?? DEFAULT_EXACT_VALUE))
-    : DEFAULT_EXACT_VALUE;
+    : mobileStandbyExactValue;
   const selectedRangeMin = selectedSession
     ? (rangeMinBySession[selectedSession.id] ?? getDefaultRangeMin(selectedSession.threshold))
-    : DEFAULT_EXACT_VALUE;
+    : mobileStandbyRangeMin;
   const selectedRangeMax = selectedSession
     ? (rangeMaxBySession[selectedSession.id] ?? getDefaultRangeMax(selectedSession.threshold))
-    : DEFAULT_EXACT_VALUE;
+    : mobileStandbyRangeMax;
   const selectedConfiguredWager = Number.parseInt(selectedWager, 10);
   const selectedConfiguredRangeMin = Number.parseInt(selectedRangeMin, 10);
   const selectedConfiguredRangeMax = Number.parseInt(selectedRangeMax, 10);
@@ -2340,6 +2352,45 @@ export function MvpDashboard({
     }));
   }
 
+  function updateMobileDockSide(nextSide: PredictionSide) {
+    if (selectedSession) {
+      updateSelectedSide(selectedSession.id, nextSide);
+      return;
+    }
+
+    setMobileStandbySide(nextSide);
+  }
+
+  function updateMobileDockExactValue(nextExactValue: string) {
+    if (selectedSession) {
+      updateSelectedExactValue(selectedSession.id, nextExactValue);
+      return;
+    }
+
+    setMobileStandbyExactValue(nextExactValue);
+  }
+
+  function updateMobileDockRangeValue(nextRangeValue: string) {
+    const nextParts = nextRangeValue.match(/\d+/g) ?? [];
+
+    if (selectedSession) {
+      updateSelectedMobileRangeValue(selectedSession.id, nextRangeValue);
+      return;
+    }
+
+    setMobileStandbyRangeMin(nextParts[0] ?? "");
+    setMobileStandbyRangeMax(nextParts[1] ?? "");
+  }
+
+  function updateMobileDockWager(nextWager: string) {
+    if (selectedSession) {
+      updateSelectedWager(selectedSession.id, nextWager);
+      return;
+    }
+
+    setMobileStandbyWager(nextWager);
+  }
+
   function adjustSelectedWager(sessionId: string, delta: number) {
     const currentWager = Number.parseInt(wagerBySession[sessionId] ?? DEFAULT_WAGER, 10);
     const safeWager = Number.isFinite(currentWager) ? currentWager : Number.parseInt(DEFAULT_WAGER, 10);
@@ -2377,23 +2428,30 @@ export function MvpDashboard({
   }
 
   function applyMobileWagerPreset(preset: "min" | "double" | number) {
-    if (!selectedSession || !canConfigureSelected) {
+    if (selectedSession && !canConfigureSelected) {
       return;
     }
 
     if (preset === "min") {
-      updateSelectedWager(selectedSession.id, "1");
+      updateMobileDockWager("1");
       return;
     }
 
     if (preset === "double") {
       const parsedCurrentWager = Number.parseInt(selectedWager, 10);
       const nextWager = Math.max(Number.isFinite(parsedCurrentWager) ? parsedCurrentWager : 1, 1) * 2;
-      updateSelectedWager(selectedSession.id, String(nextWager));
+      updateMobileDockWager(String(nextWager));
       return;
     }
 
-    adjustSelectedWager(selectedSession.id, preset);
+    if (selectedSession) {
+      adjustSelectedWager(selectedSession.id, preset);
+      return;
+    }
+
+    const currentWager = Number.parseInt(selectedWager, 10);
+    const safeWager = Number.isFinite(currentWager) ? currentWager : Number.parseInt(DEFAULT_WAGER, 10);
+    updateMobileDockWager(String(Math.max(1, safeWager + preset)));
   }
 
   function handleAccountAction() {
@@ -2605,6 +2663,7 @@ export function MvpDashboard({
         : "";
   const showMobileIdleDock = !selectedSession;
   const showMobileOpenDock = showBettingControls || showMobileIdleDock;
+  const canInteractWithMobileDockControls = canConfigureSelected || showMobileIdleDock;
   const showMobileUpcomingDock = Boolean(selectedSession && selectedState === "upcoming");
   const showMobileLiveDock = Boolean(selectedSession && selectedState === "live");
   const showMobileResolvingDock = Boolean(selectedSession && selectedState === "resolving");
@@ -2712,12 +2771,8 @@ export function MvpDashboard({
                     ? `mobile-market-tab mobile-market-tab-${choice.accent} active`
                     : `mobile-market-tab mobile-market-tab-${choice.accent}`
                 }
-                onClick={() => {
-                  if (selectedSession) {
-                    updateSelectedSide(selectedSession.id, choice.side);
-                  }
-                }}
-                disabled={!canConfigureSelected}
+                onClick={() => updateMobileDockSide(choice.side)}
+                disabled={!canInteractWithMobileDockControls}
               >
                 <span className="mobile-market-tab-icon" aria-hidden="true">
                   {choice.icon}
@@ -2738,20 +2793,16 @@ export function MvpDashboard({
                   defaultValue={mobileModeInputDefaultValue}
                   placeholder={mobileModeInputPlaceholder}
                   onChange={(event) => {
-                    if (!selectedSession) {
-                      return;
-                    }
-
                     if (selectedSide === "exact") {
-                      updateSelectedExactValue(selectedSession.id, event.target.value);
+                      updateMobileDockExactValue(event.target.value);
                       return;
                     }
 
                     if (selectedSide === "range") {
-                      updateSelectedMobileRangeValue(selectedSession.id, event.target.value);
+                      updateMobileDockRangeValue(event.target.value);
                     }
                   }}
-                  disabled={!canConfigureSelected}
+                  disabled={!canInteractWithMobileDockControls}
                 />
               </label>
             ) : (
@@ -2772,12 +2823,8 @@ export function MvpDashboard({
                 type="number"
                 min={1}
                 value={selectedWager}
-                onChange={(event) => {
-                  if (selectedSession) {
-                    updateSelectedWager(selectedSession.id, event.target.value);
-                  }
-                }}
-                disabled={!canConfigureSelected}
+                onChange={(event) => updateMobileDockWager(event.target.value)}
+                disabled={!canInteractWithMobileDockControls}
               />
             </label>
           </div>
@@ -2788,7 +2835,7 @@ export function MvpDashboard({
                 type="button"
                 className="mobile-stake-chip"
                 onClick={() => applyMobileWagerPreset("min")}
-                disabled={!canConfigureSelected}
+                disabled={!canInteractWithMobileDockControls}
               >
                 Min
               </button>
@@ -2796,7 +2843,7 @@ export function MvpDashboard({
                 type="button"
                 className="mobile-stake-chip"
                 onClick={() => applyMobileWagerPreset(1)}
-                disabled={!canConfigureSelected}
+                disabled={!canInteractWithMobileDockControls}
               >
                 +1
               </button>
@@ -2804,7 +2851,7 @@ export function MvpDashboard({
                 type="button"
                 className="mobile-stake-chip"
                 onClick={() => applyMobileWagerPreset(5)}
-                disabled={!canConfigureSelected}
+                disabled={!canInteractWithMobileDockControls}
               >
                 +5
               </button>
@@ -2812,7 +2859,7 @@ export function MvpDashboard({
                 type="button"
                 className="mobile-stake-chip"
                 onClick={() => applyMobileWagerPreset(10)}
-                disabled={!canConfigureSelected}
+                disabled={!canInteractWithMobileDockControls}
               >
                 +10
               </button>
@@ -2820,7 +2867,7 @@ export function MvpDashboard({
                 type="button"
                 className="mobile-stake-chip"
                 onClick={() => applyMobileWagerPreset("double")}
-                disabled={!canConfigureSelected}
+                disabled={!canInteractWithMobileDockControls}
               >
                 2x
               </button>
