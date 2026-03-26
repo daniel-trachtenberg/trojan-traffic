@@ -971,6 +971,12 @@ export function MvpDashboard({
     Number.isFinite(selectedConfiguredWager) && selectedConfiguredWager > 0
       ? selectedConfiguredWager
       : Number.parseInt(DEFAULT_WAGER, 10);
+  const selectedRangeMinValue = Number.isFinite(selectedConfiguredRangeMin)
+    ? Math.max(selectedConfiguredRangeMin, 0)
+    : Number.parseInt(getDefaultRangeMin(displayedThreshold), 10);
+  const selectedRangeMaxValue = Number.isFinite(selectedConfiguredRangeMax)
+    ? Math.max(selectedConfiguredRangeMax, selectedRangeMinValue)
+    : Math.max(Number.parseInt(getDefaultRangeMax(displayedThreshold), 10), selectedRangeMinValue);
   const canConfigureSelected = Boolean(selectedSession && selectedState === "open");
   const showBettingControls = Boolean(selectedSession && selectedState === "open");
   const dailyClaimState = getDailyClaimState(streaks?.last_login_date ?? null, nowMs);
@@ -2562,6 +2568,32 @@ export function MvpDashboard({
     updateMobileDockExactValue(String(Math.max(0, safeExactValue + delta)));
   }
 
+  function adjustMobileDockRangeMin(delta: number) {
+    const currentMin = Number.parseInt(selectedRangeMin, 10);
+    const currentMax = Number.parseInt(selectedRangeMax, 10);
+    const fallbackMin = Number.parseInt(getDefaultRangeMin(displayedThreshold), 10);
+    const fallbackMax = Number.parseInt(getDefaultRangeMax(displayedThreshold), 10);
+    const safeMin = Number.isFinite(currentMin) ? Math.max(currentMin, 0) : fallbackMin;
+    const safeMaxBase = Number.isFinite(currentMax) ? Math.max(currentMax, 0) : fallbackMax;
+    const safeMax = Math.max(safeMaxBase, safeMin);
+    const nextMin = clamp(safeMin + delta, 0, safeMax);
+
+    updateMobileDockRangeMin(String(nextMin));
+  }
+
+  function adjustMobileDockRangeMax(delta: number) {
+    const currentMin = Number.parseInt(selectedRangeMin, 10);
+    const currentMax = Number.parseInt(selectedRangeMax, 10);
+    const fallbackMin = Number.parseInt(getDefaultRangeMin(displayedThreshold), 10);
+    const fallbackMax = Number.parseInt(getDefaultRangeMax(displayedThreshold), 10);
+    const safeMin = Number.isFinite(currentMin) ? Math.max(currentMin, 0) : fallbackMin;
+    const safeMaxBase = Number.isFinite(currentMax) ? Math.max(currentMax, 0) : fallbackMax;
+    const safeMax = Math.max(safeMaxBase, safeMin);
+    const nextMax = Math.max(safeMin, safeMax + delta);
+
+    updateMobileDockRangeMax(String(nextMax));
+  }
+
   function handleAccountAction() {
     if (!user) {
       setOpenRightPanel(null);
@@ -2932,32 +2964,72 @@ export function MvpDashboard({
                   </button>
                 </div>
               ) : (
-                <div className="mobile-touch-range-input-grid mobile-touch-range-input-grid-panel">
-                  <label className="mobile-touch-input-field">
-                    <span>Min</span>
-                    <input
-                      type="number"
-                      min={0}
-                      step={1}
-                      inputMode="numeric"
-                      value={selectedRangeMin}
-                      onChange={(event) => updateMobileDockRangeMin(event.target.value)}
-                      disabled={!canInteractWithMobileDockControls}
-                    />
-                  </label>
+                <div className="mobile-range-picker" role="group" aria-label="Set range">
+                  <div className="mobile-range-picker-grid">
+                    <div className="mobile-range-picker-card">
+                      <span className="mobile-range-picker-label">Min</span>
+                      <strong className="mobile-range-picker-value">{selectedRangeMinValue}</strong>
+                      <div className="mobile-range-picker-controls">
+                        <button
+                          type="button"
+                          className="mobile-range-picker-button"
+                          aria-label="Decrease minimum range"
+                          onClick={() => adjustMobileDockRangeMin(-1)}
+                          disabled={!canInteractWithMobileDockControls || selectedRangeMinValue <= 0}
+                        >
+                          -
+                        </button>
+                        <button
+                          type="button"
+                          className="mobile-range-picker-button"
+                          aria-label="Increase minimum range"
+                          onClick={() => adjustMobileDockRangeMin(1)}
+                          disabled={
+                            !canInteractWithMobileDockControls || selectedRangeMinValue >= selectedRangeMaxValue
+                          }
+                        >
+                          +
+                        </button>
+                      </div>
+                    </div>
 
-                  <label className="mobile-touch-input-field">
-                    <span>Max</span>
-                    <input
-                      type="number"
-                      min={0}
-                      step={1}
-                      inputMode="numeric"
-                      value={selectedRangeMax}
-                      onChange={(event) => updateMobileDockRangeMax(event.target.value)}
-                      disabled={!canInteractWithMobileDockControls}
-                    />
-                  </label>
+                    <div className="mobile-range-picker-card">
+                      <span className="mobile-range-picker-label">Max</span>
+                      <strong className="mobile-range-picker-value">{selectedRangeMaxValue}</strong>
+                      <div className="mobile-range-picker-controls">
+                        <button
+                          type="button"
+                          className="mobile-range-picker-button"
+                          aria-label="Decrease maximum range"
+                          onClick={() => adjustMobileDockRangeMax(-1)}
+                          disabled={
+                            !canInteractWithMobileDockControls || selectedRangeMaxValue <= selectedRangeMinValue
+                          }
+                        >
+                          -
+                        </button>
+                        <button
+                          type="button"
+                          className="mobile-range-picker-button"
+                          aria-label="Increase maximum range"
+                          onClick={() => adjustMobileDockRangeMax(1)}
+                          disabled={!canInteractWithMobileDockControls}
+                        >
+                          +
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div
+                    className="mobile-range-picker-summary"
+                    aria-live="polite"
+                    aria-label={`Selected range ${selectedRangeMinValue} to ${selectedRangeMaxValue}`}
+                  >
+                    <strong>
+                      {selectedRangeMinValue} to {selectedRangeMaxValue}
+                    </strong>
+                  </div>
                 </div>
               )}
             </div>

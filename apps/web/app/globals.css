@@ -1065,6 +1065,13 @@ body {
     linear-gradient(180deg, rgb(255 255 255 / 6%) 0%, rgb(255 255 255 / 3%) 100%);
 }
 
+.bet-widget-open-dock .mobile-open-panel-parameter.mobile-open-panel-exact,
+.bet-widget-open-dock .mobile-open-panel-parameter.mobile-open-panel-range {
+  border-color: rgb(255 255 255 / 10%);
+  background:
+    linear-gradient(180deg, rgb(255 255 255 / 6%) 0%, rgb(255 255 255 / 3%) 100%);
+}
+
 .bet-widget-open-dock .mobile-open-info-strip strong,
 .bet-widget-open-dock .mobile-open-panel-header strong {
   font-size: 0.94rem;
@@ -1218,6 +1225,97 @@ body {
 .bet-widget-open-dock .mobile-open-panel-parameter .mobile-touch-stepper-field input,
 .bet-widget-open-dock .mobile-open-panel-parameter .mobile-touch-input-field input {
   font-size: 1.2rem;
+}
+
+.bet-widget-open-dock .mobile-range-picker {
+  min-height: 0;
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) auto;
+  gap: 0.24rem;
+}
+
+.bet-widget-open-dock .mobile-range-picker-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.24rem;
+}
+
+.bet-widget-open-dock .mobile-range-picker-card {
+  min-width: 0;
+  min-height: 3.72rem;
+  border: 1px solid rgb(255 255 255 / 10%);
+  border-radius: 14px;
+  padding: 0.3rem 0.34rem 0.34rem;
+  background: rgb(255 255 255 / 5%);
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  gap: 0.18rem;
+}
+
+.bet-widget-open-dock .mobile-range-picker-label {
+  font-size: 0.58rem;
+  line-height: 1.15;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgb(235 239 247 / 62%);
+}
+
+.bet-widget-open-dock .mobile-range-picker-button {
+  width: 100%;
+  min-height: 1.58rem;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 0;
+  background: rgb(255 255 255 / 4%);
+  color: #fff5dd;
+  font: inherit;
+  font-size: 0.9rem;
+  font-weight: 700;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 6%);
+}
+
+.bet-widget-open-dock .mobile-range-picker-value {
+  min-width: 0;
+  align-self: center;
+  justify-self: center;
+  font-size: 1.7rem;
+  line-height: 0.88;
+  letter-spacing: -0.05em;
+  color: var(--text);
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.bet-widget-open-dock .mobile-range-picker-controls {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.22rem;
+}
+
+.bet-widget-open-dock .mobile-range-picker-summary {
+  border: 1px solid rgb(255 255 255 / 10%);
+  border-radius: 999px;
+  padding: 0.28rem 0.5rem;
+  background: rgb(255 255 255 / 4%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.bet-widget-open-dock .mobile-range-picker-summary strong {
+  font-size: 0.98rem;
+  line-height: 0.96;
+  letter-spacing: -0.04em;
+  color: #fff5dd;
+  font-variant-numeric: tabular-nums;
+}
+
+.bet-widget-open-dock .mobile-range-picker-button:disabled {
+  opacity: 0.5;
 }
 
 .bet-widget-open-dock .mobile-touch-range-input-grid {
@@ -6103,6 +6201,13 @@ body {
       linear-gradient(180deg, rgb(255 255 255 / 6%) 0%, rgb(255 255 255 / 3%) 100%);
   }
 
+  .mobile-open-panel-parameter.mobile-open-panel-exact,
+  .mobile-open-panel-parameter.mobile-open-panel-range {
+    border-color: rgb(255 255 255 / 10%);
+    background:
+      linear-gradient(180deg, rgb(255 255 255 / 6%) 0%, rgb(255 255 255 / 3%) 100%);
+  }
+
   .mobile-open-info-strip strong,
   .mobile-open-panel-header strong {
     font-size: 0.86rem;
@@ -6238,6 +6343,97 @@ body {
   .mobile-open-panel-parameter .mobile-touch-stepper-field input,
   .mobile-open-panel-parameter .mobile-touch-input-field input {
     font-size: 1.16rem;
+  }
+
+  .mobile-range-picker {
+    min-height: 0;
+    display: grid;
+    grid-template-rows: minmax(0, 1fr) auto;
+    gap: 0.22rem;
+  }
+
+  .mobile-range-picker-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.24rem;
+  }
+
+  .mobile-range-picker-card {
+    min-width: 0;
+    min-height: 3.46rem;
+    border: 1px solid rgb(255 255 255 / 10%);
+    border-radius: 14px;
+    padding: 0.26rem 0.3rem 0.3rem;
+    background: rgb(255 255 255 / 5%);
+    display: grid;
+    grid-template-rows: auto minmax(0, 1fr) auto;
+    gap: 0.16rem;
+  }
+
+  .mobile-range-picker-label {
+    font-size: 0.52rem;
+    line-height: 1.15;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: rgb(235 239 247 / 62%);
+  }
+
+  .mobile-range-picker-button {
+    width: 100%;
+    min-height: 1.42rem;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 0;
+    background: rgb(255 255 255 / 4%);
+    color: #fff5dd;
+    font: inherit;
+    font-size: 0.84rem;
+    font-weight: 700;
+    line-height: 1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: inset 0 1px 0 rgb(255 255 255 / 6%);
+  }
+
+  .mobile-range-picker-value {
+    min-width: 0;
+    align-self: center;
+    justify-self: center;
+    font-size: 1.5rem;
+    line-height: 0.88;
+    letter-spacing: -0.05em;
+    color: var(--text);
+    text-align: center;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .mobile-range-picker-controls {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.18rem;
+  }
+
+  .mobile-range-picker-summary {
+    border: 1px solid rgb(255 255 255 / 10%);
+    border-radius: 999px;
+    padding: 0.24rem 0.42rem;
+    background: rgb(255 255 255 / 4%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .mobile-range-picker-summary strong {
+    font-size: 0.9rem;
+    line-height: 0.94;
+    letter-spacing: -0.04em;
+    color: #fff5dd;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .mobile-range-picker-button:disabled {
+    opacity: 0.5;
   }
 
   .mobile-touch-stepper-field input::placeholder,
@@ -7806,6 +8002,48 @@ body {
     font-size: 0.96rem;
   }
 
+  .betting-screen-mobile-phone .mobile-range-picker {
+    gap: 0.2rem;
+  }
+
+  .betting-screen-mobile-phone .mobile-range-picker-grid {
+    gap: 0.18rem;
+  }
+
+  .betting-screen-mobile-phone .mobile-range-picker-card {
+    min-height: 3.02rem;
+    border-radius: 12px;
+    padding: 0.22rem 0.24rem 0.24rem;
+    grid-template-rows: auto minmax(0, 1fr) auto;
+    gap: 0.14rem;
+  }
+
+  .betting-screen-mobile-phone .mobile-range-picker-label {
+    font-size: 0.46rem;
+  }
+
+  .betting-screen-mobile-phone .mobile-range-picker-button {
+    min-height: 1.28rem;
+    border-radius: 10px;
+    font-size: 0.68rem;
+  }
+
+  .betting-screen-mobile-phone .mobile-range-picker-value {
+    font-size: 1.34rem;
+  }
+
+  .betting-screen-mobile-phone .mobile-range-picker-controls {
+    gap: 0.16rem;
+  }
+
+  .betting-screen-mobile-phone .mobile-range-picker-summary {
+    padding: 0.22rem 0.36rem;
+  }
+
+  .betting-screen-mobile-phone .mobile-range-picker-summary strong {
+    font-size: 0.8rem;
+  }
+
   .betting-screen-mobile-phone .mobile-touch-range-input-grid-panel .mobile-touch-input-field {
     min-height: 3.68rem;
   }
@@ -8322,6 +8560,48 @@ body {
     .mobile-open-panel-parameter .mobile-touch-stepper-field input,
     .mobile-open-panel-parameter .mobile-touch-input-field input {
       font-size: 0.84rem;
+    }
+
+    .mobile-range-picker {
+      gap: 0.18rem;
+    }
+
+    .mobile-range-picker-grid {
+      gap: 0.16rem;
+    }
+
+    .mobile-range-picker-card {
+      min-height: 2.48rem;
+      border-radius: 12px;
+      padding: 0.18rem 0.2rem 0.2rem;
+      grid-template-rows: auto minmax(0, 1fr) auto;
+      gap: 0.12rem;
+    }
+
+    .mobile-range-picker-label {
+      font-size: 0.42rem;
+    }
+
+    .mobile-range-picker-button {
+      min-height: 1.14rem;
+      border-radius: 10px;
+      font-size: 0.62rem;
+    }
+
+    .mobile-range-picker-value {
+      font-size: 1.14rem;
+    }
+
+    .mobile-range-picker-controls {
+      gap: 0.14rem;
+    }
+
+    .mobile-range-picker-summary {
+      padding: 0.18rem 0.28rem;
+    }
+
+    .mobile-range-picker-summary strong {
+      font-size: 0.68rem;
     }
 
     .mobile-touch-range-input-grid-panel .mobile-touch-input-field {
