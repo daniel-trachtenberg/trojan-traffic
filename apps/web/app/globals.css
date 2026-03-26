@@ -5115,7 +5115,256 @@ body {
   .mobile-open-dock {
     display: grid;
     grid-template-rows: auto minmax(0, 1fr) auto;
-    gap: 0.72rem;
+    gap: 0.44rem;
+  }
+
+  .mobile-open-dock-body {
+    min-height: 0;
+    display: grid;
+    grid-template-rows: auto minmax(0, 1fr);
+    gap: 0.38rem;
+    overflow: hidden;
+  }
+
+  .mobile-open-info-strip,
+  .mobile-open-panel {
+    border: 1px solid rgb(255 255 255 / 10%);
+    border-radius: 18px;
+    background:
+      linear-gradient(180deg, rgb(255 255 255 / 6%) 0%, rgb(255 255 255 / 3%) 100%);
+    box-shadow: inset 0 1px 0 rgb(255 255 255 / 6%);
+  }
+
+  .mobile-open-info-strip {
+    padding: 0.48rem 0.62rem;
+    display: grid;
+    gap: 0.08rem;
+  }
+
+  .mobile-open-info-strip-under,
+  .mobile-open-panel-under {
+    border-color: rgb(153 0 0 / 26%);
+    background:
+      radial-gradient(circle at top left, rgb(153 0 0 / 10%), transparent 58%),
+      linear-gradient(180deg, rgb(255 255 255 / 6%) 0%, rgb(255 255 255 / 3%) 100%);
+  }
+
+  .mobile-open-info-strip-over,
+  .mobile-open-panel-over {
+    border-color: rgb(255 204 0 / 26%);
+    background:
+      radial-gradient(circle at top left, rgb(255 204 0 / 10%), transparent 58%),
+      linear-gradient(180deg, rgb(255 255 255 / 6%) 0%, rgb(255 255 255 / 3%) 100%);
+  }
+
+  .mobile-open-info-strip-exact,
+  .mobile-open-panel-exact {
+    border-color: rgb(96 165 250 / 28%);
+    background:
+      radial-gradient(circle at top left, rgb(96 165 250 / 10%), transparent 58%),
+      linear-gradient(180deg, rgb(255 255 255 / 6%) 0%, rgb(255 255 255 / 3%) 100%);
+  }
+
+  .mobile-open-info-strip-range,
+  .mobile-open-panel-range {
+    border-color: rgb(34 197 94 / 28%);
+    background:
+      radial-gradient(circle at top left, rgb(34 197 94 / 10%), transparent 58%),
+      linear-gradient(180deg, rgb(255 255 255 / 6%) 0%, rgb(255 255 255 / 3%) 100%);
+  }
+
+  .mobile-open-info-strip strong,
+  .mobile-open-panel-header strong {
+    font-size: 0.86rem;
+    line-height: 1.06;
+    letter-spacing: -0.03em;
+    color: #fff5dd;
+  }
+
+  .mobile-open-info-strip p,
+  .mobile-open-panel-header span {
+    margin: 0;
+    font-size: 0.6rem;
+    line-height: 1.28;
+    color: var(--muted);
+  }
+
+  .mobile-open-control-grid {
+    min-height: 0;
+    display: grid;
+    gap: 0.38rem;
+    align-items: stretch;
+  }
+
+  .mobile-open-control-grid-stake-only {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .mobile-open-control-grid-split {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .mobile-open-panel {
+    min-height: 0;
+    padding: 0.66rem 0.7rem;
+    display: grid;
+    grid-template-rows: auto minmax(0, 1fr) auto;
+    gap: 0.42rem;
+  }
+
+  .mobile-open-panel-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 0.5rem;
+  }
+
+  .mobile-open-panel-header span {
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  .mobile-touch-stepper-field span,
+  .mobile-touch-input-field span {
+    font-size: 0.6rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: rgb(235 239 247 / 62%);
+  }
+
+  .mobile-touch-stepper {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.22fr) minmax(0, 1fr);
+    gap: 0.24rem;
+    align-items: stretch;
+  }
+
+  .mobile-touch-stepper-button {
+    min-height: 2.06rem;
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    background: rgb(255 255 255 / 4%);
+    color: #fff5dd;
+    font: inherit;
+    font-size: 0.94rem;
+    font-weight: 700;
+    box-shadow: inset 0 1px 0 rgb(255 255 255 / 6%);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .mobile-touch-stepper-panel .mobile-touch-stepper-button,
+  .mobile-touch-stepper-panel .mobile-touch-stepper-field {
+    min-height: 4.4rem;
+  }
+
+  .mobile-touch-stepper-field,
+  .mobile-touch-input-field {
+    min-width: 0;
+    border: 1px solid rgb(255 255 255 / 10%);
+    border-radius: 14px;
+    padding: 0.34rem 0.42rem;
+    background: rgb(255 255 255 / 5%);
+    display: grid;
+    gap: 0.08rem;
+  }
+
+  .mobile-touch-stepper-field {
+    justify-items: center;
+  }
+
+  .mobile-touch-stepper-field input,
+  .mobile-touch-input-field input {
+    width: 100%;
+    min-width: 0;
+    border: 0;
+    padding: 0;
+    background: transparent;
+    color: var(--text);
+    font: inherit;
+    font-size: 1rem;
+    line-height: 1;
+    font-weight: 700;
+    text-align: center;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .mobile-open-panel-stake .mobile-touch-stepper-field input {
+    font-size: 1.28rem;
+  }
+
+  .mobile-open-panel-parameter .mobile-touch-stepper-field input,
+  .mobile-open-panel-parameter .mobile-touch-input-field input {
+    font-size: 1.16rem;
+  }
+
+  .mobile-touch-stepper-field input::placeholder,
+  .mobile-touch-input-field input::placeholder {
+    color: rgb(200 207 222 / 60%);
+  }
+
+  .mobile-touch-stepper-field input::-webkit-outer-spin-button,
+  .mobile-touch-stepper-field input::-webkit-inner-spin-button,
+  .mobile-touch-input-field input::-webkit-outer-spin-button,
+  .mobile-touch-input-field input::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+
+  .mobile-touch-stepper-field input[type="number"],
+  .mobile-touch-input-field input[type="number"] {
+    -moz-appearance: textfield;
+  }
+
+  .mobile-touch-range-input-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.28rem;
+  }
+
+  .mobile-touch-range-input-grid-panel .mobile-touch-input-field {
+    min-height: 4.4rem;
+    align-content: center;
+    justify-items: center;
+  }
+
+  .mobile-touch-chip-row {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 0.24rem;
+  }
+
+  .mobile-touch-chip-row-stake {
+    margin-top: auto;
+  }
+
+  .mobile-touch-chip {
+    min-height: 1.62rem;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    padding: 0;
+    background: rgb(255 255 255 / 4%);
+    color: var(--text);
+    font: inherit;
+    font-size: 0.6rem;
+    font-weight: 700;
+    line-height: 1;
+    white-space: nowrap;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .mobile-touch-chip-active {
+    border-color: rgb(255 255 255 / 18%);
+    background: rgb(255 255 255 / 10%);
+    color: #fff5dd;
+  }
+
+  .mobile-touch-stepper-button:disabled,
+  .mobile-touch-chip:disabled {
+    opacity: 0.5;
   }
 
   .mobile-open-dock-field-grid {
@@ -5220,9 +5469,9 @@ body {
   .mobile-open-dock-footer {
     margin-top: 0;
     display: grid;
-    gap: 0.56rem;
-    padding-top: 0.32rem;
-    border-top: 1px solid rgb(255 255 255 / 8%);
+    gap: 0.36rem;
+    padding-top: 0.18rem;
+    border-top: 0;
   }
 
   .mobile-round-dock {
@@ -6333,7 +6582,7 @@ body {
   }
 
   .mobile-bet-cta-mobile-open {
-    min-height: 3.18rem;
+    min-height: 2.96rem;
   }
 
   .mobile-bet-cta-inline .mobile-bet-cta-accent {
@@ -6548,13 +6797,95 @@ body {
     gap: 0.38rem;
   }
 
+  .betting-screen-mobile-phone .mobile-open-dock {
+    gap: 0.24rem;
+  }
+
+  .betting-screen-mobile-phone .mobile-open-dock-body {
+    gap: 0.24rem;
+    overflow: hidden;
+  }
+
+  .betting-screen-mobile-phone .mobile-open-info-strip,
+  .betting-screen-mobile-phone .mobile-open-panel {
+    border-radius: 16px;
+  }
+
+  .betting-screen-mobile-phone .mobile-open-info-strip {
+    padding: 0.38rem 0.52rem;
+  }
+
+  .betting-screen-mobile-phone .mobile-open-info-strip strong,
+  .betting-screen-mobile-phone .mobile-open-panel-header strong {
+    font-size: 0.76rem;
+  }
+
+  .betting-screen-mobile-phone .mobile-open-info-strip p,
+  .betting-screen-mobile-phone .mobile-open-panel-header span {
+    font-size: 0.54rem;
+    line-height: 1.2;
+  }
+
+  .betting-screen-mobile-phone .mobile-open-control-grid {
+    gap: 0.24rem;
+  }
+
+  .betting-screen-mobile-phone .mobile-open-panel {
+    padding: 0.54rem 0.58rem;
+    gap: 0.34rem;
+  }
+
+  .betting-screen-mobile-phone .mobile-touch-stepper {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.18fr) minmax(0, 1fr);
+    gap: 0.18rem;
+  }
+
+  .betting-screen-mobile-phone .mobile-touch-stepper-button,
+  .betting-screen-mobile-phone .mobile-touch-stepper-field,
+  .betting-screen-mobile-phone .mobile-touch-input-field {
+    border-radius: 12px;
+  }
+
+  .betting-screen-mobile-phone .mobile-touch-stepper-panel .mobile-touch-stepper-button,
+  .betting-screen-mobile-phone .mobile-touch-stepper-panel .mobile-touch-stepper-field {
+    min-height: 3.68rem;
+  }
+
+  .betting-screen-mobile-phone .mobile-touch-stepper-field,
+  .betting-screen-mobile-phone .mobile-touch-input-field {
+    padding: 0.28rem 0.34rem;
+  }
+
+  .betting-screen-mobile-phone .mobile-open-panel-stake .mobile-touch-stepper-field input {
+    font-size: 1.08rem;
+  }
+
+  .betting-screen-mobile-phone .mobile-open-panel-parameter .mobile-touch-stepper-field input,
+  .betting-screen-mobile-phone .mobile-open-panel-parameter .mobile-touch-input-field input {
+    font-size: 0.96rem;
+  }
+
+  .betting-screen-mobile-phone .mobile-touch-range-input-grid-panel .mobile-touch-input-field {
+    min-height: 3.68rem;
+  }
+
+  .betting-screen-mobile-phone .mobile-touch-range-input-grid,
+  .betting-screen-mobile-phone .mobile-touch-chip-row {
+    gap: 0.2rem;
+  }
+
+  .betting-screen-mobile-phone .mobile-touch-chip {
+    min-height: 1.48rem;
+    font-size: 0.54rem;
+  }
+
   .betting-screen-mobile-phone .mobile-open-dock-field-grid {
     gap: 0.32rem;
   }
 
   .betting-screen-mobile-phone .mobile-open-dock-footer {
-    gap: 0.44rem;
-    padding-top: 0.24rem;
+    gap: 0.24rem;
+    padding-top: 0.16rem;
   }
 
   .betting-screen-mobile-phone .mobile-open-preview-card {
@@ -6708,7 +7039,7 @@ body {
   }
 
   .betting-screen-mobile-phone .mobile-bet-cta-mobile-open {
-    min-height: 2.92rem;
+    min-height: 2.72rem;
   }
 
   .betting-screen-mobile-phone .mobile-bet-cta-inline .mobile-bet-cta-accent {
@@ -6848,6 +7179,10 @@ body {
       border-radius: 0;
     }
 
+    .mobile-open-dock {
+      gap: 0.26rem;
+    }
+
     .mobile-open-dock-field-grid {
       gap: 0.28rem;
     }
@@ -6984,6 +7319,84 @@ body {
       font-size: 0.58rem;
     }
 
+    .mobile-open-dock-body {
+      gap: 0.2rem;
+      overflow: hidden;
+    }
+
+    .mobile-open-info-strip,
+    .mobile-open-panel {
+      border-radius: 14px;
+    }
+
+    .mobile-open-info-strip {
+      padding: 0.28rem 0.42rem;
+    }
+
+    .mobile-open-info-strip strong,
+    .mobile-open-panel-header strong {
+      font-size: 0.68rem;
+    }
+
+    .mobile-open-info-strip p,
+    .mobile-open-panel-header span {
+      font-size: 0.5rem;
+      line-height: 1.16;
+    }
+
+    .mobile-open-control-grid {
+      gap: 0.22rem;
+    }
+
+    .mobile-open-panel {
+      padding: 0.42rem 0.48rem;
+      gap: 0.22rem;
+    }
+
+    .mobile-touch-stepper {
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1.16fr) minmax(0, 1fr);
+      gap: 0.16rem;
+    }
+
+    .mobile-touch-stepper-panel .mobile-touch-stepper-button,
+    .mobile-touch-stepper-panel .mobile-touch-stepper-field {
+      min-height: 3.12rem;
+    }
+
+    .mobile-touch-stepper-button,
+    .mobile-touch-stepper-field,
+    .mobile-touch-input-field {
+      border-radius: 12px;
+    }
+
+    .mobile-touch-stepper-field,
+    .mobile-touch-input-field {
+      padding: 0.24rem 0.28rem;
+    }
+
+    .mobile-open-panel-stake .mobile-touch-stepper-field input {
+      font-size: 0.96rem;
+    }
+
+    .mobile-open-panel-parameter .mobile-touch-stepper-field input,
+    .mobile-open-panel-parameter .mobile-touch-input-field input {
+      font-size: 0.84rem;
+    }
+
+    .mobile-touch-range-input-grid-panel .mobile-touch-input-field {
+      min-height: 3.12rem;
+    }
+
+    .mobile-touch-range-input-grid,
+    .mobile-touch-chip-row {
+      gap: 0.2rem;
+    }
+
+    .mobile-touch-chip {
+      min-height: 1.6rem;
+      font-size: 0.56rem;
+    }
+
     .mobile-dock-inline-field {
       min-height: 2.22rem;
       padding: 0.38rem 0.5rem;
@@ -7018,7 +7431,7 @@ body {
     }
 
     .mobile-bet-cta-mobile-open {
-      min-height: 2.52rem;
+      min-height: 2.38rem;
     }
 
     .mobile-bet-cta-inline .mobile-bet-cta-accent {

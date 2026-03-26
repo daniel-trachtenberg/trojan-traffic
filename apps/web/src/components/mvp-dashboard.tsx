@@ -134,7 +134,7 @@ type AccountOverviewStat = {
 type PredictionHistoryTone = "win" | "loss" | "pending" | "cancelled";
 
 const DEFAULT_WAGER = "10";
-const DEFAULT_EXACT_VALUE = "0";
+const DEFAULT_EXACT_VALUE = "5";
 const DEFAULT_STANDBY_THRESHOLD = 5;
 const WAGER_STEPS = [1, 5, 10, 20];
 const HUMAN_OVERLAY_PREVIEW_ENABLED = false;
@@ -930,7 +930,7 @@ export function MvpDashboard({
     : mobileStandbyWager;
   const selectedSide = selectedSession ? (sideBySession[selectedSession.id] ?? "over") : mobileStandbySide;
   const selectedExactValue = selectedSession
-    ? (exactValueBySession[selectedSession.id] ?? String(selectedSession.threshold ?? DEFAULT_EXACT_VALUE))
+    ? (exactValueBySession[selectedSession.id] ?? DEFAULT_EXACT_VALUE)
     : mobileStandbyExactValue;
   const selectedRangeMin = selectedSession
     ? (rangeMinBySession[selectedSession.id] ?? getDefaultRangeMin(selectedSession.threshold))
@@ -974,38 +974,13 @@ export function MvpDashboard({
   const selectedExactCountValue =
     Number.isFinite(parsedSelectedExactValue) && parsedSelectedExactValue >= 0
       ? parsedSelectedExactValue
-      : displayedThreshold;
+      : Number.parseInt(DEFAULT_EXACT_VALUE, 10);
   const selectedRangeMinValue = Number.isFinite(selectedConfiguredRangeMin)
     ? Math.max(selectedConfiguredRangeMin, 0)
     : Number.parseInt(getDefaultRangeMin(displayedThreshold), 10);
   const selectedRangeMaxValue = Number.isFinite(selectedConfiguredRangeMax)
     ? Math.max(selectedConfiguredRangeMax, 0)
     : Number.parseInt(getDefaultRangeMax(displayedThreshold), 10);
-  const mobileExactQuickPickValues = Array.from(
-    new Set([
-      Math.max(0, displayedThreshold - 1),
-      Math.max(0, displayedThreshold),
-      displayedThreshold + 1,
-      displayedThreshold + 2
-    ])
-  );
-  const mobileRangePresetChoices = [
-    {
-      label: "Around line",
-      min: Number.parseInt(getDefaultRangeMin(displayedThreshold), 10),
-      max: Number.parseInt(getDefaultRangeMax(displayedThreshold), 10)
-    },
-    {
-      label: "Low side",
-      min: Math.max(0, displayedThreshold - 2),
-      max: displayedThreshold
-    },
-    {
-      label: "High side",
-      min: displayedThreshold,
-      max: displayedThreshold + 2
-    }
-  ];
   const canConfigureSelected = Boolean(selectedSession && selectedState === "open");
   const showBettingControls = Boolean(selectedSession && selectedState === "open");
   const dailyClaimState = getDailyClaimState(streaks?.last_login_date ?? null, nowMs);
@@ -2615,42 +2590,10 @@ export function MvpDashboard({
 
   function adjustMobileDockExactValue(delta: number) {
     const currentExactValue = Number.parseInt(selectedExactValue, 10);
-    const safeExactValue = Number.isFinite(currentExactValue) ? currentExactValue : displayedThreshold;
+    const safeExactValue = Number.isFinite(currentExactValue)
+      ? currentExactValue
+      : Number.parseInt(DEFAULT_EXACT_VALUE, 10);
     updateMobileDockExactValue(String(Math.max(0, safeExactValue + delta)));
-  }
-
-  function adjustMobileDockRangeBound(bound: "min" | "max", delta: number) {
-    const currentRangeMin = Number.parseInt(selectedRangeMin, 10);
-    const currentRangeMax = Number.parseInt(selectedRangeMax, 10);
-    const safeRangeMin = Number.isFinite(currentRangeMin)
-      ? currentRangeMin
-      : Number.parseInt(getDefaultRangeMin(displayedThreshold), 10);
-    const safeRangeMax = Number.isFinite(currentRangeMax)
-      ? currentRangeMax
-      : Number.parseInt(getDefaultRangeMax(displayedThreshold), 10);
-
-    if (bound === "min") {
-      const nextRangeMin = Math.max(0, safeRangeMin + delta);
-      updateMobileDockRangeMin(String(nextRangeMin));
-
-      if (nextRangeMin > safeRangeMax) {
-        updateMobileDockRangeMax(String(nextRangeMin));
-      }
-
-      return;
-    }
-
-    const nextRangeMax = Math.max(0, safeRangeMax + delta);
-    updateMobileDockRangeMax(String(nextRangeMax));
-
-    if (nextRangeMax < safeRangeMin) {
-      updateMobileDockRangeMin(String(nextRangeMax));
-    }
-  }
-
-  function applyMobileRangePreset(nextRangeMin: number, nextRangeMax: number) {
-    updateMobileDockRangeMin(String(nextRangeMin));
-    updateMobileDockRangeMax(String(nextRangeMax));
   }
 
   function handleAccountAction() {
@@ -2854,13 +2797,19 @@ export function MvpDashboard({
   const mobileDockBetButtonLabel = showMobileIdleDock ? "Waiting for next round" : betButtonLabel;
   const mobileDockBetButtonMeta = showMobileIdleDock ? "Betting unlocks once a game is posted." : mobileBetCtaMeta;
   const mobileDockBetButtonAccent = showMobileIdleDock ? "Standby" : mobileSelectedChoice.label;
-  const mobileSelectedMarketLabel = showMobileIdleDock ? "Default market" : "Selected market";
-  const mobileOpenAssistLabel =
-    selectedSide === "exact"
-      ? "Tap the arrows or type the exact final count."
-      : selectedSide === "range"
-        ? "Set an inclusive minimum and maximum range."
-        : "Use quick chips or type a custom stake anytime.";
+  const mobileOpenInfoTitle = `${mobileSelectedChoice.label} • Line ${displayedThreshold} • ${mobileSelectedChoice.multiplier}`;
+  const mobileOpenInfoCopy =
+    selectedSide === "under"
+      ? `Wins below ${displayedThreshold}.`
+      : selectedSide === "over"
+        ? `Wins at ${displayedThreshold} or above.`
+        : selectedSide === "exact"
+          ? "Pick the exact final count."
+          : "Set the min and max you want to cover.";
+  const showMobileParameterInputs = selectedSide === "exact" || selectedSide === "range";
+  const mobileOpenControlGridClassName = showMobileParameterInputs
+    ? "mobile-open-control-grid mobile-open-control-grid-split"
+    : "mobile-open-control-grid mobile-open-control-grid-stake-only";
   const mobileLiveOverlayTimeNote = selectedEndsAtLabel
     ? `Closes at ${selectedEndsAtLabel}`
     : `${displayedModeSeconds}s round`;
@@ -2961,213 +2910,97 @@ export function MvpDashboard({
           </div>
 
           <div className="mobile-open-dock-body">
-            <div className={`mobile-open-market-summary mobile-open-market-summary-${mobileSelectedChoice.accent}`}>
-              <div className="mobile-open-market-summary-copy">
-                <span>{mobileSelectedMarketLabel}</span>
-                <strong>{mobileSelectedChoice.label}</strong>
-                <p>{mobileSelectedChoice.detail}</p>
-              </div>
-              <div className="mobile-open-market-summary-meta">
-                <div className="mobile-open-market-summary-pill">
-                  <span>Line</span>
-                  <strong>{displayedThreshold}</strong>
-                </div>
-                <div className="mobile-open-market-summary-pill mobile-open-market-summary-pill-highlight">
-                  <span>{selectedPricingLabel}</span>
-                  <strong>{mobileSelectedChoice.multiplier}</strong>
-                </div>
-              </div>
+            <div className={`mobile-open-info-strip mobile-open-info-strip-${mobileSelectedChoice.accent}`}>
+              <strong>{mobileOpenInfoTitle}</strong>
+              <p>{mobileOpenInfoCopy}</p>
             </div>
 
-            <div
-              className={
-                selectedSide === "range"
-                  ? "mobile-open-control-grid mobile-open-control-grid-range"
-                  : "mobile-open-control-grid"
-              }
-            >
-              {selectedSide === "exact" ? (
-                <div className="mobile-touch-control-card mobile-touch-control-card-exact">
-                  <div className="mobile-touch-control-header">
-                    <span>Exact count</span>
-                    <strong>{selectedExactValue || `${selectedExactCountValue}`}</strong>
-                  </div>
-
-                  <div className="mobile-touch-stepper">
-                    <button
-                      type="button"
-                      className="mobile-touch-stepper-button"
-                      aria-label="Decrease exact count"
-                      onClick={() => adjustMobileDockExactValue(-1)}
-                      disabled={!canInteractWithMobileDockControls}
-                    >
-                      -
-                    </button>
-
-                    <label className="mobile-touch-stepper-field">
-                      <span>Your call</span>
-                      <input
-                        type="number"
-                        min={0}
-                        step={1}
-                        inputMode="numeric"
-                        value={selectedExactValue}
-                        onChange={(event) => updateMobileDockExactValue(event.target.value)}
-                        disabled={!canInteractWithMobileDockControls}
-                      />
-                    </label>
-
-                    <button
-                      type="button"
-                      className="mobile-touch-stepper-button"
-                      aria-label="Increase exact count"
-                      onClick={() => adjustMobileDockExactValue(1)}
-                      disabled={!canInteractWithMobileDockControls}
-                    >
-                      +
-                    </button>
-                  </div>
-
-                  <div className="mobile-touch-chip-row" aria-label="Exact count quick picks">
-                    {mobileExactQuickPickValues.map((value) => (
-                      <button
-                        key={value}
-                        type="button"
-                        className={
-                          selectedExactCountValue === value
-                            ? "mobile-touch-chip mobile-touch-chip-active"
-                            : "mobile-touch-chip"
-                        }
-                        onClick={() => updateMobileDockExactValue(String(value))}
-                        disabled={!canInteractWithMobileDockControls}
-                      >
-                        {value}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              ) : selectedSide === "range" ? (
-                <div className="mobile-touch-control-card mobile-touch-control-card-range">
-                  <div className="mobile-touch-control-header">
-                    <span>Inclusive range</span>
+            <div className={mobileOpenControlGridClassName}>
+              {showMobileParameterInputs ? (
+                <div className={`mobile-open-panel mobile-open-panel-parameter mobile-open-panel-${mobileSelectedChoice.accent}`}>
+                  <div className="mobile-open-panel-header">
+                    <span>{selectedSide === "exact" ? "Exact count" : "Set range"}</span>
                     <strong>
-                      {selectedRangeMinValue} - {selectedRangeMaxValue}
+                      {selectedSide === "exact"
+                        ? `${selectedExactCountValue}`
+                        : `${selectedRangeMinValue} to ${selectedRangeMaxValue}`}
                     </strong>
                   </div>
 
-                  <div className="mobile-touch-range-grid">
-                    <div className="mobile-touch-stepper-shell">
-                      <span>Min</span>
-                      <div className="mobile-touch-stepper mobile-touch-stepper-compact">
-                        <button
-                          type="button"
-                          className="mobile-touch-stepper-button"
-                          aria-label="Decrease range minimum"
-                          onClick={() => adjustMobileDockRangeBound("min", -1)}
-                          disabled={!canInteractWithMobileDockControls}
-                        >
-                          -
-                        </button>
-
-                        <label className="mobile-touch-stepper-field">
-                          <span>Minimum</span>
-                          <input
-                            type="number"
-                            min={0}
-                            step={1}
-                            inputMode="numeric"
-                            value={selectedRangeMin}
-                            onChange={(event) => updateMobileDockRangeMin(event.target.value)}
-                            disabled={!canInteractWithMobileDockControls}
-                          />
-                        </label>
-
-                        <button
-                          type="button"
-                          className="mobile-touch-stepper-button"
-                          aria-label="Increase range minimum"
-                          onClick={() => adjustMobileDockRangeBound("min", 1)}
-                          disabled={!canInteractWithMobileDockControls}
-                        >
-                          +
-                        </button>
-                      </div>
-                    </div>
-
-                    <div className="mobile-touch-stepper-shell">
-                      <span>Max</span>
-                      <div className="mobile-touch-stepper mobile-touch-stepper-compact">
-                        <button
-                          type="button"
-                          className="mobile-touch-stepper-button"
-                          aria-label="Decrease range maximum"
-                          onClick={() => adjustMobileDockRangeBound("max", -1)}
-                          disabled={!canInteractWithMobileDockControls}
-                        >
-                          -
-                        </button>
-
-                        <label className="mobile-touch-stepper-field">
-                          <span>Maximum</span>
-                          <input
-                            type="number"
-                            min={0}
-                            step={1}
-                            inputMode="numeric"
-                            value={selectedRangeMax}
-                            onChange={(event) => updateMobileDockRangeMax(event.target.value)}
-                            disabled={!canInteractWithMobileDockControls}
-                          />
-                        </label>
-
-                        <button
-                          type="button"
-                          className="mobile-touch-stepper-button"
-                          aria-label="Increase range maximum"
-                          onClick={() => adjustMobileDockRangeBound("max", 1)}
-                          disabled={!canInteractWithMobileDockControls}
-                        >
-                          +
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="mobile-touch-chip-row" aria-label="Range quick picks">
-                    {mobileRangePresetChoices.map((preset) => (
+                  {selectedSide === "exact" ? (
+                    <div className="mobile-touch-stepper mobile-touch-stepper-panel">
                       <button
-                        key={preset.label}
                         type="button"
-                        className={
-                          selectedRangeMinValue === preset.min && selectedRangeMaxValue === preset.max
-                            ? "mobile-touch-chip mobile-touch-chip-active"
-                            : "mobile-touch-chip"
-                        }
-                        onClick={() => applyMobileRangePreset(preset.min, preset.max)}
+                        className="mobile-touch-stepper-button"
+                        aria-label="Decrease exact count"
+                        onClick={() => adjustMobileDockExactValue(-1)}
                         disabled={!canInteractWithMobileDockControls}
                       >
-                        {preset.label}
+                        -
                       </button>
-                    ))}
-                  </div>
-                </div>
-              ) : (
-                <div
-                  className={`mobile-touch-control-card mobile-touch-control-card-market mobile-touch-control-card-market-${mobileSelectedChoice.accent}`}
-                >
-                  <span className="mobile-touch-control-kicker">{mobileSelectedChoice.label} ticket</span>
-                  <strong>{mobileSelectedChoice.detail}</strong>
-                  <p>{selectedPricingNote}</p>
-                </div>
-              )}
 
-              <div className="mobile-touch-control-card mobile-touch-control-card-amount">
-                <div className="mobile-touch-control-header">
+                      <label className="mobile-touch-stepper-field">
+                        <span>Exact</span>
+                        <input
+                          type="number"
+                          min={0}
+                          step={1}
+                          inputMode="numeric"
+                          value={selectedExactValue}
+                          onChange={(event) => updateMobileDockExactValue(event.target.value)}
+                          disabled={!canInteractWithMobileDockControls}
+                        />
+                      </label>
+
+                      <button
+                        type="button"
+                        className="mobile-touch-stepper-button"
+                        aria-label="Increase exact count"
+                        onClick={() => adjustMobileDockExactValue(1)}
+                        disabled={!canInteractWithMobileDockControls}
+                      >
+                        +
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="mobile-touch-range-input-grid mobile-touch-range-input-grid-panel">
+                      <label className="mobile-touch-input-field">
+                        <span>Min</span>
+                        <input
+                          type="number"
+                          min={0}
+                          step={1}
+                          inputMode="numeric"
+                          value={selectedRangeMin}
+                          onChange={(event) => updateMobileDockRangeMin(event.target.value)}
+                          disabled={!canInteractWithMobileDockControls}
+                        />
+                      </label>
+
+                      <label className="mobile-touch-input-field">
+                        <span>Max</span>
+                        <input
+                          type="number"
+                          min={0}
+                          step={1}
+                          inputMode="numeric"
+                          value={selectedRangeMax}
+                          onChange={(event) => updateMobileDockRangeMax(event.target.value)}
+                          disabled={!canInteractWithMobileDockControls}
+                        />
+                      </label>
+                    </div>
+                  )}
+                </div>
+              ) : null}
+
+              <div className="mobile-open-panel mobile-open-panel-stake">
+                <div className="mobile-open-panel-header">
                   <span>Stake</span>
                   <strong>{selectedWagerValue}</strong>
                 </div>
 
-                <div className="mobile-touch-stepper">
+                <div className="mobile-touch-stepper mobile-touch-stepper-panel">
                   <button
                     type="button"
                     className="mobile-touch-stepper-button"
@@ -3214,14 +3047,6 @@ export function MvpDashboard({
                   <button
                     type="button"
                     className="mobile-touch-chip"
-                    onClick={() => applyMobileWagerPreset(1)}
-                    disabled={!canInteractWithMobileDockControls}
-                  >
-                    +1
-                  </button>
-                  <button
-                    type="button"
-                    className="mobile-touch-chip"
                     onClick={() => applyMobileWagerPreset(5)}
                     disabled={!canInteractWithMobileDockControls}
                   >
@@ -3245,14 +3070,6 @@ export function MvpDashboard({
                   </button>
                 </div>
               </div>
-            </div>
-
-            <div className="mobile-open-assist-card">
-              <div className="mobile-open-assist-topline">
-                <span>{selectedPricingLabel}</span>
-                <strong>{selectedPricingNote}</strong>
-              </div>
-              <p>{mobileOpenAssistLabel}</p>
             </div>
           </div>
 
