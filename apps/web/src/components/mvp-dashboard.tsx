@@ -977,6 +977,9 @@ export function MvpDashboard({
   const selectedRangeMaxValue = Number.isFinite(selectedConfiguredRangeMax)
     ? Math.max(selectedConfiguredRangeMax, selectedRangeMinValue)
     : Math.max(Number.parseInt(getDefaultRangeMax(displayedThreshold), 10), selectedRangeMinValue);
+  const canPreviewSelected = Boolean(
+    selectedSession && (selectedState === "open" || selectedState === "upcoming")
+  );
   const canConfigureSelected = Boolean(selectedSession && selectedState === "open");
   const showBettingControls = Boolean(selectedSession && selectedState === "open");
   const dailyClaimState = getDailyClaimState(streaks?.last_login_date ?? null, nowMs);
@@ -1468,7 +1471,7 @@ export function MvpDashboard({
       ? "This card will refresh on its own as soon as the next window is announced."
       : "Create an account now so you can jump in as soon as the next window opens."
     : selectedState === "upcoming"
-      ? `Betting opens at ${selectedStartsAtLabel}. Entries close at ${selectedOpensAtLabel}.`
+      ? `Betting opens at ${selectedOpensAtLabel ?? "soon"}. Round starts at ${selectedStartsAtLabel ?? "shortly after"}.`
     : selectedState === "live"
       ? `Started at ${selectedStartsAtLabel}. Check back here when the next window opens.`
       : selectedState === "resolving"
@@ -2528,7 +2531,7 @@ export function MvpDashboard({
   }
 
   function applyMobileWagerPreset(preset: "min" | "double" | number) {
-    if (selectedSession && !canConfigureSelected) {
+    if (selectedSession && !canPreviewSelected) {
       return;
     }
 
@@ -2783,30 +2786,52 @@ export function MvpDashboard({
       : displayedThreshold > 0
         ? clamp((liveCountValue / displayedThreshold) * mobileLiveThresholdMarkerPercent, 0, 100)
         : 0;
-  const showMobileIdleDock = !selectedSession;
-  const showIdleSignInCta = showMobileIdleDock && !user;
-  const showMobileOpenDock = showBettingControls || showMobileIdleDock;
-  const canInteractWithMobileDockControls = canConfigureSelected || showMobileIdleDock;
   const showMobileUpcomingDock = Boolean(selectedSession && selectedState === "upcoming");
+  const showMobileIdleDock = !selectedSession;
+  const showMobileDisabledDock = showMobileIdleDock || showMobileUpcomingDock;
+  const showIdleSignInCta = showMobileIdleDock && !user;
+  const showUpcomingSignInCta = showMobileUpcomingDock && !user;
+  const showMobileOpenDock = showBettingControls || showMobileDisabledDock;
+  const canInteractWithMobileDockControls = canPreviewSelected || showMobileIdleDock;
   const showMobileLiveDock = Boolean(selectedSession && selectedState === "live");
   const showMobileResolvingDock = Boolean(selectedSession && selectedState === "resolving");
   const mobileNoGameOverlayCopy =
     "There is no game right now. Waiting for an admin to post the next round.";
-  const mobileDockBetButtonDisabled = showMobileIdleDock ? !showIdleSignInCta : betButtonDisabled;
-  const mobileDockBetButtonLabel = showIdleSignInCta
+  const mobileUpcomingOverlayTitle = selectedOpensAtLabel ? `Opens at ${selectedOpensAtLabel}` : "Opening soon";
+  const mobileUpcomingOverlayCopy = selectedStartsAtLabel
+    ? `Round starts at ${selectedStartsAtLabel}.`
+    : "This preview unlocks automatically when betting opens.";
+  const mobileDockBetButtonDisabled = showMobileIdleDock
+    ? !showIdleSignInCta
+    : showMobileUpcomingDock
+      ? !showUpcomingSignInCta
+      : betButtonDisabled;
+  const mobileDockBetButtonLabel = showIdleSignInCta || showUpcomingSignInCta
     ? "Sign In to Bet"
     : showMobileIdleDock
       ? "Waiting for next round"
+      : showMobileUpcomingDock
+        ? "Waiting for betting window"
       : betButtonLabel;
   const mobileDockBetButtonMeta = showIdleSignInCta
     ? "Sign in now so you're ready when the next round is posted."
+    : showUpcomingSignInCta
+      ? selectedOpensAtLabel
+        ? `Sign in now so you're ready when betting opens at ${selectedOpensAtLabel}.`
+        : "Sign in now so you're ready when betting opens."
     : showMobileIdleDock
       ? "Betting unlocks once a game is posted."
+      : showMobileUpcomingDock
+        ? selectedOpensAtLabel
+          ? `Betting opens at ${selectedOpensAtLabel}.`
+          : "Betting opens soon."
       : mobileBetCtaMeta;
-  const mobileDockBetButtonAccent = showIdleSignInCta
+  const mobileDockBetButtonAccent = showIdleSignInCta || showUpcomingSignInCta
     ? "Sign In"
     : showMobileIdleDock
       ? "Standby"
+      : showMobileUpcomingDock
+        ? "Scheduled"
       : mobileSelectedChoice.label;
   const mobileOpenInfoTitle = `${mobileSelectedChoice.label} • Line ${displayedThreshold} • ${mobileSelectedChoice.multiplier}`;
   const mobileOpenInfoCopy =
@@ -2821,9 +2846,17 @@ export function MvpDashboard({
   const mobileOpenControlGridClassName = showMobileParameterInputs
     ? "mobile-open-control-grid mobile-open-control-grid-split"
     : "mobile-open-control-grid mobile-open-control-grid-stake-only";
-  const showDesktopBettingScreen = showBettingControls || showMobileIdleDock;
-  const desktopOpenTimerLabel = showMobileIdleDock ? "Betting window" : "Closes in";
-  const desktopOpenTimerValue = showMobileIdleDock ? "Waiting for next round" : selectedCountdown;
+  const showDesktopBettingScreen = showBettingControls || showMobileDisabledDock;
+  const desktopOpenTimerLabel = showMobileIdleDock
+    ? "Betting window"
+    : showMobileUpcomingDock
+      ? "Opens at"
+      : "Closes in";
+  const desktopOpenTimerValue = showMobileIdleDock
+    ? "Waiting for next round"
+    : showMobileUpcomingDock
+      ? (selectedOpensAtLabel ?? "Soon")
+      : selectedCountdown;
   const mobileLiveOverlayTimeNote = selectedEndsAtLabel
     ? `Closes at ${selectedEndsAtLabel}`
     : `${displayedModeSeconds}s round`;
@@ -3119,7 +3152,7 @@ export function MvpDashboard({
           className="mobile-bet-cta mobile-bet-cta-inline mobile-bet-cta-mobile-open"
           disabled={mobileDockBetButtonDisabled}
           onClick={() => {
-            if (selectedSession) {
+            if (selectedSession && canConfigureSelected) {
               handleBetAction(selectedSession);
               return;
             }
@@ -3137,7 +3170,7 @@ export function MvpDashboard({
     </>
   );
   const desktopOpenFloatingTickets =
-    showDesktopBettingScreen && selectedSession ? (
+    showDesktopBettingScreen && selectedSession && selectedSessionPredictionCount > 0 ? (
       <div className="desktop-open-floating-bets" aria-label="Placed bets">
         {selectedSessionPredictions.map((prediction, index) => {
           const predictionPayout = getPredictionGrossPayoutTokens(
@@ -3560,7 +3593,7 @@ export function MvpDashboard({
 
                   <div
                     className={
-                      showBettingControls || showMobileLiveDock || showMobileResolvingDock
+                      showBettingControls || showMobileUpcomingDock || showMobileLiveDock || showMobileResolvingDock
                         ? "mobile-feed-overlay mobile-feed-overlay-scroll"
                         : "mobile-feed-overlay"
                     }
@@ -3570,6 +3603,12 @@ export function MvpDashboard({
                         <span className="mobile-review-floating-card-kicker">No game live</span>
                         <strong>Waiting for the next post</strong>
                         <span>{mobileNoGameOverlayCopy}</span>
+                      </div>
+                    ) : showMobileUpcomingDock ? (
+                      <div className="mobile-review-floating-card mobile-review-floating-card-upcoming">
+                        <span className="mobile-review-floating-card-kicker">Next betting window</span>
+                        <strong>{mobileUpcomingOverlayTitle}</strong>
+                        <span>{mobileUpcomingOverlayCopy}</span>
                       </div>
                     ) : showBettingControls ? (
                       <>
@@ -4084,7 +4123,14 @@ export function MvpDashboard({
             <div className="market-board">
               {showDesktopBettingScreen ? (
                 <div className="mobile-open-dock desktop-open-dock">
-                  <div className="desktop-open-timer-bar" aria-live="polite">
+                  <div
+                    className={
+                      showMobileUpcomingDock
+                        ? "desktop-open-timer-bar desktop-open-timer-bar-upcoming"
+                        : "desktop-open-timer-bar"
+                    }
+                    aria-live="polite"
+                  >
                     <span className="desktop-open-timer-label">{desktopOpenTimerLabel}</span>
                     <strong className="desktop-open-timer-value">{desktopOpenTimerValue}</strong>
                   </div>

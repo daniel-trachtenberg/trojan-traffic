@@ -681,6 +681,13 @@ body {
   box-shadow: inset 0 1px 0 rgb(255 255 255 / 6%);
 }
 
+.bet-widget-open-dock .desktop-open-timer-bar-upcoming {
+  border-color: rgb(255 204 0 / 18%);
+  background:
+    radial-gradient(circle at top left, rgb(255 204 0 / 10%), transparent 60%),
+    rgb(255 255 255 / 4%);
+}
+
 .bet-widget-open-dock .desktop-open-timer-label {
   font-size: 0.68rem;
   line-height: 1.2;
@@ -5747,6 +5754,13 @@ body {
     border-color: rgb(255 255 255 / 14%);
     background:
       radial-gradient(circle at top left, rgb(255 255 255 / 9%), transparent 56%),
+      linear-gradient(180deg, rgb(15 18 27 / 0.88) 0%, rgb(9 11 17 / 0.92) 100%);
+  }
+
+  .mobile-review-floating-card-upcoming {
+    border-color: rgb(255 204 0 / 18%);
+    background:
+      radial-gradient(circle at top left, rgb(255 204 0 / 12%), transparent 56%),
       linear-gradient(180deg, rgb(15 18 27 / 0.88) 0%, rgb(9 11 17 / 0.92) 100%);
   }
 
