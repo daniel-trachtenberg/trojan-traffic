@@ -1404,24 +1404,17 @@ body {
   letter-spacing: -0.04em;
 }
 
-.bet-widget-open-dock .mobile-bet-cta-meta {
-  font-size: 0.72rem;
-  line-height: 1.35;
-  color: rgb(255 245 218 / 72%);
-}
-
 .bet-widget-open-dock .mobile-bet-cta-inline {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
   align-items: center;
   column-gap: 0.7rem;
-  row-gap: 0.14rem;
   text-align: left;
 }
 
 .bet-widget-open-dock .mobile-bet-cta-inline .mobile-bet-cta-accent {
   grid-column: 1;
-  grid-row: 1 / span 2;
+  grid-row: 1;
   align-self: center;
   border: 1px solid rgb(255 255 255 / 14%);
   border-radius: 999px;
@@ -1436,16 +1429,9 @@ body {
   grid-column: 2;
   min-width: 0;
   font-size: 0.98rem;
+  line-height: 1.04;
   white-space: normal;
   overflow-wrap: anywhere;
-}
-
-.bet-widget-open-dock .mobile-bet-cta-inline .mobile-bet-cta-meta {
-  grid-column: 2;
-  font-size: 0.68rem;
-  line-height: 1.2;
-  white-space: normal;
-  color: rgb(255 245 218 / 84%);
 }
 
 .bet-widget-open-dock .mobile-bet-cta-mobile-open {
@@ -7697,12 +7683,6 @@ body {
     letter-spacing: -0.04em;
   }
 
-  .mobile-bet-cta-meta {
-    font-size: 0.72rem;
-    line-height: 1.35;
-    color: rgb(255 245 218 / 72%);
-  }
-
   .mobile-dock-state-actions {
     margin-top: 0.52rem;
     display: grid;
@@ -7723,7 +7703,6 @@ body {
     grid-template-columns: auto minmax(0, 1fr);
     align-items: center;
     column-gap: 0.6rem;
-    row-gap: 0.14rem;
     text-align: left;
   }
 
@@ -7733,7 +7712,7 @@ body {
 
   .mobile-bet-cta-inline .mobile-bet-cta-accent {
     grid-column: 1;
-    grid-row: 1 / span 2;
+    grid-row: 1;
     align-self: center;
     border: 1px solid rgb(255 255 255 / 14%);
     border-radius: 999px;
@@ -7748,18 +7727,9 @@ body {
     grid-column: 2;
     min-width: 0;
     font-size: 0.98rem;
-    line-height: 1.08;
+    line-height: 1.04;
     white-space: normal;
     overflow-wrap: anywhere;
-  }
-
-  .mobile-bet-cta-inline .mobile-bet-cta-meta {
-    grid-column: 2;
-    font-size: 0.68rem;
-    line-height: 1.2;
-    white-space: normal;
-    overflow-wrap: anywhere;
-    color: rgb(255 245 218 / 84%);
   }
 
   .mobile-region-editor-shell {
@@ -8116,8 +8086,7 @@ body {
   }
 
   .betting-screen-mobile-phone .mobile-dock-state-copy,
-  .betting-screen-mobile-phone .mobile-slip-banner span:last-child,
-  .betting-screen-mobile-phone .mobile-bet-cta-meta {
+  .betting-screen-mobile-phone .mobile-slip-banner span:last-child {
     font-size: 0.69rem;
     line-height: 1.32;
   }
@@ -8240,10 +8209,6 @@ body {
 
   .betting-screen-mobile-phone .mobile-bet-cta-inline strong {
     font-size: 0.9rem;
-  }
-
-  .betting-screen-mobile-phone .mobile-bet-cta-inline .mobile-bet-cta-meta {
-    font-size: 0.63rem;
   }
 
   .betting-screen-mobile-phone .mobile-bet-cta-secondary {
@@ -8674,10 +8639,6 @@ body {
 
     .mobile-bet-cta-inline strong {
       font-size: 0.82rem;
-    }
-
-    .mobile-bet-cta-meta {
-      font-size: 0.62rem;
     }
 
     .mobile-round-dock-footer-grid,

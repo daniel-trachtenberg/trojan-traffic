@@ -985,19 +985,10 @@ export function MvpDashboard({
   const selectedConfiguredWager = Number.parseInt(selectedWager, 10);
   const selectedConfiguredRangeMin = Number.parseInt(selectedRangeMin, 10);
   const selectedConfiguredRangeMax = Number.parseInt(selectedRangeMax, 10);
-  const selectedPricingSide = selectedSide;
-  const selectedPricingWager =
-    Number.isFinite(selectedConfiguredWager) && selectedConfiguredWager > 0 ? selectedConfiguredWager : null;
   const selectedPricingRangeMin =
     Number.isFinite(selectedConfiguredRangeMin) ? selectedConfiguredRangeMin : null;
   const selectedPricingRangeMax =
     Number.isFinite(selectedConfiguredRangeMax) ? selectedConfiguredRangeMax : null;
-  const selectedPricingMultiplierBps =
-    getPredictionPayoutMultiplierBps(selectedPricingSide, selectedPricingRangeMin, selectedPricingRangeMax);
-  const selectedPricingGrossPayout =
-    selectedPricingWager !== null
-      ? getPredictionGrossPayoutTokens(selectedPricingWager, selectedPricingMultiplierBps)
-      : null;
   const selectedWagerValue =
     Number.isFinite(selectedConfiguredWager) && selectedConfiguredWager > 0
       ? selectedConfiguredWager
@@ -2732,8 +2723,6 @@ export function MvpDashboard({
   ];
   const mobileSelectedChoice =
     mobileMarketChoices.find((choice) => choice.side === selectedSide) ?? mobileMarketChoices[2];
-  const mobilePotentialWinLabel =
-    selectedPricingGrossPayout !== null ? `${selectedPricingGrossPayout}` : "--";
   const shouldFocusMobileFeed = regionPoints.length >= 3 && !canEditRegion;
   const mobileFeedStatusLabel = showResolvedRoundCard ? "Result posted" : "Live feed";
   const mobileFeedMetaLabel = hasSelectedSession
@@ -2751,10 +2740,6 @@ export function MvpDashboard({
     : !user && !hasSelectedSession
       ? "Sign in now so you're ready when the next round is posted."
       : standbyNote;
-  const mobileBetCtaMeta =
-    mobilePotentialWinLabel === "--"
-      ? `${mobileSelectedChoice.multiplier} payout`
-      : `Win ${mobilePotentialWinLabel}`;
   const mobileOpenOverlayCopy = [
     selectedStartsAtLabel ? `Closes at ${selectedStartsAtLabel}` : null,
     hasSelectedSession ? `${displayedModeSeconds}s round` : null,
@@ -2832,19 +2817,6 @@ export function MvpDashboard({
       : showMobileUpcomingDock
         ? "Waiting for betting window"
       : betButtonLabel;
-  const mobileDockBetButtonMeta = showIdleSignInCta
-    ? "Sign in now so you're ready when the next round is posted."
-    : showUpcomingSignInCta
-      ? selectedOpensAtLabel
-        ? `Sign in now so you're ready when betting opens at ${selectedOpensAtLabel}.`
-        : "Sign in now so you're ready when betting opens."
-    : showMobileIdleDock
-      ? "Betting unlocks once a game is posted."
-      : showMobileUpcomingDock
-        ? selectedOpensAtLabel
-          ? `Betting opens at ${selectedOpensAtLabel}.`
-          : "Betting opens soon."
-      : mobileBetCtaMeta;
   const mobileDockBetButtonAccent = showIdleSignInCta || showUpcomingSignInCta
     ? "Sign In"
     : showMobileIdleDock
@@ -3183,7 +3155,6 @@ export function MvpDashboard({
         >
           <span className="mobile-bet-cta-accent">{mobileDockBetButtonAccent}</span>
           <strong>{mobileDockBetButtonLabel}</strong>
-          <span className="mobile-bet-cta-meta">{mobileDockBetButtonMeta}</span>
         </button>
       </div>
     </>
@@ -3459,7 +3430,6 @@ export function MvpDashboard({
                 >
                   <span className="mobile-bet-cta-accent">Sign In</span>
                   <strong>{standbyActionLabel ?? "Sign In to Bet"}</strong>
-                  <span className="mobile-bet-cta-meta">Be ready as soon as the next window opens.</span>
                 </button>
               ) : null}
               {isAdmin ? (
