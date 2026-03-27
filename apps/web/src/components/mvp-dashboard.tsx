@@ -335,6 +335,37 @@ function formatShortTime(value: string) {
   });
 }
 
+function isSameLocalCalendarDay(left: Date, right: Date) {
+  return (
+    left.getFullYear() === right.getFullYear() &&
+    left.getMonth() === right.getMonth() &&
+    left.getDate() === right.getDate()
+  );
+}
+
+function formatScheduledTimeLabel(value: string | number, referenceMs: number) {
+  const timestamp = typeof value === "number" ? value : new Date(value).getTime();
+
+  if (!Number.isFinite(timestamp)) {
+    return "";
+  }
+
+  const targetDate = new Date(timestamp);
+  const referenceDate = new Date(referenceMs);
+
+  return isSameLocalCalendarDay(targetDate, referenceDate)
+    ? targetDate.toLocaleTimeString([], {
+        hour: "numeric",
+        minute: "2-digit"
+      })
+    : targetDate.toLocaleString([], {
+        month: "short",
+        day: "numeric",
+        hour: "numeric",
+        minute: "2-digit"
+      });
+}
+
 function mergeSessionRows(...groups: SessionRow[][]) {
   const mergedSessions = new Map<string, SessionRow>();
 
@@ -1031,25 +1062,13 @@ export function MvpDashboard({
             ? getSessionStateLabel(selectedState)
             : "Waiting";
   const selectedStartsAtLabel = selectedSession
-    ? new Date(selectedSession.starts_at).toLocaleTimeString([], {
-        hour: "numeric",
-        minute: "2-digit"
-      })
+    ? formatScheduledTimeLabel(selectedSession.starts_at, nowMs)
     : null;
   const selectedOpensAtLabel = selectedSession
-    ? new Date(new Date(selectedSession.starts_at).getTime() - BETTING_OPEN_WINDOW_MS).toLocaleTimeString(
-        [],
-        {
-          hour: "numeric",
-          minute: "2-digit"
-        }
-      )
+    ? formatScheduledTimeLabel(new Date(selectedSession.starts_at).getTime() - BETTING_OPEN_WINDOW_MS, nowMs)
     : null;
   const selectedEndsAtLabel = selectedSession
-    ? new Date(selectedSession.ends_at).toLocaleTimeString([], {
-        hour: "numeric",
-        minute: "2-digit"
-      })
+    ? formatScheduledTimeLabel(selectedSession.ends_at, nowMs)
     : null;
   const selectedSessionId = selectedSession?.id ?? null;
   const publicProfileDisplayName =
