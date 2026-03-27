@@ -842,6 +842,7 @@ export function MvpDashboard({
   const [cancelingPredictionIds, setCancelingPredictionIds] = useState<string[]>([]);
   const [isMobileViewport, setIsMobileViewport] = useState(false);
   const [isPhoneViewport, setIsPhoneViewport] = useState(false);
+  const anonDisplayNameRequestRef = useRef(0);
   const nextToastIdRef = useRef(0);
   const toastsRef = useRef<ToastRecord[]>([]);
   const toastTimeoutsRef = useRef(new Map<number, ReturnType<typeof setTimeout>>());
@@ -2100,7 +2101,7 @@ export function MvpDashboard({
       }
 
       setPassword("");
-      setAuthMode("sign-in");
+      setAuthModalMode("sign-in");
       setNotice(`Password reset link sent to ${normalizedEmail}.`);
       return;
     }
@@ -2324,7 +2325,49 @@ export function MvpDashboard({
     }
   }
 
+  async function startSignUpMode(forcePrefill = false) {
+    setAuthMode("sign-up");
+
+    const trimmedDisplayName = displayName.trim();
+    if (!forcePrefill && trimmedDisplayName.length > 0 && !/^anon#\d+$/i.test(trimmedDisplayName)) {
+      return;
+    }
+
+    const requestId = anonDisplayNameRequestRef.current + 1;
+    anonDisplayNameRequestRef.current = requestId;
+    setDisplayName("anon#1");
+
+    if (!supabase) {
+      return;
+    }
+
+    const suggestedNameResponse = await supabase.rpc("suggest_anon_display_name");
+
+    if (anonDisplayNameRequestRef.current !== requestId) {
+      return;
+    }
+
+    if (suggestedNameResponse.error) {
+      return;
+    }
+
+    if (typeof suggestedNameResponse.data === "string" && suggestedNameResponse.data.trim().length > 0) {
+      setDisplayName(suggestedNameResponse.data.trim());
+    }
+  }
+
+  function setAuthModalMode(nextMode: AuthMode) {
+    if (nextMode === "sign-up") {
+      void startSignUpMode();
+      return;
+    }
+
+    anonDisplayNameRequestRef.current += 1;
+    setAuthMode(nextMode);
+  }
+
   function closeAuthModal() {
+    anonDisplayNameRequestRef.current += 1;
     setShowAuthModal(false);
     setAuthIntentSessionId(null);
     setAuthMode("sign-in");
@@ -2349,8 +2392,14 @@ export function MvpDashboard({
     setError(null);
     setNotice(null);
     setAuthIntentSessionId(sessionId);
-    setAuthMode(mode);
     setShowAuthModal(true);
+
+    if (mode === "sign-up") {
+      void startSignUpMode(true);
+      return;
+    }
+
+    setAuthModalMode(mode);
   }
 
   async function handleOpenPublicProfile(entry: LeaderboardRow) {
@@ -4702,14 +4751,14 @@ export function MvpDashboard({
                   <button
                     type="button"
                     className="auth-inline-action"
-                    onClick={() => setAuthMode("sign-in")}
+                    onClick={() => setAuthModalMode("sign-in")}
                   >
                     Back to Sign In
                   </button>
                   <button
                     type="button"
                     className="auth-inline-action"
-                    onClick={() => setAuthMode("sign-up")}
+                    onClick={() => setAuthModalMode("sign-up")}
                   >
                     Need an account?
                   </button>
@@ -4719,14 +4768,14 @@ export function MvpDashboard({
                   <button
                     type="button"
                     className={authMode === "sign-in" ? "mode-button active" : "mode-button"}
-                    onClick={() => setAuthMode("sign-in")}
+                    onClick={() => setAuthModalMode("sign-in")}
                   >
                     Sign In
                   </button>
                   <button
                     type="button"
                     className={authMode === "sign-up" ? "mode-button active" : "mode-button"}
-                    onClick={() => setAuthMode("sign-up")}
+                    onClick={() => setAuthModalMode("sign-up")}
                   >
                     Sign Up
                   </button>
@@ -4767,7 +4816,7 @@ export function MvpDashboard({
                         className="auth-inline-action"
                         onClick={() => {
                           setPassword("");
-                          setAuthMode("forgot-password");
+                          setAuthModalMode("forgot-password");
                         }}
                       >
                         Send reset link
@@ -4796,7 +4845,7 @@ export function MvpDashboard({
                   <button
                     type="button"
                     className="secondary-button"
-                    onClick={() => setAuthMode("sign-in")}
+                    onClick={() => setAuthModalMode("sign-in")}
                   >
                     Cancel
                   </button>
