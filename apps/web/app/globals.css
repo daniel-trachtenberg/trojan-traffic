@@ -1237,8 +1237,8 @@ body {
 .bet-widget-open-dock .mobile-range-picker {
   min-height: 0;
   display: grid;
-  grid-template-rows: minmax(0, 1fr) auto;
-  gap: 0.24rem;
+  grid-template-rows: minmax(0, 1fr);
+  gap: 0;
 }
 
 .bet-widget-open-dock .mobile-range-picker-grid {
@@ -1304,13 +1304,7 @@ body {
 }
 
 .bet-widget-open-dock .mobile-range-picker-summary {
-  border: 1px solid rgb(255 255 255 / 10%);
-  border-radius: 999px;
-  padding: 0.28rem 0.5rem;
-  background: rgb(255 255 255 / 4%);
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  display: none;
 }
 
 .bet-widget-open-dock .mobile-range-picker-summary strong {
