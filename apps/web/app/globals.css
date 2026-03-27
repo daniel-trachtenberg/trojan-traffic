@@ -305,24 +305,40 @@ body {
   display: inline-flex;
   align-items: center;
   gap: 0.42rem;
-  height: 42px;
   border-radius: 999px;
-  border: 1px solid var(--line);
-  padding: 0 0.78rem;
-  background: var(--surface-strong);
+  border: 1px solid rgb(255 255 255 / 10%);
+  padding: 0.34rem 0.42rem 0.34rem 0.34rem;
+  background:
+    linear-gradient(180deg, rgb(7 9 14 / 72%) 0%, rgb(6 8 12 / 84%) 100%);
+  backdrop-filter: blur(16px);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 10%),
+    0 12px 28px rgb(0 0 0 / 18%);
 }
 
-.quick-balance-label {
-  font-size: 0.6rem;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--muted);
+.quick-balance-chip-icon {
+  width: 1.48rem;
+  height: 1.48rem;
+  border-radius: 999px;
+  background:
+    linear-gradient(180deg, rgb(255 225 133 / 0.98) 0%, rgb(255 196 61 / 0.96) 100%);
+  color: rgb(67 35 0 / 0.92);
+  font-size: 0.8rem;
+  font-weight: 800;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 40%),
+    0 6px 14px rgb(0 0 0 / 18%);
 }
 
 .quick-balance-chip strong {
-  font-size: 0.96rem;
+  font-size: 0.98rem;
   line-height: 1;
-  color: var(--text);
+  letter-spacing: -0.03em;
+  color: #fff3cf;
   font-variant-numeric: tabular-nums;
 }
 
@@ -4788,26 +4804,42 @@ body {
   .mobile-hud-balance {
     flex: 0 0 auto;
     border: 1px solid rgb(255 255 255 / 10%);
-    border-radius: 16px;
-    padding: 0.55rem 0.72rem;
-    background: rgb(6 8 12 / 60%);
-    backdrop-filter: blur(10px);
-    display: grid;
-    gap: 0.08rem;
-    justify-items: end;
+    border-radius: 999px;
+    padding: 0.34rem 0.42rem 0.34rem 0.34rem;
+    background:
+      linear-gradient(180deg, rgb(7 9 14 / 72%) 0%, rgb(6 8 12 / 84%) 100%);
+    backdrop-filter: blur(16px);
+    display: inline-flex;
+    align-items: center;
+    gap: 0.42rem;
+    box-shadow:
+      inset 0 1px 0 rgb(255 255 255 / 10%),
+      0 12px 28px rgb(0 0 0 / 18%);
   }
 
-  .mobile-hud-balance span {
-    font-size: 0.66rem;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    color: rgb(236 240 248 / 62%);
+  .mobile-hud-balance-icon {
+    width: 1.48rem;
+    height: 1.48rem;
+    border-radius: 999px;
+    background:
+      linear-gradient(180deg, rgb(255 225 133 / 0.98) 0%, rgb(255 196 61 / 0.96) 100%);
+    color: rgb(67 35 0 / 0.92);
+    font-size: 0.8rem;
+    font-weight: 800;
+    line-height: 1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow:
+      inset 0 1px 0 rgb(255 255 255 / 40%),
+      0 6px 14px rgb(0 0 0 / 18%);
   }
 
   .mobile-hud-balance strong {
     color: #fff3cf;
-    font-size: 1rem;
+    font-size: 0.98rem;
     line-height: 1;
+    letter-spacing: -0.03em;
     font-variant-numeric: tabular-nums;
   }
 
@@ -7775,16 +7807,17 @@ body {
   }
 
   .betting-screen-mobile-phone .mobile-hud-balance {
-    padding: 0.48rem 0.62rem;
-    border-radius: 14px;
+    padding: 0.3rem 0.38rem 0.3rem 0.3rem;
   }
 
-  .betting-screen-mobile-phone .mobile-hud-balance span {
-    font-size: 0.6rem;
+  .betting-screen-mobile-phone .mobile-hud-balance-icon {
+    width: 1.34rem;
+    height: 1.34rem;
+    font-size: 0.72rem;
   }
 
   .betting-screen-mobile-phone .mobile-hud-balance strong {
-    font-size: 0.9rem;
+    font-size: 0.88rem;
   }
 
   .betting-screen-mobile-phone .mobile-floating-icon-button {

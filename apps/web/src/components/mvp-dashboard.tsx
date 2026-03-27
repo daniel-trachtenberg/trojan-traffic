@@ -2931,7 +2931,9 @@ export function MvpDashboard({
     <div className="mobile-floating-actions">
       {user ? (
         <div className="mobile-hud-balance" aria-label={`Token balance ${tokenBalance}`}>
-          <span>Tokens</span>
+          <span className="mobile-hud-balance-icon" aria-hidden="true">
+            $
+          </span>
           <strong>{tokenBalance}</strong>
         </div>
       ) : null}
@@ -4350,7 +4352,9 @@ export function MvpDashboard({
           <div className="quick-actions">
             {user ? (
               <div className="quick-balance-chip" aria-label={`Token balance ${tokenBalance}`}>
-                <span className="quick-balance-label">Tokens</span>
+                <span className="quick-balance-chip-icon" aria-hidden="true">
+                  $
+                </span>
                 <strong>{tokenBalance}</strong>
               </div>
             ) : null}
