@@ -8850,6 +8850,7 @@ body {
   .betting-screen-mobile .auth-form input {
     min-height: 3rem;
     border-radius: 14px;
+    font-size: 16px;
   }
 
   .betting-screen-mobile .mode-row {
