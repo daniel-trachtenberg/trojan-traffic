@@ -7711,10 +7711,11 @@ body {
 
   .mobile-bet-cta-inline {
     padding: 0.78rem 0.92rem;
-    display: flex;
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
     align-items: center;
-    justify-content: space-between;
-    gap: 0.6rem;
+    column-gap: 0.6rem;
+    row-gap: 0.14rem;
     text-align: left;
   }
 
@@ -7723,7 +7724,9 @@ body {
   }
 
   .mobile-bet-cta-inline .mobile-bet-cta-accent {
-    flex: 0 0 auto;
+    grid-column: 1;
+    grid-row: 1 / span 2;
+    align-self: center;
     border: 1px solid rgb(255 255 255 / 14%);
     border-radius: 999px;
     padding: 0.26rem 0.5rem;
@@ -7734,19 +7737,20 @@ body {
   }
 
   .mobile-bet-cta-inline strong {
-    flex: 1 1 auto;
+    grid-column: 2;
     min-width: 0;
     font-size: 0.98rem;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    line-height: 1.08;
+    white-space: normal;
+    overflow-wrap: anywhere;
   }
 
   .mobile-bet-cta-inline .mobile-bet-cta-meta {
-    flex: 0 0 auto;
+    grid-column: 2;
     font-size: 0.68rem;
-    line-height: 1;
-    white-space: nowrap;
+    line-height: 1.2;
+    white-space: normal;
+    overflow-wrap: anywhere;
     color: rgb(255 245 218 / 84%);
   }
 
