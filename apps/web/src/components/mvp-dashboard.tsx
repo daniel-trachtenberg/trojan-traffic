@@ -2929,6 +2929,12 @@ export function MvpDashboard({
       : standbyMetaItems;
   const mobileFloatingActions = (
     <div className="mobile-floating-actions">
+      {user ? (
+        <div className="mobile-hud-balance" aria-label={`Token balance ${tokenBalance}`}>
+          <span>Tokens</span>
+          <strong>{tokenBalance}</strong>
+        </div>
+      ) : null}
       {isAdmin ? (
         <button
           type="button"

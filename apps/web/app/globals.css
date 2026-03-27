@@ -4786,6 +4786,7 @@ body {
   }
 
   .mobile-hud-balance {
+    flex: 0 0 auto;
     border: 1px solid rgb(255 255 255 / 10%);
     border-radius: 16px;
     padding: 0.55rem 0.72rem;
@@ -7771,6 +7772,19 @@ body {
     top: calc(env(safe-area-inset-top) + 0.72rem);
     right: 0.68rem;
     gap: 0.38rem;
+  }
+
+  .betting-screen-mobile-phone .mobile-hud-balance {
+    padding: 0.48rem 0.62rem;
+    border-radius: 14px;
+  }
+
+  .betting-screen-mobile-phone .mobile-hud-balance span {
+    font-size: 0.6rem;
+  }
+
+  .betting-screen-mobile-phone .mobile-hud-balance strong {
+    font-size: 0.9rem;
   }
 
   .betting-screen-mobile-phone .mobile-floating-icon-button {
