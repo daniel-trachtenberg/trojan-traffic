@@ -11,13 +11,15 @@ coverage
 
 # Env files
 .env
-.env.local
-.env.*.local
+.env.*
+!.env.example
+!.env.*.example
 
 # Python / vision
 __pycache__/
 *.py[cod]
 .pytest_cache/
+.ruff_cache/
 .venv/
 .venv-fixed/
 *.egg-info/

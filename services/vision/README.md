@@ -8,7 +8,7 @@ session.
 ```bash
 cd services/vision
 rm -rf .venv
-"/usr/local/opt/python@3.12/bin/python3.12" -m venv .venv
+python3.12 -m venv .venv
 source .venv/bin/activate
 python -m pip install --upgrade pip setuptools wheel
 python -m pip install -e ".[dev]"
@@ -20,11 +20,14 @@ packages in place:
 
 ```bash
 rm -rf .venv
-"/usr/local/opt/python@3.12/bin/python3.12" -m venv .venv
+python3.12 -m venv .venv
 source .venv/bin/activate
 python -m pip install --upgrade pip setuptools wheel
 python -m pip install -e ".[dev]"
 ```
+
+Copy `services/vision/.env.example` to `services/vision/.env` for local runs and keep real
+credentials out of git.
 
 `ffmpeg` and `ffprobe` are required for automatic counting because the service reads the HLS stream
 during round windows and tracks people across successive frames.

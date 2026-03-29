@@ -1,4 +1,6 @@
 .env
+.env.*
+!.env.example
 .venv
 .venv-fixed
 .pytest_cache
@@ -10,5 +12,8 @@ __pycache__/
 .Python
 tests/
 trojan_traffic_vision.egg-info/
+.git
+.gitignore
+.DS_Store
 *.pt
 !yolo11s.pt

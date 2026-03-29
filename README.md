@@ -212,6 +212,9 @@ cp apps/web/.env.example apps/web/.env.local
 npm run dev:web
 ```
 
+Keep real credentials in local `.env` or `.env.local` files only. The checked-in
+`.env.example` files are placeholders for public setup.
+
 Optional one-off admin region editor:
 
 ```bash
