@@ -668,15 +668,20 @@ function getPreferredModeLabel(modeSeconds: number | null | undefined) {
   return `${normalizePreferredModeSeconds(modeSeconds)}s rounds`;
 }
 
-function isMissingProfileAvatarColumnsError(error: { code?: string; message?: string } | null | undefined) {
+function isMissingProfileSettingsColumnsError(error: { code?: string; message?: string } | null | undefined) {
   if (!error) {
     return false;
   }
 
   const normalizedMessage = (error.message ?? "").toLowerCase();
+  if (error.code !== "PGRST204") {
+    return false;
+  }
+
   return (
-    error.code === "PGRST204" &&
-    (normalizedMessage.includes("avatar_type") || normalizedMessage.includes("avatar_value"))
+    normalizedMessage.includes("avatar_type") ||
+    normalizedMessage.includes("avatar_value") ||
+    normalizedMessage.includes("preferred_mode_seconds")
   );
 }
 
@@ -687,7 +692,7 @@ async function fetchProfileRowWithAvatarFallback(supabase: SupabaseClient, userI
     .eq("user_id", userId)
     .maybeSingle();
 
-  if (!isMissingProfileAvatarColumnsError(profileResponse.error)) {
+  if (!isMissingProfileSettingsColumnsError(profileResponse.error)) {
     return profileResponse;
   }
 
@@ -697,14 +702,38 @@ async function fetchProfileRowWithAvatarFallback(supabase: SupabaseClient, userI
     .eq("user_id", userId)
     .maybeSingle();
 
-  if (legacyProfileResponse.error) {
-    return legacyProfileResponse;
+  if (!isMissingProfileSettingsColumnsError(legacyProfileResponse.error)) {
+    if (legacyProfileResponse.error) {
+      return legacyProfileResponse;
+    }
+
+    return {
+      data: legacyProfileResponse.data
+        ? ({
+            ...legacyProfileResponse.data,
+            avatar_type: null,
+            avatar_value: null
+          } satisfies ProfileRow)
+        : null,
+      error: null
+    };
+  }
+
+  const olderProfileResponse = await supabase
+    .from("profiles")
+    .select("display_name,tier,created_at")
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  if (olderProfileResponse.error) {
+    return olderProfileResponse;
   }
 
   return {
-    data: legacyProfileResponse.data
+    data: olderProfileResponse.data
       ? ({
-          ...legacyProfileResponse.data,
+          ...olderProfileResponse.data,
+          preferred_mode_seconds: null,
           avatar_type: null,
           avatar_value: null
         } satisfies ProfileRow)
@@ -725,10 +754,11 @@ async function updateProfileWithAvatarFallback(
 ) {
   const updateResponse = await supabase.from("profiles").update(payload).eq("user_id", userId);
 
-  if (!isMissingProfileAvatarColumnsError(updateResponse.error)) {
+  if (!isMissingProfileSettingsColumnsError(updateResponse.error)) {
     return {
       error: updateResponse.error,
-      avatarPersisted: true
+      avatarPersisted: true,
+      preferredModePersisted: true
     };
   }
 
@@ -740,9 +770,25 @@ async function updateProfileWithAvatarFallback(
     })
     .eq("user_id", userId);
 
+  if (!isMissingProfileSettingsColumnsError(legacyUpdateResponse.error)) {
+    return {
+      error: legacyUpdateResponse.error,
+      avatarPersisted: false,
+      preferredModePersisted: true
+    };
+  }
+
+  const olderUpdateResponse = await supabase
+    .from("profiles")
+    .update({
+      display_name: payload.display_name
+    })
+    .eq("user_id", userId);
+
   return {
-    error: legacyUpdateResponse.error,
-    avatarPersisted: false
+    error: olderUpdateResponse.error,
+    avatarPersisted: false,
+    preferredModePersisted: false
   };
 }
 
@@ -3393,7 +3439,13 @@ export function MvpDashboard({
         avatar_value: profileSettings.avatarValue
       }));
       setProfileSettingsBaseline(profileSettings);
-      setNotice(updateResponse.avatarPersisted ? "Profile updated." : "Profile updated. Avatar changes require latest DB migration.");
+      setNotice(
+        updateResponse.avatarPersisted && updateResponse.preferredModePersisted
+          ? "Profile updated."
+          : updateResponse.preferredModePersisted
+            ? "Profile updated. Avatar changes require latest DB migration."
+            : "Profile updated. Preferred mode and avatar changes require latest DB migration."
+      );
 
       startTransition(() => {
         void load(user);
