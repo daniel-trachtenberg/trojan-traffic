@@ -130,6 +130,15 @@ type AccountOverviewStat = {
 };
 
 type PredictionHistoryTone = "win" | "loss" | "pending" | "cancelled";
+type PredictionHistoryFilter = "all" | "live" | "settled";
+type SpotlightCardTone = "gold" | "sky" | "emerald" | "rose";
+
+type SpotlightCardRecord = {
+  label: string;
+  value: string;
+  note: string;
+  tone: SpotlightCardTone;
+};
 
 const DEFAULT_WAGER = "10";
 const DEFAULT_EXACT_VALUE = "5";
@@ -335,6 +344,10 @@ function formatShortTime(value: string) {
   });
 }
 
+function formatRankLabel(rank: number | null | undefined) {
+  return typeof rank === "number" && Number.isFinite(rank) ? `#${rank}` : "--";
+}
+
 function isSameLocalCalendarDay(left: Date, right: Date) {
   return (
     left.getFullYear() === right.getFullYear() &&
@@ -525,6 +538,17 @@ function shouldHidePredictionFromProfile(
   return isCancelledSession || (prediction.resolved_at !== null && prediction.was_correct === null);
 }
 
+function matchesPredictionHistoryFilter(
+  prediction: Pick<PredictionRow, "resolved_at">,
+  filter: PredictionHistoryFilter
+) {
+  if (filter === "all") {
+    return true;
+  }
+
+  return filter === "live" ? prediction.resolved_at === null : prediction.resolved_at !== null;
+}
+
 function getSessionState(session: SessionRow, nowMs: number): SessionState {
   if (session.status === "cancelled") {
     return "cancelled";
@@ -641,6 +665,161 @@ function getDetectorStatusMessage(
   }
 
   return "Detector reconnecting...";
+}
+
+function getLeaderboardSpotlightLabel(rank: number) {
+  if (rank === 1) {
+    return "Rush hour royalty";
+  }
+
+  if (rank === 2) {
+    return "Crosswalk closer";
+  }
+
+  if (rank === 3) {
+    return "Campus climber";
+  }
+
+  return "Board runner";
+}
+
+function getLeaderboardSpotlightTone(rank: number): SpotlightCardTone {
+  if (rank === 1) {
+    return "gold";
+  }
+
+  if (rank === 2) {
+    return "sky";
+  }
+
+  if (rank === 3) {
+    return "emerald";
+  }
+
+  return "rose";
+}
+
+function getAccountPulseCard({
+  predictionStreak,
+  pendingPredictionCount,
+  latestResolvedPrediction,
+  tokenBalance
+}: {
+  predictionStreak: number;
+  pendingPredictionCount: number;
+  latestResolvedPrediction: PredictionRow | null;
+  tokenBalance: number;
+}): SpotlightCardRecord {
+  if (predictionStreak >= 5) {
+    return {
+      label: "Pulse",
+      value: "On fire",
+      note: `${predictionStreak} straight wins and the heater is still alive.`,
+      tone: "emerald"
+    };
+  }
+
+  if (pendingPredictionCount >= 2) {
+    return {
+      label: "Pulse",
+      value: "In motion",
+      note: `${pendingPredictionCount} tickets are still riding on the tape.`,
+      tone: "sky"
+    };
+  }
+
+  if (latestResolvedPrediction?.was_correct === true) {
+    return {
+      label: "Pulse",
+      value: "Heating up",
+      note: "Your last ticket cashed. The next window is yours to press.",
+      tone: "emerald"
+    };
+  }
+
+  if (latestResolvedPrediction?.was_correct === false) {
+    return {
+      label: "Pulse",
+      value: "Bounce back",
+      note: "One sharp read flips the mood fast in this game.",
+      tone: "rose"
+    };
+  }
+
+  if (tokenBalance >= 100) {
+    return {
+      label: "Pulse",
+      value: "Loaded",
+      note: "Your bankroll is healthy and ready for the next traffic window.",
+      tone: "gold"
+    };
+  }
+
+  return {
+    label: "Pulse",
+    value: "Fresh start",
+    note: "No pressure. Pick the right spot and build from there.",
+    tone: "gold"
+  };
+}
+
+function getPublicProfileScoutCard({
+  displayName,
+  rank,
+  correctPredictions,
+  totalPredictions,
+  settledPredictions
+}: {
+  displayName: string;
+  rank: number | null;
+  correctPredictions: number;
+  totalPredictions: number;
+  settledPredictions: number;
+}): SpotlightCardRecord {
+  const hitRate = settledPredictions > 0 ? correctPredictions / settledPredictions : 0;
+
+  if (rank === 1) {
+    return {
+      label: "Scout read",
+      value: "Traffic titan",
+      note: `${displayName} is sitting on top of the live bankroll ladder right now.`,
+      tone: "gold"
+    };
+  }
+
+  if (settledPredictions >= 12 && hitRate >= 0.6) {
+    return {
+      label: "Scout read",
+      value: "Surgical",
+      note: `${Math.round(hitRate * 100)}% hit rate across ${settledPredictions} settled picks.`,
+      tone: "emerald"
+    };
+  }
+
+  if (totalPredictions >= 20) {
+    return {
+      label: "Scout read",
+      value: "Volume shooter",
+      note: `${displayName} keeps the tape moving with ${totalPredictions} tracked bets.`,
+      tone: "sky"
+    };
+  }
+
+  if (settledPredictions >= 5) {
+    return {
+      label: "Scout read",
+      value: "Steady read",
+      note: `${correctPredictions} wins are already on the board and the sample is growing.`,
+      tone: "sky"
+    };
+  }
+
+  return {
+    label: "Scout read",
+    value: "Emerging",
+    note: "A few more rounds and this bettor's pattern will be easier to read.",
+    tone: "gold"
+  };
 }
 
 type PredictionHistoryListProps = {
@@ -777,6 +956,105 @@ function AccountOverviewGrid({ stats }: { stats: AccountOverviewStat[] }) {
   );
 }
 
+function SpotlightCardGrid({ cards }: { cards: SpotlightCardRecord[] }) {
+  return (
+    <div className="profile-spotlight-grid">
+      {cards.map((card) => (
+        <article className={`profile-spotlight-card profile-spotlight-card-${card.tone}`} key={card.label}>
+          <span>{card.label}</span>
+          <strong>{card.value}</strong>
+          <p>{card.note}</p>
+        </article>
+      ))}
+    </div>
+  );
+}
+
+type PredictionHistoryFilterBarProps = {
+  filter: PredictionHistoryFilter;
+  onChange: (nextFilter: PredictionHistoryFilter) => void;
+  totalCount: number;
+  liveCount: number;
+  settledCount: number;
+};
+
+function PredictionHistoryFilterBar({
+  filter,
+  onChange,
+  totalCount,
+  liveCount,
+  settledCount
+}: PredictionHistoryFilterBarProps) {
+  const options = [
+    {
+      id: "all" as const,
+      label: "All",
+      count: totalCount
+    },
+    {
+      id: "live" as const,
+      label: "Live",
+      count: liveCount
+    },
+    {
+      id: "settled" as const,
+      label: "Settled",
+      count: settledCount
+    }
+  ];
+
+  return (
+    <div className="history-filter-row" role="tablist" aria-label="Bet history filter">
+      {options.map((option) => (
+        <button
+          type="button"
+          key={option.id}
+          className={
+            filter === option.id ? "history-filter-button history-filter-button-active" : "history-filter-button"
+          }
+          onClick={() => onChange(option.id)}
+          aria-pressed={filter === option.id}
+        >
+          <span>{option.label}</span>
+          <strong>{option.count}</strong>
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function LeaderboardSpotlightCard({
+  entry,
+  onOpen
+}: {
+  entry: LeaderboardRow;
+  onOpen: (entry: LeaderboardRow) => void;
+}) {
+  const tone = getLeaderboardSpotlightTone(entry.rank);
+
+  return (
+    <button
+      type="button"
+      className={`leaderboard-spotlight-card leaderboard-spotlight-card-${tone}`}
+      onClick={() => onOpen(entry)}
+      aria-label={`Open ${entry.display_name}'s betting profile`}
+    >
+      <span className="leaderboard-spotlight-rank">{formatRankLabel(entry.rank)}</span>
+      <span className="leaderboard-spotlight-copy">
+        <span className="leaderboard-spotlight-kicker">{getLeaderboardSpotlightLabel(entry.rank)}</span>
+        <strong className="leaderboard-spotlight-name">{entry.display_name}</strong>
+        <span className="leaderboard-spotlight-meta">
+          {entry.tier} tier · {entry.correct_predictions} correct picks
+        </span>
+      </span>
+      <span className="leaderboard-spotlight-score-shell">
+        <span className="leaderboard-spotlight-score-label">Bankroll</span>
+        <span className="leaderboard-spotlight-score">{entry.token_balance}</span>
+      </span>
+    </button>
+  );
+}
+
 function isPredictionCancelable(prediction: PredictionRow, session: SessionRow | null, nowMs: number) {
   if (!session || prediction.resolved_at !== null) {
     return false;
@@ -842,6 +1120,9 @@ export function MvpDashboard({
   const [cancelingPredictionIds, setCancelingPredictionIds] = useState<string[]>([]);
   const [isMobileViewport, setIsMobileViewport] = useState(false);
   const [isPhoneViewport, setIsPhoneViewport] = useState(false);
+  const [accountHistoryFilter, setAccountHistoryFilter] = useState<PredictionHistoryFilter>("all");
+  const [publicProfileHistoryFilter, setPublicProfileHistoryFilter] =
+    useState<PredictionHistoryFilter>("all");
   const anonDisplayNameRequestRef = useRef(0);
   const nextToastIdRef = useRef(0);
   const toastsRef = useRef<ToastRecord[]>([]);
@@ -858,12 +1139,18 @@ export function MvpDashboard({
       session ? getSessionState(session, nowMs) === "cancelled" : false
     );
   });
+  const filteredAccountPredictions = visibleAccountPredictions.filter((prediction) =>
+    matchesPredictionHistoryFilter(prediction, accountHistoryFilter)
+  );
   const pendingPredictionCount = visibleAccountPredictions.filter(
     (prediction) => prediction.resolved_at === null
   ).length;
   const settledPredictions = visibleAccountPredictions.filter(
     (prediction) => prediction.was_correct !== null
   );
+  const settledPredictionCount = visibleAccountPredictions.filter(
+    (prediction) => prediction.resolved_at !== null
+  ).length;
   const wonPredictionCount = settledPredictions.filter(
     (prediction) => prediction.was_correct === true
   ).length;
@@ -876,6 +1163,9 @@ export function MvpDashboard({
       : "--";
   const latestResolvedPrediction =
     visibleAccountPredictions.find((prediction) => prediction.resolved_at !== null) ?? null;
+  const currentUserLeaderboardEntry = user
+    ? leaderboard.find((entry) => entry.user_id === user.id) ?? null
+    : null;
   const latestResolvedResultLabel = latestResolvedPrediction?.resolved_at
     ? latestResolvedPrediction.was_correct === true
       ? "Last ticket won"
@@ -1018,6 +1308,43 @@ export function MvpDashboard({
     : loading || isRefreshing
       ? "Refreshing account status..."
       : dailyClaimState.detail;
+  const accountSpotlightCards: SpotlightCardRecord[] = [
+    {
+      label: "Today",
+      value: dailyClaimState.canClaim
+        ? "Reward live"
+        : dailyClaimState.hasClaimedToday
+          ? "Claimed"
+          : "Resets at 8AM",
+      note: dailyClaimState.canClaim
+        ? "Your daily token drop is ready right now."
+        : dailyClaimState.detail,
+      tone: dailyClaimState.canClaim ? "gold" : "sky"
+    },
+    {
+      label: "Board",
+      value: currentUserLeaderboardEntry
+        ? formatRankLabel(currentUserLeaderboardEntry.rank)
+        : leaderboard.length >= 10
+          ? "Top 10 chase"
+          : "Unranked",
+      note: currentUserLeaderboardEntry
+        ? `${currentUserLeaderboardEntry.correct_predictions} correct picks on the current board.`
+        : "One hot round can push you into the current top 10.",
+      tone:
+        currentUserLeaderboardEntry && currentUserLeaderboardEntry.rank <= 3
+          ? "gold"
+          : currentUserLeaderboardEntry
+            ? "sky"
+            : "rose"
+    },
+    getAccountPulseCard({
+      predictionStreak: streaks?.prediction_streak ?? 0,
+      pendingPredictionCount,
+      latestResolvedPrediction,
+      tokenBalance
+    })
+  ];
   const showLiveRoundCard = Boolean(selectedSession && selectedState === "live");
   const showResolvedRoundCard = Boolean(selectedSession && selectedState === "resolved");
   const emptyStateSignInEnabled = !hasSelectedSession && !user;
@@ -1067,17 +1394,20 @@ export function MvpDashboard({
     publicProfileSummary?.display_name ?? publicProfileContext?.display_name ?? "Public Profile";
   const publicProfileTier = publicProfileSummary?.tier ?? publicProfileContext?.tier ?? "Trader";
   const publicProfileRank = publicProfileSummary?.rank ?? publicProfileContext?.rank ?? null;
-  const visiblePublicProfilePredictions = publicProfilePredictions.filter(
+  const allVisiblePublicProfilePredictions = publicProfilePredictions.filter(
     (prediction) => !shouldHidePredictionFromProfile(prediction, prediction.status === "cancelled")
   );
+  const filteredPublicProfilePredictions = allVisiblePublicProfilePredictions.filter((prediction) =>
+    matchesPredictionHistoryFilter(prediction, publicProfileHistoryFilter)
+  );
   const publicProfileTotalPredictions =
-    publicProfileSummary?.total_predictions ?? visiblePublicProfilePredictions.length;
+    publicProfileSummary?.total_predictions ?? allVisiblePublicProfilePredictions.length;
   const publicProfileCorrectPredictions =
     publicProfileSummary?.correct_predictions ??
-    visiblePublicProfilePredictions.filter((prediction) => prediction.was_correct === true).length;
+    allVisiblePublicProfilePredictions.filter((prediction) => prediction.was_correct === true).length;
   const publicProfileSettledPredictions =
     publicProfileSummary?.settled_predictions ??
-    visiblePublicProfilePredictions.filter((prediction) => prediction.was_correct !== null).length;
+    allVisiblePublicProfilePredictions.filter((prediction) => prediction.was_correct !== null).length;
   const publicProfileHitRateLabel =
     publicProfileSettledPredictions > 0
       ? `${Math.round((publicProfileCorrectPredictions / publicProfileSettledPredictions) * 100)}%`
@@ -1113,14 +1443,43 @@ export function MvpDashboard({
       note: `${publicProfileCorrectPredictions} correct picks`
     }
   ];
+  const publicProfileSpotlightCards: SpotlightCardRecord[] = [
+    {
+      label: "Board",
+      value: publicProfileRank !== null ? formatRankLabel(publicProfileRank) : "Unranked",
+      note:
+        publicProfileRank !== null
+          ? `${publicProfileDisplayName} is on the live bankroll ladder.`
+          : "Still building enough tape to push into the main board.",
+      tone: publicProfileRank === 1 ? "gold" : publicProfileRank !== null ? "sky" : "rose"
+    },
+    getPublicProfileScoutCard({
+      displayName: publicProfileDisplayName,
+      rank: publicProfileRank,
+      correctPredictions: publicProfileCorrectPredictions,
+      totalPredictions: publicProfileTotalPredictions,
+      settledPredictions: publicProfileSettledPredictions
+    }),
+    {
+      label: "Tape",
+      value: `${publicProfileTotalPredictions}`,
+      note:
+        publicProfileSettledPredictions > 0
+          ? `${publicProfileSettledPredictions} settled picks and ${publicProfileCorrectPredictions} wins so far.`
+          : "No settled rounds yet, so the story is still just getting started.",
+      tone: publicProfileSettledPredictions > 0 ? "emerald" : "gold"
+    }
+  ];
   const publicProfileHistoryCountLabel =
     isPublicProfileLoading && !publicProfileSummary
       ? "Loading..."
-      : publicProfileSummary && publicProfileSummary.total_predictions > visiblePublicProfilePredictions.length
-        ? `Latest ${visiblePublicProfilePredictions.length} of ${publicProfileSummary.total_predictions} bets`
-        : `${publicProfileTotalPredictions} bets`;
+      : publicProfileHistoryFilter === "all"
+        ? publicProfileSummary && publicProfileSummary.total_predictions > allVisiblePublicProfilePredictions.length
+          ? `Latest ${allVisiblePublicProfilePredictions.length} of ${publicProfileSummary.total_predictions} bets`
+          : `${publicProfileTotalPredictions} bets`
+        : `${filteredPublicProfilePredictions.length} shown`;
   const publicProfileSessionRows = mergeSessionRows(
-    visiblePublicProfilePredictions.map((prediction) => ({
+    allVisiblePublicProfilePredictions.map((prediction) => ({
       id: prediction.session_id,
       mode_seconds: prediction.mode_seconds,
       threshold: prediction.threshold,
@@ -1140,6 +1499,19 @@ export function MvpDashboard({
       .filter((prediction) => isPredictionCancelable(prediction, sessionLookup.get(prediction.session_id) ?? null, nowMs))
       .map((prediction) => prediction.id)
   );
+  const leaderboardSpotlightEntries = leaderboard.slice(0, 3);
+  const leaderboardListEntries = leaderboard.slice(3, 15);
+  const leaderboardUserSummary = user
+    ? currentUserLeaderboardEntry
+      ? {
+          value: formatRankLabel(currentUserLeaderboardEntry.rank),
+          note: `${currentUserLeaderboardEntry.token_balance} bankroll · ${currentUserLeaderboardEntry.correct_predictions} correct picks.`
+        }
+      : {
+          value: leaderboard.length >= 10 ? "Outside top 10" : "Board warming up",
+          note: "Land a couple of sharp rounds and this panel starts moving fast."
+        }
+    : null;
   const livePeopleCount = liveDetections?.boxes.length ?? null;
   const livePeopleCountDisplay = `${livePeopleCount ?? 0}`.padStart(2, "0");
   const selectedRoundCountdown =
@@ -2381,6 +2753,7 @@ export function MvpDashboard({
     setPublicProfilePredictions([]);
     setPublicProfileError(null);
     setIsPublicProfileLoading(false);
+    setPublicProfileHistoryFilter("all");
   }
 
   function openAuthModal(mode: "sign-in" | "sign-up", sessionId: string | null = null) {
@@ -2420,6 +2793,7 @@ export function MvpDashboard({
     setPublicProfilePredictions([]);
     setPublicProfileError(null);
     setIsPublicProfileLoading(true);
+    setPublicProfileHistoryFilter("all");
 
     try {
       const [profileResponse, historyResponse] = await Promise.all([
@@ -4512,6 +4886,11 @@ export function MvpDashboard({
                         <p className="account-name">{profile?.display_name ?? user.email}</p>
                         <p className="account-subtitle">{user.email}</p>
                         <div className="account-badge-row">
+                          <span className="account-badge">
+                            {currentUserLeaderboardEntry
+                              ? `Rank ${formatRankLabel(currentUserLeaderboardEntry.rank)}`
+                              : "Top 10 chase"}
+                          </span>
                           <span className="account-badge">{profile?.tier ?? "Bronze"} Tier</span>
                           <span className="account-badge">
                             Prediction streak {streaks?.prediction_streak ?? 0}
@@ -4561,6 +4940,7 @@ export function MvpDashboard({
                       </div>
                     </div>
 
+                    <SpotlightCardGrid cards={accountSpotlightCards} />
                     <AccountOverviewGrid stats={accountOverviewStats} />
                   </section>
 
@@ -4570,15 +4950,22 @@ export function MvpDashboard({
                         <p className="account-section-kicker">Betting history</p>
                         <h3 className="account-section-title">Recent bets</h3>
                         <p className="account-section-copy">
-                          Open tickets and settled rounds stay together in one tape.
+                          Flip between live slips and settled heat without losing the full tape.
                         </p>
                       </div>
                       <span className="account-history-count">
-                        {loading ? "Refreshing..." : `${visibleAccountPredictions.length} total`}
+                        {loading ? "Refreshing..." : `${filteredAccountPredictions.length} shown`}
                       </span>
                     </div>
+                    <PredictionHistoryFilterBar
+                      filter={accountHistoryFilter}
+                      onChange={setAccountHistoryFilter}
+                      totalCount={visibleAccountPredictions.length}
+                      liveCount={pendingPredictionCount}
+                      settledCount={settledPredictionCount}
+                    />
                     <PredictionHistoryList
-                      predictions={visibleAccountPredictions}
+                      predictions={filteredAccountPredictions}
                       sessionLookup={sessionLookup}
                       nowMs={nowMs}
                       emptyKicker="No bets yet"
@@ -4613,33 +5000,77 @@ export function MvpDashboard({
               )
             ) : (
               <>
-                <p className="leaderboard-panel-note">
-                  Tap any bettor to open their public profile and recent betting history.
-                </p>
-                <ol className="leaderboard modal-leaderboard">
-                  {leaderboard.slice(0, 15).map((entry) => (
-                    <li key={entry.user_id}>
-                      <button
-                        type="button"
-                        className="leaderboard-entry-button"
-                        onClick={() => void handleOpenPublicProfile(entry)}
-                        aria-label={`Open ${entry.display_name}'s betting profile`}
-                      >
-                        <span className="leaderboard-entry-rank">#{entry.rank}</span>
-                        <span className="leaderboard-entry-copy">
-                          <span className="leaderboard-entry-name">{entry.display_name}</span>
-                          <span className="leaderboard-entry-meta">
-                            {entry.correct_predictions} correct picks · {entry.tier}
-                          </span>
-                        </span>
-                        <span className="leaderboard-entry-score-shell">
-                          <span className="leaderboard-entry-score-label">Bankroll</span>
-                          <span className="leaderboard-entry-score">{entry.token_balance}</span>
-                        </span>
-                      </button>
-                    </li>
-                  ))}
-                </ol>
+                <div className="leaderboard-panel-header">
+                  <div>
+                    <p className="leaderboard-panel-kicker">Live bankroll ladder</p>
+                    <p className="leaderboard-panel-note">
+                      Tap any bettor to open their public profile and recent betting history.
+                    </p>
+                  </div>
+                  {leaderboardUserSummary ? (
+                    <div className="leaderboard-user-summary">
+                      <span>Your lane</span>
+                      <strong>{leaderboardUserSummary.value}</strong>
+                      <p>{leaderboardUserSummary.note}</p>
+                    </div>
+                  ) : null}
+                </div>
+                {leaderboardSpotlightEntries.length > 0 ? (
+                  <section className="leaderboard-spotlight-grid">
+                    {leaderboardSpotlightEntries.map((entry) => (
+                      <LeaderboardSpotlightCard
+                        key={entry.user_id}
+                        entry={entry}
+                        onOpen={(nextEntry) => {
+                          void handleOpenPublicProfile(nextEntry);
+                        }}
+                      />
+                    ))}
+                  </section>
+                ) : null}
+                {leaderboardListEntries.length > 0 ? (
+                  <section className="leaderboard-list-shell">
+                    <div className="leaderboard-section-header">
+                      <div>
+                        <p className="leaderboard-section-kicker">Chase pack</p>
+                        <h3 className="leaderboard-section-title">Everyone hunting the podium</h3>
+                      </div>
+                    </div>
+                    <ol className="leaderboard modal-leaderboard">
+                      {leaderboardListEntries.map((entry) => (
+                        <li key={entry.user_id}>
+                          <button
+                            type="button"
+                            className="leaderboard-entry-button"
+                            onClick={() => void handleOpenPublicProfile(entry)}
+                            aria-label={`Open ${entry.display_name}'s betting profile`}
+                          >
+                            <span className="leaderboard-entry-rank">{formatRankLabel(entry.rank)}</span>
+                            <span className="leaderboard-entry-copy">
+                              <span className="leaderboard-entry-name-row">
+                                <span className="leaderboard-entry-name">{entry.display_name}</span>
+                                <span className="leaderboard-entry-tier">{entry.tier}</span>
+                              </span>
+                              <span className="leaderboard-entry-meta">
+                                {entry.correct_predictions} correct picks
+                              </span>
+                            </span>
+                            <span className="leaderboard-entry-score-shell">
+                              <span className="leaderboard-entry-score-label">Bankroll</span>
+                              <span className="leaderboard-entry-score">{entry.token_balance}</span>
+                              <span className="leaderboard-entry-action">View profile</span>
+                            </span>
+                          </button>
+                        </li>
+                      ))}
+                    </ol>
+                  </section>
+                ) : null}
+                {leaderboard.length > 0 && leaderboard.length <= 3 ? (
+                  <p className="leaderboard-panel-empty-copy">
+                    More bettors will show up here as soon as fresh rounds settle.
+                  </p>
+                ) : null}
                 {leaderboard.length === 0 ? <p className="hint">No leaderboard entries yet.</p> : null}
               </>
             )}
@@ -4693,6 +5124,7 @@ export function MvpDashboard({
                   </div>
                 </div>
 
+                <SpotlightCardGrid cards={publicProfileSpotlightCards} />
                 <AccountOverviewGrid stats={publicProfileOverviewStats} />
               </section>
 
@@ -4702,11 +5134,22 @@ export function MvpDashboard({
                     <p className="account-section-kicker">Public history</p>
                     <h3 className="account-section-title">{publicProfileDisplayName}&rsquo;s recent bets</h3>
                     <p className="account-section-copy">
-                      Open positions and settled rounds stay together in one clean tape.
+                      Filter the tape to read this bettor&apos;s live positions or settled results faster.
                     </p>
                   </div>
                   <span className="account-history-count">{publicProfileHistoryCountLabel}</span>
                 </div>
+                <PredictionHistoryFilterBar
+                  filter={publicProfileHistoryFilter}
+                  onChange={setPublicProfileHistoryFilter}
+                  totalCount={allVisiblePublicProfilePredictions.length}
+                  liveCount={
+                    allVisiblePublicProfilePredictions.filter((prediction) => prediction.resolved_at === null).length
+                  }
+                  settledCount={
+                    allVisiblePublicProfilePredictions.filter((prediction) => prediction.resolved_at !== null).length
+                  }
+                />
 
                 {publicProfileError ? (
                   <p className="public-profile-status-card">{publicProfileError}</p>
@@ -4714,7 +5157,7 @@ export function MvpDashboard({
                   <p className="public-profile-status-card">Loading recent activity...</p>
                 ) : (
                   <PredictionHistoryList
-                    predictions={visiblePublicProfilePredictions}
+                    predictions={filteredPublicProfilePredictions}
                     sessionLookup={publicProfileSessionLookup}
                     nowMs={nowMs}
                     emptyKicker="No public bets yet"
