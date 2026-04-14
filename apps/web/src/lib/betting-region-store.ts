@@ -15,11 +15,11 @@ const pointSchema = z.object({
 });
 
 const regionRecordSchema = z.object({
-  points: z.array(pointSchema).length(4)
+  points: z.array(pointSchema).length(2)
 });
 
 export const regionPayloadSchema = z.object({
-  points: z.array(pointSchema).length(4)
+  points: z.array(pointSchema).length(2)
 });
 
 function createRegionSupabaseClient(accessToken?: string) {

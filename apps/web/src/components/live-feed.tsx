@@ -127,6 +127,13 @@ function isPointInsidePolygon(point: RegionPoint, polygon: RegionPoint[]) {
   return isInside;
 }
 
+function isPointRightOfLine(point: RegionPoint, lineStart: RegionPoint, lineEnd: RegionPoint) {
+  const cross =
+    (lineEnd.x - lineStart.x) * (point.y - lineStart.y) -
+    (lineEnd.y - lineStart.y) * (point.x - lineStart.x);
+  return cross < 0;
+}
+
 function resolveFocusPadding(padding: LiveFeedProps["focusPadding"]) {
   if (typeof padding === "number") {
     return {
@@ -153,7 +160,7 @@ function getFocusViewport(
   focusHorizontalAlignment: LiveFeedProps["focusHorizontalAlignment"],
   stageHorizontalAlignment: LiveFeedProps["stageHorizontalAlignment"]
 ): FocusViewport | null {
-  if ((!region || region.length < 3) && !focusWindow) {
+  if ((!region || region.length < 2) && !focusWindow) {
     return null;
   }
 
@@ -515,7 +522,7 @@ export function LiveFeed({
               tabIndex={-1}
             />
           )}
-          {normalizedRegion && normalizedRegion.length >= 3 ? (
+          {normalizedRegion && normalizedRegion.length >= 2 ? (
             <svg
               className={
                 regionEditorEnabled
@@ -526,8 +533,20 @@ export function LiveFeed({
               preserveAspectRatio="none"
               aria-hidden="true"
             >
-              <polygon className="region-overlay-fill" points={polygonPoints} />
-              <polygon className="region-overlay-stroke" points={polygonPoints} />
+              {normalizedRegion.length === 2 ? (
+                <line
+                  className="region-overlay-line"
+                  x1={normalizedRegion[0].x * 100}
+                  y1={normalizedRegion[0].y * 100}
+                  x2={normalizedRegion[1].x * 100}
+                  y2={normalizedRegion[1].y * 100}
+                />
+              ) : (
+                <>
+                  <polygon className="region-overlay-fill" points={polygonPoints} />
+                  <polygon className="region-overlay-stroke" points={polygonPoints} />
+                </>
+              )}
               {regionEditorEnabled
                 ? normalizedRegion.map((point, index) => {
                     const x = point.x * 100;
@@ -568,9 +587,11 @@ export function LiveFeed({
               y: box.y + box.height / 2
             };
             const isInsideRegion =
-              normalizedRegion && normalizedRegion.length >= 3
-                ? isPointInsidePolygon(boxCenter, normalizedRegion)
-                : false;
+              normalizedRegion && normalizedRegion.length === 2
+                ? isPointRightOfLine(boxCenter, normalizedRegion[0], normalizedRegion[1])
+                : normalizedRegion && normalizedRegion.length >= 3
+                  ? isPointInsidePolygon(boxCenter, normalizedRegion)
+                  : false;
 
             return (
               <div

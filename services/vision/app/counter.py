@@ -28,7 +28,7 @@ class CountSessionRequest(BaseModel):
     feed_url: HttpUrl
     starts_at: datetime
     ends_at: datetime
-    region: Sequence[Point] = Field(min_length=3)
+    region: Sequence[Point] = Field(min_length=2)
 
 
 class CountSessionResult(BaseModel):
@@ -81,6 +81,75 @@ class _TrackCrossingState:
     confirmed_inside: bool | None = None
     inside_streak: int = 0
     outside_streak: int = 0
+
+
+def _side_of_line(point: Point, line_start: Point, line_end: Point) -> float:
+    """Returns the signed cross product: positive = left side, negative = right side."""
+    return (line_end.x - line_start.x) * (point.y - line_start.y) - (
+        line_end.y - line_start.y
+    ) * (point.x - line_start.x)
+
+
+class LineCrossingCounter:
+    """Counts confirmed footpoint crossings across a line (left-to-right direction)."""
+
+    def __init__(
+        self,
+        *,
+        line_start: Point,
+        line_end: Point,
+        entry_confirm_frames: int = 2,
+        exit_confirm_frames: int = 2,
+    ) -> None:
+        self._line_start = line_start
+        self._line_end = line_end
+        self._entry_confirm_frames = max(entry_confirm_frames, 1)
+        self._exit_confirm_frames = max(exit_confirm_frames, 1)
+        self._states: dict[str, _TrackCrossingState] = {}
+
+    def observe_tracks(
+        self,
+        tracks: Sequence[TrackObservation],
+        *,
+        count_enabled: bool,
+    ) -> int:
+        new_crossings = 0
+
+        for track in tracks:
+            state = self._states.setdefault(track.id, _TrackCrossingState())
+            side = _side_of_line(track.footpoint, self._line_start, self._line_end)
+            is_right_side = side < 0
+
+            if is_right_side:
+                state.inside_streak += 1
+                state.outside_streak = 0
+
+                if state.confirmed_inside is None:
+                    if state.inside_streak >= self._entry_confirm_frames:
+                        state.confirmed_inside = True
+                    continue
+
+                if (
+                    state.confirmed_inside is False
+                    and state.inside_streak >= self._entry_confirm_frames
+                ):
+                    state.confirmed_inside = True
+                    if count_enabled:
+                        new_crossings += 1
+                continue
+
+            state.outside_streak += 1
+            state.inside_streak = 0
+
+            if state.confirmed_inside is None:
+                if state.outside_streak >= self._exit_confirm_frames:
+                    state.confirmed_inside = False
+                continue
+
+            if state.confirmed_inside is True and state.outside_streak >= self._exit_confirm_frames:
+                state.confirmed_inside = False
+
+        return new_crossings
 
 
 class PolygonCrossingCounter:
@@ -212,6 +281,8 @@ class TrackState:
     confidence: float
     hits: int
     last_seen_frame: int
+    vx: float = 0.0
+    vy: float = 0.0
 
 
 @dataclass
@@ -607,17 +678,35 @@ class LiveSessionTrackSource:
         return current_tracks
 
     def _track_match_score(self, track: TrackState, detection: RawDetection) -> float | None:
-        track_box = (track.x1, track.y1, track.x2, track.y2)
+        frames_elapsed = min(self._frame_index - track.last_seen_frame, 4)
+        predicted_box = (
+            track.x1 + track.vx * frames_elapsed,
+            track.y1 + track.vy * frames_elapsed,
+            track.x2 + track.vx * frames_elapsed,
+            track.y2 + track.vy * frames_elapsed,
+        )
         detection_box = (detection.x1, detection.y1, detection.x2, detection.y2)
-        iou = self._box_iou(track_box, detection_box)
-        center_distance_ratio = self._box_center_distance_ratio(track_box, detection_box)
+        iou = self._box_iou(predicted_box, detection_box)
+        center_distance_ratio = self._box_center_distance_ratio(predicted_box, detection_box)
         if iou < 0.12 and center_distance_ratio > 0.35:
             return None
 
-        return iou + max(0.0, 0.35 - center_distance_ratio)
+        diag_track = float(np.hypot(track.x2 - track.x1, track.y2 - track.y1))
+        diag_det = float(np.hypot(detection.x2 - detection.x1, detection.y2 - detection.y1))
+        size_similarity = 1.0 - abs(diag_track - diag_det) / max(diag_track, diag_det, 1.0)
+
+        return iou + max(0.0, 0.35 - center_distance_ratio) + 0.15 * size_similarity
 
     def _update_track(self, track: TrackState, detection: RawDetection) -> None:
-        detection_weight = 0.68 if track.hits > 1 else 1.0
+        if track.hits > 1:
+            det_cx = (detection.x1 + detection.x2) / 2
+            trk_cx = (track.x1 + track.x2) / 2
+            det_cy = (detection.y1 + detection.y2) / 2
+            trk_cy = (track.y1 + track.y2) / 2
+            track.vx = 0.4 * (det_cx - trk_cx) + 0.6 * track.vx
+            track.vy = 0.4 * (det_cy - trk_cy) + 0.6 * track.vy
+
+        detection_weight = (0.5 + 0.35 * detection.confidence) if track.hits > 1 else 1.0
         history_weight = 1.0 - detection_weight
         track.x1 = (track.x1 * history_weight) + (detection.x1 * detection_weight)
         track.y1 = (track.y1 * history_weight) + (detection.y1 * detection_weight)
@@ -719,11 +808,18 @@ def run_counting_session(
                 "Automatic counting must begin before the session window starts."
             )
 
-    counter = PolygonCrossingCounter(
-        polygon=payload.region,
-        entry_confirm_frames=max(resolved_settings.count_entry_confirm_frames, 1),
-        exit_confirm_frames=max(resolved_settings.count_exit_confirm_frames, 1),
-    )
+    confirm_kwargs = {
+        "entry_confirm_frames": max(resolved_settings.count_entry_confirm_frames, 1),
+        "exit_confirm_frames": max(resolved_settings.count_exit_confirm_frames, 1),
+    }
+    if len(payload.region) == 2:
+        counter: LineCrossingCounter | PolygonCrossingCounter = LineCrossingCounter(
+            line_start=payload.region[0],
+            line_end=payload.region[1],
+            **confirm_kwargs,
+        )
+    else:
+        counter = PolygonCrossingCounter(polygon=payload.region, **confirm_kwargs)
     observations = frame_observations
     if observations is None:
         observations = LiveSessionTrackSource(

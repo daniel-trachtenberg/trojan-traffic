@@ -71,6 +71,8 @@ class TrackState:
     confidence: float
     hits: int
     last_seen_frame: int
+    vx: float = 0.0
+    vy: float = 0.0
 
 
 class LivePersonDetector:
@@ -579,17 +581,35 @@ class LivePersonDetector:
         return current_tracks
 
     def _track_match_score(self, track: TrackState, detection: RawDetection) -> float | None:
-        track_box = (track.x1, track.y1, track.x2, track.y2)
+        frames_elapsed = min(self._frame_index - track.last_seen_frame, 4)
+        predicted_box = (
+            track.x1 + track.vx * frames_elapsed,
+            track.y1 + track.vy * frames_elapsed,
+            track.x2 + track.vx * frames_elapsed,
+            track.y2 + track.vy * frames_elapsed,
+        )
         detection_box = (detection.x1, detection.y1, detection.x2, detection.y2)
-        iou = self._box_iou(track_box, detection_box)
-        center_distance_ratio = self._box_center_distance_ratio(track_box, detection_box)
+        iou = self._box_iou(predicted_box, detection_box)
+        center_distance_ratio = self._box_center_distance_ratio(predicted_box, detection_box)
         if iou < 0.12 and center_distance_ratio > 0.35:
             return None
 
-        return iou + max(0.0, 0.35 - center_distance_ratio)
+        diag_track = float(np.hypot(track.x2 - track.x1, track.y2 - track.y1))
+        diag_det = float(np.hypot(detection.x2 - detection.x1, detection.y2 - detection.y1))
+        size_similarity = 1.0 - abs(diag_track - diag_det) / max(diag_track, diag_det, 1.0)
+
+        return iou + max(0.0, 0.35 - center_distance_ratio) + 0.15 * size_similarity
 
     def _update_track(self, track: TrackState, detection: RawDetection) -> None:
-        detection_weight = 0.68 if track.hits > 1 else 1.0
+        if track.hits > 1:
+            det_cx = (detection.x1 + detection.x2) / 2
+            trk_cx = (track.x1 + track.x2) / 2
+            det_cy = (detection.y1 + detection.y2) / 2
+            trk_cy = (track.y1 + track.y2) / 2
+            track.vx = 0.4 * (det_cx - trk_cx) + 0.6 * track.vx
+            track.vy = 0.4 * (det_cy - trk_cy) + 0.6 * track.vy
+
+        detection_weight = (0.5 + 0.35 * detection.confidence) if track.hits > 1 else 1.0
         history_weight = 1.0 - detection_weight
         track.x1 = (track.x1 * history_weight) + (detection.x1 * detection_weight)
         track.y1 = (track.y1 * history_weight) + (detection.y1 * detection_weight)
