@@ -1,7 +1,8 @@
 "use client";
 
-import type { User } from "@supabase/supabase-js";
-import { useEffect, useId, useRef, useState, useTransition, type FormEvent } from "react";
+import NextImage from "next/image";
+import type { SupabaseClient, User } from "@supabase/supabase-js";
+import { useEffect, useId, useRef, useState, useTransition, type ChangeEvent, type FormEvent } from "react";
 import { AdminConsole } from "@/components/admin-console";
 import { LiveFeed } from "@/components/live-feed";
 import {
@@ -56,9 +57,43 @@ type LeaderboardRow = {
   correct_predictions: number;
 };
 
+type ProfileAvatarType = "icon" | "upload";
+type BuiltInProfileAvatarId = "signal" | "victory" | "shield" | "spark" | "laurel";
+type PreferredModeSeconds = 30 | 60;
+type AchievementCategory = "skill" | "accomplishment" | "participation";
+
 type ProfileRow = {
   display_name: string;
   tier: string;
+  created_at: string | null;
+  preferred_mode_seconds: number | null;
+  avatar_type: ProfileAvatarType | null;
+  avatar_value: string | null;
+};
+
+type AchievementCriteria = {
+  type?: string;
+  minimum?: number;
+};
+
+type AchievementRow = {
+  id: string;
+  slug: string;
+  name: string;
+  description: string;
+  criteria: AchievementCriteria | null;
+};
+
+type UserAchievementRow = {
+  achievement_id: string;
+  awarded_at: string;
+};
+
+type ProfileSettingsFormState = {
+  displayName: string;
+  preferredModeSeconds: PreferredModeSeconds;
+  avatarType: ProfileAvatarType;
+  avatarValue: string;
 };
 
 type PublicProfileSummaryRow = {
@@ -129,6 +164,10 @@ type AccountOverviewStat = {
   note: string;
 };
 
+type AccountProfileStat = AccountOverviewStat & {
+  tone?: "gold" | "cardinal" | "slate";
+};
+
 type PredictionHistoryTone = "win" | "loss" | "pending" | "cancelled";
 type PredictionHistoryFilter = "all" | "live" | "settled";
 type SpotlightCardTone = "gold" | "sky" | "emerald" | "rose";
@@ -153,6 +192,55 @@ const ERROR_TOAST_DURATION_MS = 6200;
 const MAX_VISIBLE_TOASTS = 4;
 const RESULT_SPOTLIGHT_WINDOW_MS = 10_000;
 const SESSION_SELECT_COLUMNS = "id,mode_seconds,threshold,starts_at,ends_at,status,final_count,resolved_at";
+const DEFAULT_PROFILE_AVATAR_ID: BuiltInProfileAvatarId = "signal";
+const DEFAULT_PREFERRED_MODE_SECONDS: PreferredModeSeconds = 30;
+const MAX_PROFILE_AVATAR_FILE_SIZE_BYTES = 8 * 1024 * 1024;
+const MAX_PROFILE_AVATAR_DATA_URL_LENGTH = 180_000;
+const PROFILE_PREVIEW_EMAIL = "traffic.trojan@usc.edu";
+const PROFILE_PREVIEW_TOKEN_BALANCE = 480;
+const BUILT_IN_PROFILE_AVATARS = [
+  {
+    id: "signal",
+    label: "Signal",
+    startColor: "#ffcf44",
+    endColor: "#7f0f19",
+    rimColor: "rgb(255 229 148 / 46%)"
+  },
+  {
+    id: "victory",
+    label: "Victory",
+    startColor: "#ffd56b",
+    endColor: "#9f2518",
+    rimColor: "rgb(255 222 125 / 44%)"
+  },
+  {
+    id: "shield",
+    label: "Shield",
+    startColor: "#f7b34f",
+    endColor: "#702447",
+    rimColor: "rgb(255 214 133 / 42%)"
+  },
+  {
+    id: "spark",
+    label: "Spark",
+    startColor: "#ffe29b",
+    endColor: "#6e0d24",
+    rimColor: "rgb(255 238 186 / 44%)"
+  },
+  {
+    id: "laurel",
+    label: "Laurel",
+    startColor: "#f7d36a",
+    endColor: "#5d1928",
+    rimColor: "rgb(255 222 131 / 42%)"
+  }
+] as const satisfies ReadonlyArray<{
+  id: BuiltInProfileAvatarId;
+  label: string;
+  startColor: string;
+  endColor: string;
+  rimColor: string;
+}>;
 const SCREEN_CONFETTI_COLORS = ["#ffcc00", "#f8fafc", "#f59e0b", "#ef4444", "#22c55e", "#60a5fa"];
 const SCREEN_CONFETTI_PIECES = Array.from({ length: 120 }, (_, index) => ({
   left: `${(((index * 73) % 1000) / 10).toFixed(1)}%`,
@@ -171,6 +259,124 @@ const DAILY_CLAIM_CLOCK_FORMATTER = new Intl.DateTimeFormat("en-US", {
   minute: "2-digit",
   hour12: false
 });
+const PROFILE_PREVIEW_HISTORY_SESSIONS: SessionRow[] = [
+  {
+    id: "preview-session-win",
+    mode_seconds: 30,
+    threshold: 5,
+    starts_at: "2026-04-10T18:00:00.000Z",
+    ends_at: "2026-04-10T18:00:30.000Z",
+    status: "resolved",
+    final_count: 7,
+    resolved_at: "2026-04-10T18:00:40.000Z"
+  },
+  {
+    id: "preview-session-loss",
+    mode_seconds: 60,
+    threshold: 10,
+    starts_at: "2026-04-11T19:15:00.000Z",
+    ends_at: "2026-04-11T19:16:00.000Z",
+    status: "resolved",
+    final_count: 8,
+    resolved_at: "2026-04-11T19:16:12.000Z"
+  },
+  {
+    id: "preview-session-open",
+    mode_seconds: 30,
+    threshold: 6,
+    starts_at: "2026-04-13T23:30:00.000Z",
+    ends_at: "2026-04-13T23:30:30.000Z",
+    status: "scheduled",
+    final_count: null,
+    resolved_at: null
+  }
+];
+const PROFILE_PREVIEW_PROFILE: ProfileRow = {
+  display_name: "TommyTraffic",
+  tier: "Gold",
+  created_at: "2026-03-04T17:15:00.000Z",
+  preferred_mode_seconds: 60,
+  avatar_type: "icon",
+  avatar_value: DEFAULT_PROFILE_AVATAR_ID
+};
+const PROFILE_PREVIEW_STREAKS: StreakRow = {
+  login_streak: 4,
+  prediction_streak: 3,
+  last_login_date: "2026-04-13"
+};
+const PROFILE_PREVIEW_PREDICTIONS: PredictionRow[] = [
+  {
+    id: "preview-prediction-pending",
+    session_id: "preview-session-open",
+    side: "range",
+    wager_tokens: 24,
+    payout_multiplier_bps: 20000,
+    exact_value: null,
+    range_min: 5,
+    range_max: 7,
+    was_correct: null,
+    token_delta: null,
+    resolved_at: null,
+    placed_at: "2026-04-13T23:27:00.000Z"
+  },
+  {
+    id: "preview-prediction-loss",
+    session_id: "preview-session-loss",
+    side: "exact",
+    wager_tokens: 18,
+    payout_multiplier_bps: 60000,
+    exact_value: 10,
+    range_min: null,
+    range_max: null,
+    was_correct: false,
+    token_delta: -18,
+    resolved_at: "2026-04-11T19:16:12.000Z",
+    placed_at: "2026-04-11T19:12:00.000Z"
+  },
+  {
+    id: "preview-prediction-win",
+    session_id: "preview-session-win",
+    side: "over",
+    wager_tokens: 20,
+    payout_multiplier_bps: 20000,
+    exact_value: null,
+    range_min: null,
+    range_max: null,
+    was_correct: true,
+    token_delta: 20,
+    resolved_at: "2026-04-10T18:00:40.000Z",
+    placed_at: "2026-04-10T17:58:00.000Z"
+  }
+];
+const PROFILE_PREVIEW_ACHIEVEMENTS: AchievementRow[] = [
+  {
+    id: "preview-achievement-first",
+    slug: "first-prediction",
+    name: "First Prediction",
+    description: "Place your first over/under prediction.",
+    criteria: { type: "prediction_count", minimum: 1 }
+  },
+  {
+    id: "preview-achievement-streak",
+    slug: "streak-7",
+    name: "Seven Day Streak",
+    description: "Claim daily login rewards for seven consecutive days.",
+    criteria: { type: "login_streak", minimum: 7 }
+  },
+  {
+    id: "preview-achievement-hot-hand",
+    slug: "hot-hand-5",
+    name: "Hot Hand",
+    description: "Win five predictions in a row.",
+    criteria: { type: "prediction_streak", minimum: 5 }
+  }
+];
+const PROFILE_PREVIEW_USER_ACHIEVEMENTS: UserAchievementRow[] = [
+  {
+    achievement_id: "preview-achievement-first",
+    awarded_at: "2026-03-04T17:18:00.000Z"
+  }
+];
 
 function getDailyClaimClockParts(timestampMs: number) {
   const formattedParts = DAILY_CLAIM_CLOCK_FORMATTER.formatToParts(new Date(timestampMs));
@@ -391,6 +597,365 @@ function mergeSessionRows(...groups: SessionRow[][]) {
   return [...mergedSessions.values()].sort(
     (left, right) => new Date(left.starts_at).getTime() - new Date(right.starts_at).getTime()
   );
+}
+
+function getBuiltInProfileAvatar(iconId: string | null | undefined) {
+  return (
+    BUILT_IN_PROFILE_AVATARS.find((avatar) => avatar.id === iconId) ??
+    BUILT_IN_PROFILE_AVATARS.find((avatar) => avatar.id === DEFAULT_PROFILE_AVATAR_ID) ??
+    BUILT_IN_PROFILE_AVATARS[0]
+  );
+}
+
+function normalizePreferredModeSeconds(value: number | null | undefined): PreferredModeSeconds {
+  return value === 60 ? 60 : DEFAULT_PREFERRED_MODE_SECONDS;
+}
+
+function normalizeProfileAvatarType(value: ProfileAvatarType | null | undefined): ProfileAvatarType {
+  return value === "upload" ? "upload" : "icon";
+}
+
+function resolveProfileAvatarValue(
+  avatarType: ProfileAvatarType | null | undefined,
+  avatarValue: string | null | undefined
+) {
+  if (avatarType === "upload" && avatarValue && avatarValue.startsWith("data:image/")) {
+    return avatarValue;
+  }
+
+  return getBuiltInProfileAvatar(avatarValue).id;
+}
+
+function createProfileSettingsFormState(
+  sourceProfile: ProfileRow | null,
+  fallbackEmail: string
+): ProfileSettingsFormState {
+  const trimmedDisplayName = sourceProfile?.display_name?.trim();
+
+  return {
+    displayName:
+      trimmedDisplayName && trimmedDisplayName.length > 0
+        ? trimmedDisplayName
+        : fallbackEmail.split("@")[0] ?? "",
+    preferredModeSeconds: normalizePreferredModeSeconds(sourceProfile?.preferred_mode_seconds),
+    avatarType: normalizeProfileAvatarType(sourceProfile?.avatar_type),
+    avatarValue: resolveProfileAvatarValue(sourceProfile?.avatar_type, sourceProfile?.avatar_value)
+  };
+}
+
+function profileSettingsFormEqual(left: ProfileSettingsFormState, right: ProfileSettingsFormState) {
+  return (
+    left.displayName === right.displayName &&
+    left.preferredModeSeconds === right.preferredModeSeconds &&
+    left.avatarType === right.avatarType &&
+    left.avatarValue === right.avatarValue
+  );
+}
+
+function formatJoinDateLabel(value: string | null | undefined) {
+  if (!value) {
+    return "Recently joined";
+  }
+
+  return new Date(value).toLocaleDateString([], {
+    month: "short",
+    day: "numeric",
+    year: "numeric"
+  });
+}
+
+function getPreferredModeLabel(modeSeconds: number | null | undefined) {
+  return `${normalizePreferredModeSeconds(modeSeconds)}s rounds`;
+}
+
+function isMissingProfileAvatarColumnsError(error: { code?: string; message?: string } | null | undefined) {
+  if (!error) {
+    return false;
+  }
+
+  const normalizedMessage = (error.message ?? "").toLowerCase();
+  return (
+    error.code === "PGRST204" &&
+    (normalizedMessage.includes("avatar_type") || normalizedMessage.includes("avatar_value"))
+  );
+}
+
+async function fetchProfileRowWithAvatarFallback(supabase: SupabaseClient, userId: string) {
+  const profileResponse = await supabase
+    .from("profiles")
+    .select("display_name,tier,created_at,preferred_mode_seconds,avatar_type,avatar_value")
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  if (!isMissingProfileAvatarColumnsError(profileResponse.error)) {
+    return profileResponse;
+  }
+
+  const legacyProfileResponse = await supabase
+    .from("profiles")
+    .select("display_name,tier,created_at,preferred_mode_seconds")
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  if (legacyProfileResponse.error) {
+    return legacyProfileResponse;
+  }
+
+  return {
+    data: legacyProfileResponse.data
+      ? ({
+          ...legacyProfileResponse.data,
+          avatar_type: null,
+          avatar_value: null
+        } satisfies ProfileRow)
+      : null,
+    error: null
+  };
+}
+
+function getParticipationStreak(predictions: Pick<PredictionRow, "placed_at">[]) {
+  const uniqueDateKeys = [...new Set(predictions.map((prediction) => getDailyClaimClockParts(new Date(prediction.placed_at).getTime()).claimDate))];
+
+  if (uniqueDateKeys.length === 0) {
+    return 0;
+  }
+
+  const sortedDays = uniqueDateKeys
+    .map((dateKey) => new Date(`${dateKey}T00:00:00.000Z`).getTime())
+    .filter((timestamp) => Number.isFinite(timestamp))
+    .sort((left, right) => right - left);
+
+  if (sortedDays.length === 0) {
+    return 0;
+  }
+
+  let streak = 1;
+
+  for (let index = 1; index < sortedDays.length; index += 1) {
+    const differenceDays = Math.round((sortedDays[index - 1] - sortedDays[index]) / 86_400_000);
+
+    if (differenceDays !== 1) {
+      break;
+    }
+
+    streak += 1;
+  }
+
+  return streak;
+}
+
+function getAchievementCategory(achievement: AchievementRow): AchievementCategory {
+  const criteriaType = achievement.criteria?.type;
+
+  if (criteriaType === "prediction_streak") {
+    return "skill";
+  }
+
+  if (criteriaType === "login_streak") {
+    return "participation";
+  }
+
+  if (achievement.slug.includes("streak")) {
+    return "participation";
+  }
+
+  return "accomplishment";
+}
+
+function getAchievementCategoryLabel(category: AchievementCategory) {
+  if (category === "skill") {
+    return "Skill";
+  }
+
+  if (category === "participation") {
+    return "Participation";
+  }
+
+  return "Accomplishment";
+}
+
+function getAchievementMetricProgress(
+  achievement: AchievementRow,
+  metrics: {
+    predictionCount: number;
+    loginStreak: number;
+    winStreak: number;
+    participationStreak: number;
+  }
+) {
+  const minimum = Math.max(achievement.criteria?.minimum ?? 1, 1);
+  const criteriaType = achievement.criteria?.type;
+  const current =
+    criteriaType === "login_streak"
+      ? metrics.loginStreak
+      : criteriaType === "prediction_streak"
+        ? metrics.winStreak
+        : criteriaType === "participation_streak"
+          ? metrics.participationStreak
+          : metrics.predictionCount;
+
+  return {
+    current,
+    minimum,
+    ratio: clamp(current / minimum, 0, 1)
+  };
+}
+
+function ProfileAvatar({
+  avatarType,
+  avatarValue,
+  label,
+  className = ""
+}: {
+  avatarType: ProfileAvatarType;
+  avatarValue: string;
+  label: string;
+  className?: string;
+}) {
+  const gradientId = useId().replace(/:/g, "");
+
+  if (avatarType === "upload" && avatarValue.startsWith("data:image/")) {
+    return (
+      <div className={`profile-avatar ${className}`.trim()}>
+        {/* Decorative frame keeps uploaded photos inside the product's gold/maroon identity. */}
+        <NextImage src={avatarValue} alt={label} fill unoptimized sizes="96px" className="profile-avatar-image" />
+      </div>
+    );
+  }
+
+  const builtInAvatar = getBuiltInProfileAvatar(avatarValue);
+
+  return (
+    <div className={`profile-avatar ${className}`.trim()}>
+      <svg viewBox="0 0 100 100" role="img" aria-label={label} className="profile-avatar-svg">
+        <defs>
+          <linearGradient id={`profile-avatar-gradient-${gradientId}`} x1="10%" x2="90%" y1="10%" y2="100%">
+            <stop offset="0%" stopColor={builtInAvatar.startColor} />
+            <stop offset="100%" stopColor={builtInAvatar.endColor} />
+          </linearGradient>
+        </defs>
+        <circle cx="50" cy="50" r="47" fill="rgb(10 12 18 / 92%)" stroke={builtInAvatar.rimColor} strokeWidth="2.4" />
+        <circle cx="50" cy="50" r="39" fill={`url(#profile-avatar-gradient-${gradientId})`} />
+        <circle cx="50" cy="50" r="39" fill="rgb(255 255 255 / 0.06)" />
+        {builtInAvatar.id === "signal" ? (
+          <>
+            <path
+              d="M27 63c7-17 15-26 24-26s17 9 22 26"
+              fill="none"
+              stroke="rgb(255 245 218 / 0.9)"
+              strokeLinecap="round"
+              strokeWidth="6"
+            />
+            <path
+              d="M38 44c4-7 8-10 12-10s8 3 12 10"
+              fill="none"
+              stroke="rgb(255 245 218 / 0.86)"
+              strokeLinecap="round"
+              strokeWidth="5"
+            />
+            <circle cx="50" cy="61" r="5.5" fill="rgb(255 245 218 / 0.95)" />
+          </>
+        ) : builtInAvatar.id === "victory" ? (
+          <>
+            <path
+              d="M34 28h8l8 12 8-12h8l-12 20 12 24h-8L50 58 34 72h-8l12-24-12-20Z"
+              fill="rgb(255 245 218 / 0.93)"
+            />
+          </>
+        ) : builtInAvatar.id === "shield" ? (
+          <>
+            <path
+              d="M50 24 70 31v16c0 13-8.6 23.5-20 29-11.4-5.5-20-16-20-29V31l20-7Z"
+              fill="rgb(255 245 218 / 0.92)"
+            />
+            <path d="M50 32v34" stroke="rgb(123 18 30 / 0.85)" strokeLinecap="round" strokeWidth="5" />
+            <path d="M37 49h26" stroke="rgb(123 18 30 / 0.85)" strokeLinecap="round" strokeWidth="5" />
+          </>
+        ) : builtInAvatar.id === "spark" ? (
+          <>
+            <path
+              d="m50 22 7.4 17.8L76 47l-18.6 7.2L50 72l-7.4-17.8L24 47l18.6-7.2Z"
+              fill="rgb(255 245 218 / 0.95)"
+            />
+            <circle cx="50" cy="47" r="7.4" fill="rgb(123 18 30 / 0.7)" />
+          </>
+        ) : (
+          <>
+            <path
+              d="M30 60c7 10 13 15 20 15s13-5 20-15"
+              fill="none"
+              stroke="rgb(255 245 218 / 0.95)"
+              strokeLinecap="round"
+              strokeWidth="5.8"
+            />
+            <path
+              d="M35 61c-6-5-10-12-11-20M65 61c6-5 10-12 11-20"
+              fill="none"
+              stroke="rgb(255 245 218 / 0.82)"
+              strokeLinecap="round"
+              strokeWidth="4.2"
+            />
+            <circle cx="50" cy="38" r="8.2" fill="rgb(255 245 218 / 0.94)" />
+          </>
+        )}
+      </svg>
+    </div>
+  );
+}
+
+async function convertUploadedAvatarToDataUrl(file: File) {
+  if (!file.type.startsWith("image/")) {
+    throw new Error("Choose an image file for your profile photo.");
+  }
+
+  if (file.size > MAX_PROFILE_AVATAR_FILE_SIZE_BYTES) {
+    throw new Error("Choose an image smaller than 8 MB.");
+  }
+
+  const fileDataUrl = await new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result === "string") {
+        resolve(reader.result);
+        return;
+      }
+
+      reject(new Error("Could not read that image."));
+    };
+    reader.onerror = () => reject(new Error("Could not read that image."));
+    reader.readAsDataURL(file);
+  });
+
+  const image = await new Promise<HTMLImageElement>((resolve, reject) => {
+    const nextImage = new Image();
+    nextImage.onload = () => resolve(nextImage);
+    nextImage.onerror = () => reject(new Error("Could not process that image."));
+    nextImage.src = fileDataUrl;
+  });
+
+  const cropSize = Math.min(image.naturalWidth, image.naturalHeight);
+  const sourceX = Math.max((image.naturalWidth - cropSize) / 2, 0);
+  const sourceY = Math.max((image.naturalHeight - cropSize) / 2, 0);
+  const canvas = document.createElement("canvas");
+  canvas.width = 256;
+  canvas.height = 256;
+  const context = canvas.getContext("2d");
+
+  if (!context) {
+    throw new Error("Could not process that image.");
+  }
+
+  context.fillStyle = "#150d11";
+  context.fillRect(0, 0, canvas.width, canvas.height);
+  context.drawImage(image, sourceX, sourceY, cropSize, cropSize, 0, 0, canvas.width, canvas.height);
+
+  const outputDataUrl = canvas.toDataURL("image/jpeg", 0.86);
+
+  if (outputDataUrl.length > MAX_PROFILE_AVATAR_DATA_URL_LENGTH) {
+    throw new Error("That image is too detailed. Try a smaller photo.");
+  }
+
+  return outputDataUrl;
 }
 
 function getResolvedMarketResultLabel(session: SessionRow | null) {
@@ -970,6 +1535,20 @@ function SpotlightCardGrid({ cards }: { cards: SpotlightCardRecord[] }) {
   );
 }
 
+function AccountProfileStatGrid({ stats }: { stats: AccountProfileStat[] }) {
+  return (
+    <div className="account-stat-grid">
+      {stats.map((stat) => (
+        <article className={`account-stat-card account-stat-card-${stat.tone ?? "slate"}`} key={stat.label}>
+          <span>{stat.label}</span>
+          <strong>{stat.value}</strong>
+          <p>{stat.note}</p>
+        </article>
+      ))}
+    </div>
+  );
+}
+
 type PredictionHistoryFilterBarProps = {
   filter: PredictionHistoryFilter;
   onChange: (nextFilter: PredictionHistoryFilter) => void;
@@ -1054,7 +1633,6 @@ function LeaderboardSpotlightCard({
     </button>
   );
 }
-
 function isPredictionCancelable(prediction: PredictionRow, session: SessionRow | null, nowMs: number) {
   if (!session || prediction.resolved_at !== null) {
     return false;
@@ -1075,10 +1653,13 @@ export function MvpDashboard({
   const [leaderboard, setLeaderboard] = useState<LeaderboardRow[]>([]);
   const [profile, setProfile] = useState<ProfileRow | null>(null);
   const [streaks, setStreaks] = useState<StreakRow | null>(null);
+  const [achievements, setAchievements] = useState<AchievementRow[]>([]);
+  const [userAchievements, setUserAchievements] = useState<UserAchievementRow[]>([]);
   const [tokenBalance, setTokenBalance] = useState(0);
   const [isAdmin, setIsAdmin] = useState(false);
   const [loading, setLoading] = useState(true);
   const [isClaimingDailyLogin, setIsClaimingDailyLogin] = useState(false);
+  const [isSavingProfileSettings, setIsSavingProfileSettings] = useState(false);
   const [nowMs, setNowMs] = useState(() => Date.now());
   const [toasts, setToasts] = useState<ToastRecord[]>([]);
   const [isRefreshing, startTransition] = useTransition();
@@ -1127,13 +1708,37 @@ export function MvpDashboard({
   const nextToastIdRef = useRef(0);
   const toastsRef = useRef<ToastRecord[]>([]);
   const toastTimeoutsRef = useRef(new Map<number, ReturnType<typeof setTimeout>>());
+  const avatarUploadInputRef = useRef<HTMLInputElement | null>(null);
   const liveTrainStopXRef = useRef<number | null>(null);
   const liveTrainStopSessionIdRef = useRef<string | null>(null);
   const publicProfileLoadIdRef = useRef(0);
+  const [profileSettings, setProfileSettings] = useState<ProfileSettingsFormState>(() =>
+    createProfileSettingsFormState(null, PROFILE_PREVIEW_EMAIL)
+  );
+  const [profileSettingsBaseline, setProfileSettingsBaseline] = useState<ProfileSettingsFormState>(() =>
+    createProfileSettingsFormState(null, PROFILE_PREVIEW_EMAIL)
+  );
+  const profileSettingsDirtyRef = useRef(false);
 
   const sessionLookup = new Map(sessions.map((session) => [session.id, session]));
-  const visibleAccountPredictions = predictions.filter((prediction) => {
-    const session = sessionLookup.get(prediction.session_id) ?? null;
+  const isProfilePreviewMode = !supabase && process.env.NODE_ENV !== "production";
+  const accountProfile = isProfilePreviewMode ? PROFILE_PREVIEW_PROFILE : profile;
+  const accountStreaks = isProfilePreviewMode ? PROFILE_PREVIEW_STREAKS : streaks;
+  const accountAchievements = isProfilePreviewMode ? PROFILE_PREVIEW_ACHIEVEMENTS : achievements;
+  const accountUserAchievements = isProfilePreviewMode
+    ? PROFILE_PREVIEW_USER_ACHIEVEMENTS
+    : userAchievements;
+  const accountPredictions = isProfilePreviewMode ? PROFILE_PREVIEW_PREDICTIONS : predictions;
+  const accountTokenBalance = isProfilePreviewMode ? PROFILE_PREVIEW_TOKEN_BALANCE : tokenBalance;
+  const accountEmail = user?.email ?? (isProfilePreviewMode ? PROFILE_PREVIEW_EMAIL : "");
+  const accountSessionLookup = new Map(
+    mergeSessionRows(sessions, isProfilePreviewMode ? PROFILE_PREVIEW_HISTORY_SESSIONS : []).map((session) => [
+      session.id,
+      session
+    ])
+  );
+  const visibleAccountPredictions = accountPredictions.filter((prediction) => {
+    const session = accountSessionLookup.get(prediction.session_id) ?? null;
     return !shouldHidePredictionFromProfile(
       prediction,
       session ? getSessionState(session, nowMs) === "cancelled" : false
@@ -1157,6 +1762,7 @@ export function MvpDashboard({
   const openRiskTokens = visibleAccountPredictions
     .filter((prediction) => prediction.resolved_at === null)
     .reduce((total, prediction) => total + prediction.wager_tokens, 0);
+  const participationStreak = getParticipationStreak(visibleAccountPredictions);
   const hitRateLabel =
     settledPredictions.length > 0
       ? `${Math.round((wonPredictionCount / settledPredictions.length) * 100)}%`
@@ -1180,7 +1786,7 @@ export function MvpDashboard({
   const accountOverviewStats: AccountOverviewStat[] = [
     {
       label: "Balance",
-      value: `${tokenBalance}`,
+      value: `${accountTokenBalance}`,
       note: "Ready for the next round"
     },
     {
@@ -1207,6 +1813,63 @@ export function MvpDashboard({
       note: latestResolvedResultLabel
     }
   ];
+  const accountProfileStats: AccountProfileStat[] = [
+    {
+      label: "Daily login streak",
+      value: `${accountStreaks?.login_streak ?? 0}`,
+      note:
+        accountStreaks?.last_login_date === getDailyClaimClockParts(nowMs).claimDate
+          ? "Claimed today"
+          : "Claim today to extend it",
+      tone: "gold"
+    },
+    {
+      label: "Win streak",
+      value: `${accountStreaks?.prediction_streak ?? 0}`,
+      note: "Consecutive settled wins",
+      tone: "cardinal"
+    },
+    {
+      label: "Participation streak",
+      value: `${participationStreak}`,
+      note: "Consecutive active betting days",
+      tone: "slate"
+    }
+  ];
+  const earnedAchievementIds = new Map(
+    accountUserAchievements.map((achievement) => [achievement.achievement_id, achievement.awarded_at])
+  );
+  const achievementCards = accountAchievements.map((achievement) => {
+    const progress = getAchievementMetricProgress(achievement, {
+      predictionCount: visibleAccountPredictions.length,
+      loginStreak: accountStreaks?.login_streak ?? 0,
+      winStreak: accountStreaks?.prediction_streak ?? 0,
+      participationStreak
+    });
+    const awardedAt = earnedAchievementIds.get(achievement.id) ?? null;
+
+    return {
+      ...achievement,
+      category: getAchievementCategory(achievement),
+      current: progress.current,
+      minimum: progress.minimum,
+      ratio: progress.ratio,
+      isEarned: Boolean(awardedAt),
+      awardedAt
+    };
+  });
+  const achievementCardsByCategory = {
+    skill: achievementCards.filter((achievement) => achievement.category === "skill"),
+    accomplishment: achievementCards.filter((achievement) => achievement.category === "accomplishment"),
+    participation: achievementCards.filter((achievement) => achievement.category === "participation")
+  } satisfies Record<AchievementCategory, typeof achievementCards>;
+  const totalEarnedAchievements = achievementCards.filter((achievement) => achievement.isEarned).length;
+  const profileJoinDateLabel = formatJoinDateLabel(accountProfile?.created_at);
+  const accountDisplayName = accountProfile?.display_name ?? accountEmail;
+  const profileSettingsDirty = !profileSettingsFormEqual(profileSettings, profileSettingsBaseline);
+  const canPersistProfileSettings = Boolean(user && supabase);
+  const activeProfileAvatarType = profileSettings.avatarType;
+  const activeProfileAvatarValue = profileSettings.avatarValue;
   const focusedSession = sessions.find((session) => getSessionState(session, nowMs) === "open");
   const upcomingSession = sessions.find((session) => getSessionState(session, nowMs) === "upcoming");
   const inFlightSession =
@@ -1295,19 +1958,23 @@ export function MvpDashboard({
   );
   const canConfigureSelected = Boolean(selectedSession && selectedState === "open");
   const showBettingControls = Boolean(selectedSession && selectedState === "open");
-  const dailyClaimState = getDailyClaimState(streaks?.last_login_date ?? null, nowMs);
+  const dailyClaimState = getDailyClaimState(accountStreaks?.last_login_date ?? null, nowMs);
   const isDailyClaimDisabled =
-    loading || isRefreshing || isClaimingDailyLogin || !dailyClaimState.canClaim;
-  const dailyClaimButtonLabel = isClaimingDailyLogin
-    ? "Claiming..."
-    : dailyClaimState.hasClaimedToday
-      ? "Claimed Today"
-      : "Claim Daily Tokens";
-  const dailyClaimHelperText = isClaimingDailyLogin
-    ? "Submitting your daily reward claim."
-    : loading || isRefreshing
-      ? "Refreshing account status..."
-      : dailyClaimState.detail;
+    isProfilePreviewMode || loading || isRefreshing || isClaimingDailyLogin || !dailyClaimState.canClaim;
+  const dailyClaimButtonLabel = isProfilePreviewMode
+    ? "Preview Only"
+    : isClaimingDailyLogin
+      ? "Claiming..."
+      : dailyClaimState.hasClaimedToday
+        ? "Claimed Today"
+        : "Claim Daily Tokens";
+  const dailyClaimHelperText = isProfilePreviewMode
+    ? "Connect Supabase to claim live streak rewards."
+    : isClaimingDailyLogin
+      ? "Submitting your daily reward claim."
+      : loading || isRefreshing
+        ? "Refreshing account status..."
+        : dailyClaimState.detail;
   const accountSpotlightCards: SpotlightCardRecord[] = [
     {
       label: "Today",
@@ -1339,10 +2006,10 @@ export function MvpDashboard({
             : "rose"
     },
     getAccountPulseCard({
-      predictionStreak: streaks?.prediction_streak ?? 0,
+      predictionStreak: accountStreaks?.prediction_streak ?? 0,
       pendingPredictionCount,
       latestResolvedPrediction,
-      tokenBalance
+      tokenBalance: accountTokenBalance
     })
   ];
   const showLiveRoundCard = Boolean(selectedSession && selectedState === "live");
@@ -2051,6 +2718,8 @@ export function MvpDashboard({
       setLeaderboard([]);
       setProfile(null);
       setStreaks(null);
+      setAchievements([]);
+      setUserAchievements([]);
       setTokenBalance(0);
       setIsAdmin(false);
       return;
@@ -2084,6 +2753,8 @@ export function MvpDashboard({
       setPredictions([]);
       setProfile(null);
       setStreaks(null);
+      setAchievements([]);
+      setUserAchievements([]);
       setTokenBalance(0);
       setIsAdmin(false);
       return;
@@ -2091,51 +2762,72 @@ export function MvpDashboard({
 
     await supabase.rpc("ensure_user_profile");
 
-    const profileResponse = await supabase
-      .from("profiles")
-      .select("display_name,tier")
-      .eq("user_id", activeUser.id)
-      .maybeSingle();
+    const [
+      profileResponse,
+      streakResponse,
+      balanceResponse,
+      predictionResponse,
+      adminResponse,
+      achievementResponse,
+      userAchievementResponse
+    ] = await Promise.all([
+      fetchProfileRowWithAvatarFallback(supabase, activeUser.id),
+      supabase
+        .from("user_streaks")
+        .select("login_streak,prediction_streak,last_login_date")
+        .eq("user_id", activeUser.id)
+        .maybeSingle(),
+      supabase
+        .from("user_token_balances")
+        .select("token_balance")
+        .eq("user_id", activeUser.id)
+        .maybeSingle(),
+      supabase
+        .from("predictions")
+        .select(
+          "id,session_id,side,wager_tokens,payout_multiplier_bps,exact_value,range_min,range_max,was_correct,token_delta,resolved_at,placed_at"
+        )
+        .eq("user_id", activeUser.id)
+        .order("placed_at", { ascending: false }),
+      supabase
+        .from("admin_users")
+        .select("user_id")
+        .eq("user_id", activeUser.id)
+        .maybeSingle(),
+      supabase.from("achievements").select("id,slug,name,description,criteria").order("created_at"),
+      supabase
+        .from("user_achievements")
+        .select("achievement_id,awarded_at")
+        .eq("user_id", activeUser.id)
+        .order("awarded_at", { ascending: true })
+    ]);
+
     if (profileResponse.error) {
       throw new Error(profileResponse.error.message);
     }
 
-    const streakResponse = await supabase
-      .from("user_streaks")
-      .select("login_streak,prediction_streak,last_login_date")
-      .eq("user_id", activeUser.id)
-      .maybeSingle();
     if (streakResponse.error) {
       throw new Error(streakResponse.error.message);
     }
 
-    const balanceResponse = await supabase
-      .from("user_token_balances")
-      .select("token_balance")
-      .eq("user_id", activeUser.id)
-      .maybeSingle();
     if (balanceResponse.error) {
       throw new Error(balanceResponse.error.message);
     }
 
-    const predictionResponse = await supabase
-      .from("predictions")
-      .select(
-        "id,session_id,side,wager_tokens,payout_multiplier_bps,exact_value,range_min,range_max,was_correct,token_delta,resolved_at,placed_at"
-      )
-      .eq("user_id", activeUser.id)
-      .order("placed_at", { ascending: false });
     if (predictionResponse.error) {
       throw new Error(predictionResponse.error.message);
     }
 
-    const adminResponse = await supabase
-      .from("admin_users")
-      .select("user_id")
-      .eq("user_id", activeUser.id)
-      .maybeSingle();
     if (adminResponse.error) {
       throw new Error(adminResponse.error.message);
+    }
+
+    if (achievementResponse.error) {
+      throw new Error(achievementResponse.error.message);
+    }
+
+    if (userAchievementResponse.error) {
+      throw new Error(userAchievementResponse.error.message);
     }
 
     const predictionRows = (predictionResponse.data as PredictionRow[]) ?? [];
@@ -2165,6 +2857,8 @@ export function MvpDashboard({
     setLeaderboard(leaderboardRows);
     setProfile((profileResponse.data as ProfileRow | null) ?? null);
     setStreaks((streakResponse.data as StreakRow | null) ?? null);
+    setAchievements((achievementResponse.data as AchievementRow[] | null) ?? []);
+    setUserAchievements((userAchievementResponse.data as UserAchievementRow[] | null) ?? []);
     setTokenBalance((balanceResponse.data as BalanceRow | null)?.token_balance ?? 0);
     setPredictions(predictionRows);
     setIsAdmin(Boolean((adminResponse.data as AdminRow | null)?.user_id));
@@ -2269,6 +2963,27 @@ export function MvpDashboard({
       activeToastTimeouts.clear();
     };
   }, []);
+
+  useEffect(() => {
+    profileSettingsDirtyRef.current = profileSettingsDirty;
+  }, [profileSettingsDirty]);
+
+  useEffect(() => {
+    const sourceProfile = isProfilePreviewMode ? PROFILE_PREVIEW_PROFILE : profile;
+    const nextForm = createProfileSettingsFormState(sourceProfile, accountEmail || PROFILE_PREVIEW_EMAIL);
+
+    if (!user && !isProfilePreviewMode) {
+      setProfileSettings(nextForm);
+      setProfileSettingsBaseline(nextForm);
+      return;
+    }
+
+    setProfileSettingsBaseline(nextForm);
+
+    if (!profileSettingsDirtyRef.current) {
+      setProfileSettings(nextForm);
+    }
+  }, [accountEmail, isProfilePreviewMode, profile, user]);
 
   useEffect(() => {
     if (!supabase) {
@@ -2594,6 +3309,92 @@ export function MvpDashboard({
       });
     } finally {
       setIsClaimingDailyLogin(false);
+    }
+  }
+
+  function handleResetProfileSettings() {
+    setProfileSettings(profileSettingsBaseline);
+  }
+
+  async function handleSaveProfileSettings() {
+    if (!supabase || !user || isSavingProfileSettings) {
+      return;
+    }
+
+    const trimmedDisplayName = profileSettings.displayName.trim();
+
+    if (trimmedDisplayName.length < 2 || trimmedDisplayName.length > 64) {
+      setError("Display name must be between 2 and 64 characters.");
+      return;
+    }
+
+    if (profileSettings.avatarType === "upload" && !profileSettings.avatarValue.startsWith("data:image/")) {
+      setError("Upload a photo or choose one of the built-in icons.");
+      return;
+    }
+
+    setIsSavingProfileSettings(true);
+    setError(null);
+
+    try {
+      const nextProfilePayload = {
+        display_name: trimmedDisplayName,
+        preferred_mode_seconds: profileSettings.preferredModeSeconds,
+        avatar_type: profileSettings.avatarType,
+        avatar_value: profileSettings.avatarValue
+      };
+
+      const updateResponse = await supabase
+        .from("profiles")
+        .update(nextProfilePayload)
+        .eq("user_id", user.id);
+
+      if (updateResponse.error) {
+        setError(updateResponse.error.message);
+        return;
+      }
+
+      setProfile((current) => ({
+        display_name: trimmedDisplayName,
+        tier: current?.tier ?? "Bronze",
+        created_at: current?.created_at ?? new Date().toISOString(),
+        preferred_mode_seconds: profileSettings.preferredModeSeconds,
+        avatar_type: profileSettings.avatarType,
+        avatar_value: profileSettings.avatarValue
+      }));
+      setProfileSettingsBaseline(profileSettings);
+      setNotice("Profile updated.");
+
+      startTransition(() => {
+        void load(user);
+      });
+    } finally {
+      setIsSavingProfileSettings(false);
+    }
+  }
+
+  function handleOpenAvatarUploadPicker() {
+    avatarUploadInputRef.current?.click();
+  }
+
+  async function handleProfileAvatarUpload(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+
+    if (!file) {
+      return;
+    }
+
+    try {
+      const normalizedAvatarDataUrl = await convertUploadedAvatarToDataUrl(file);
+      setProfileSettings((current) => ({
+        ...current,
+        avatarType: "upload",
+        avatarValue: normalizedAvatarDataUrl
+      }));
+      setNotice("Photo ready to save.");
+    } catch (uploadError) {
+      setError(uploadError instanceof Error ? uploadError.message : "Could not prepare that photo.");
     }
   }
 
@@ -4877,43 +5678,47 @@ export function MvpDashboard({
 
             <div className="center-modal-body">
             {openRightPanel === "account" ? (
-              user ? (
+              user || isProfilePreviewMode ? (
                 <div className="account-panel">
                   <section className="account-hero">
                     <div className="account-hero-head">
-                      <div className="account-hero-copy">
-                        <p className="account-kicker">Player account</p>
-                        <p className="account-name">{profile?.display_name ?? user.email}</p>
-                        <p className="account-subtitle">{user.email}</p>
-                        <div className="account-badge-row">
-                          <span className="account-badge">
-                            {currentUserLeaderboardEntry
-                              ? `Rank ${formatRankLabel(currentUserLeaderboardEntry.rank)}`
-                              : "Top 10 chase"}
-                          </span>
-                          <span className="account-badge">{profile?.tier ?? "Bronze"} Tier</span>
-                          <span className="account-badge">
-                            Prediction streak {streaks?.prediction_streak ?? 0}
-                          </span>
-                          <span className="account-badge">Login streak {streaks?.login_streak ?? 0}</span>
-                          <span
-                            className={
-                              latestResolvedPrediction?.was_correct === true
-                                ? "account-badge account-badge-win"
-                                : latestResolvedPrediction?.was_correct === false
-                                  ? "account-badge account-badge-loss"
-                                  : "account-badge"
-                            }
-                          >
-                            Last result{" "}
-                            {latestResolvedPrediction?.resolved_at
-                              ? latestResolvedPrediction.was_correct === true
-                                ? "won"
-                                : latestResolvedPrediction.was_correct === false
-                                  ? "lost"
-                                  : "cancelled"
-                              : "pending"}
-                          </span>
+                      <div className="account-hero-identity">
+                        <ProfileAvatar
+                          avatarType={activeProfileAvatarType}
+                          avatarValue={activeProfileAvatarValue}
+                          label={`${accountDisplayName} profile picture`}
+                          className="profile-avatar-large"
+                        />
+                        <div className="account-hero-copy">
+                          <p className="account-kicker">Player account</p>
+                          <p className="account-name">{accountDisplayName}</p>
+                          <p className="account-subtitle">{accountEmail}</p>
+                          <div className="account-badge-row">
+                            <span className="account-badge">{accountProfile?.tier ?? "Bronze"} Tier</span>
+                            <span className="account-badge">Joined {profileJoinDateLabel}</span>
+                            <span className="account-badge">
+                              Preferred {getPreferredModeLabel(accountProfile?.preferred_mode_seconds)}
+                            </span>
+                            <span className="account-badge">{totalEarnedAchievements} badges earned</span>
+                            <span
+                              className={
+                                latestResolvedPrediction?.was_correct === true
+                                  ? "account-badge account-badge-win"
+                                  : latestResolvedPrediction?.was_correct === false
+                                    ? "account-badge account-badge-loss"
+                                    : "account-badge"
+                              }
+                            >
+                              Last result{" "}
+                              {latestResolvedPrediction?.resolved_at
+                                ? latestResolvedPrediction.was_correct === true
+                                  ? "won"
+                                  : latestResolvedPrediction.was_correct === false
+                                    ? "lost"
+                                    : "cancelled"
+                                : "pending"}
+                            </span>
+                          </div>
                         </div>
                       </div>
 
@@ -4934,9 +5739,11 @@ export function MvpDashboard({
                             </span>
                           ) : null}
                         </div>
-                        <button type="button" className="secondary-button" onClick={handleSignOut}>
-                          Sign Out
-                        </button>
+                        {user ? (
+                          <button type="button" className="secondary-button" onClick={handleSignOut}>
+                            Sign Out
+                          </button>
+                        ) : null}
                       </div>
                     </div>
 
@@ -4947,8 +5754,253 @@ export function MvpDashboard({
                   <section className="account-history-section">
                     <div className="account-history-header">
                       <div>
+                        <p className="account-section-kicker">Profile momentum</p>
+                        <h3 className="account-section-title">Current streaks</h3>
+                        <p className="account-section-copy">
+                          Login, win, and participation streaks refresh from the same profile data that powers your account.
+                        </p>
+                      </div>
+                    </div>
+                    <AccountProfileStatGrid stats={accountProfileStats} />
+                  </section>
+
+                  <section className="account-history-section">
+                    <div className="account-history-header">
+                      <div>
+                        <p className="account-section-kicker">Achievements</p>
+                        <h3 className="account-section-title">Badges & progress</h3>
+                        <p className="account-section-copy">
+                          Skill, accomplishment, and participation badges track automatically as your profile grows.
+                        </p>
+                      </div>
+                      <span className="account-history-count">
+                        {achievementCards.length > 0
+                          ? `${totalEarnedAchievements}/${achievementCards.length} earned`
+                          : "No badges yet"}
+                      </span>
+                    </div>
+                    {achievementCards.length > 0 ? (
+                      <div className="achievement-category-grid">
+                        {(["skill", "accomplishment", "participation"] as const).map((category) => (
+                          <article className="achievement-category-card" key={category}>
+                            <div className="achievement-category-header">
+                              <div>
+                                <p className="account-section-kicker">{getAchievementCategoryLabel(category)}</p>
+                                <h4 className="achievement-category-title">
+                                  {achievementCardsByCategory[category].filter((achievement) => achievement.isEarned).length} earned
+                                </h4>
+                              </div>
+                              <span className="account-history-count">
+                                {achievementCardsByCategory[category].length}
+                              </span>
+                            </div>
+                            <div className="achievement-card-list">
+                              {achievementCardsByCategory[category].map((achievement) => (
+                                <article
+                                  className={
+                                    achievement.isEarned
+                                      ? "achievement-progress-card achievement-progress-card-earned"
+                                      : "achievement-progress-card"
+                                  }
+                                  key={achievement.id}
+                                >
+                                  <div className="achievement-progress-head">
+                                    <div>
+                                      <strong>{achievement.name}</strong>
+                                      <p>{achievement.description}</p>
+                                    </div>
+                                    <span
+                                      className={
+                                        achievement.isEarned
+                                          ? "account-badge account-badge-win"
+                                          : "account-badge"
+                                      }
+                                    >
+                                      {achievement.isEarned ? "Earned" : `${achievement.current}/${achievement.minimum}`}
+                                    </span>
+                                  </div>
+                                  <div className="achievement-progress-track" aria-hidden="true">
+                                    <span style={{ width: `${Math.max(achievement.ratio * 100, achievement.isEarned ? 100 : 0)}%` }} />
+                                  </div>
+                                  <div className="achievement-progress-foot">
+                                    <span>
+                                      {achievement.isEarned && achievement.awardedAt
+                                        ? `Awarded ${formatShortDateTime(achievement.awardedAt)}`
+                                        : `Need ${achievement.minimum - achievement.current > 0 ? achievement.minimum - achievement.current : 0} more`}
+                                    </span>
+                                  </div>
+                                </article>
+                              ))}
+                            </div>
+                          </article>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="account-empty-state">
+                        <p className="account-section-kicker">No badges yet</p>
+                        <h3 className="account-section-title">Achievements will appear here</h3>
+                        <p className="account-section-copy">
+                          Place a few rounds and claim daily rewards to start unlocking badge progress.
+                        </p>
+                      </div>
+                    )}
+                  </section>
+
+                  <section className="account-history-section">
+                    <div className="account-history-header">
+                      <div>
+                        <p className="account-section-kicker">Profile settings</p>
+                        <h3 className="account-section-title">Identity & preferences</h3>
+                        <p className="account-section-copy">
+                          Update your display name, pick a default round mode, and choose a built-in icon or your own profile photo.
+                        </p>
+                      </div>
+                    </div>
+                    <div className="profile-settings-layout">
+                      <div className="profile-settings-form">
+                        <label className="profile-settings-field">
+                          <span>Display name</span>
+                          <input
+                            type="text"
+                            value={profileSettings.displayName}
+                            onChange={(event) =>
+                              setProfileSettings((current) => ({
+                                ...current,
+                                displayName: event.target.value
+                              }))
+                            }
+                            placeholder="Choose a display name"
+                            maxLength={64}
+                          />
+                        </label>
+
+                        <div className="profile-settings-field">
+                          <span>Preferred game mode</span>
+                          <div className="profile-mode-toggle" role="group" aria-label="Preferred game mode">
+                            {[30, 60].map((modeSeconds) => (
+                              <button
+                                key={modeSeconds}
+                                type="button"
+                                className={
+                                  profileSettings.preferredModeSeconds === modeSeconds
+                                    ? "profile-mode-toggle-button active"
+                                    : "profile-mode-toggle-button"
+                                }
+                                onClick={() =>
+                                  setProfileSettings((current) => ({
+                                    ...current,
+                                    preferredModeSeconds: modeSeconds as PreferredModeSeconds
+                                  }))
+                                }
+                              >
+                                <strong>{modeSeconds}s</strong>
+                                <span>{modeSeconds === 30 ? "Fast rounds" : "Extended rounds"}</span>
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+
+                        <div className="profile-settings-actions">
+                          <button
+                            type="button"
+                            className="primary-button"
+                            onClick={() => void handleSaveProfileSettings()}
+                            disabled={!canPersistProfileSettings || !profileSettingsDirty || isSavingProfileSettings}
+                          >
+                            {isSavingProfileSettings ? "Saving..." : "Save profile"}
+                          </button>
+                          <button
+                            type="button"
+                            className="secondary-button"
+                            onClick={handleResetProfileSettings}
+                            disabled={!profileSettingsDirty}
+                          >
+                            Reset
+                          </button>
+                        </div>
+
+                        {!canPersistProfileSettings ? (
+                          <p className="profile-settings-hint">
+                            Local preview mode is showing the profile UI. Connect Supabase to save live changes.
+                          </p>
+                        ) : null}
+                      </div>
+
+                      <div className="profile-avatar-picker-panel">
+                        <div className="profile-avatar-picker-preview">
+                          <ProfileAvatar
+                            avatarType={activeProfileAvatarType}
+                            avatarValue={activeProfileAvatarValue}
+                            label={`${accountDisplayName} selected profile picture`}
+                            className="profile-avatar-feature"
+                          />
+                          <div className="profile-avatar-picker-copy">
+                            <p className="account-section-kicker">Profile picture</p>
+                            <h4 className="achievement-category-title">
+                              {profileSettings.avatarType === "upload"
+                                ? "Uploaded photo"
+                                : `${getBuiltInProfileAvatar(profileSettings.avatarValue).label} icon`}
+                            </h4>
+                            <p className="account-section-copy">
+                              Built-in icons keep the same gold-cardinal tone as the rest of the account panel.
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="profile-avatar-option-grid">
+                          {BUILT_IN_PROFILE_AVATARS.map((avatar) => (
+                            <button
+                              key={avatar.id}
+                              type="button"
+                              className={
+                                profileSettings.avatarType === "icon" && profileSettings.avatarValue === avatar.id
+                                  ? "profile-avatar-option active"
+                                  : "profile-avatar-option"
+                              }
+                              onClick={() =>
+                                setProfileSettings((current) => ({
+                                  ...current,
+                                  avatarType: "icon",
+                                  avatarValue: avatar.id
+                                }))
+                              }
+                            >
+                              <ProfileAvatar
+                                avatarType="icon"
+                                avatarValue={avatar.id}
+                                label={`${avatar.label} icon`}
+                                className="profile-avatar-option-icon"
+                              />
+                              <span>{avatar.label}</span>
+                            </button>
+                          ))}
+                          <button
+                            type="button"
+                            className={profileSettings.avatarType === "upload" ? "profile-avatar-option active" : "profile-avatar-option"}
+                            onClick={handleOpenAvatarUploadPicker}
+                          >
+                            <span className="profile-avatar-upload-glyph" aria-hidden="true">
+                              ↑
+                            </span>
+                            <span>{profileSettings.avatarType === "upload" ? "Replace photo" : "Upload photo"}</span>
+                          </button>
+                        </div>
+                        <input
+                          ref={avatarUploadInputRef}
+                          type="file"
+                          accept="image/*"
+                          className="profile-avatar-input"
+                          onChange={(event) => void handleProfileAvatarUpload(event)}
+                        />
+                      </div>
+                    </div>
+                  </section>
+
+                  <section className="account-history-section">
+                    <div className="account-history-header">
+                      <div>
                         <p className="account-section-kicker">Betting history</p>
-                        <h3 className="account-section-title">Recent bets</h3>
+                        <h3 className="account-section-title">All past bids</h3>
                         <p className="account-section-copy">
                           Flip between live slips and settled heat without losing the full tape.
                         </p>
@@ -4966,7 +6018,7 @@ export function MvpDashboard({
                     />
                     <PredictionHistoryList
                       predictions={filteredAccountPredictions}
-                      sessionLookup={sessionLookup}
+                      sessionLookup={accountSessionLookup}
                       nowMs={nowMs}
                       emptyKicker="No bets yet"
                       emptyTitle="Your history will land here"
