@@ -713,6 +713,39 @@ async function fetchProfileRowWithAvatarFallback(supabase: SupabaseClient, userI
   };
 }
 
+async function updateProfileWithAvatarFallback(
+  supabase: SupabaseClient,
+  userId: string,
+  payload: {
+    display_name: string;
+    preferred_mode_seconds: PreferredModeSeconds;
+    avatar_type: ProfileAvatarType;
+    avatar_value: string;
+  }
+) {
+  const updateResponse = await supabase.from("profiles").update(payload).eq("user_id", userId);
+
+  if (!isMissingProfileAvatarColumnsError(updateResponse.error)) {
+    return {
+      error: updateResponse.error,
+      avatarPersisted: true
+    };
+  }
+
+  const legacyUpdateResponse = await supabase
+    .from("profiles")
+    .update({
+      display_name: payload.display_name,
+      preferred_mode_seconds: payload.preferred_mode_seconds
+    })
+    .eq("user_id", userId);
+
+  return {
+    error: legacyUpdateResponse.error,
+    avatarPersisted: false
+  };
+}
+
 function getParticipationStreak(predictions: Pick<PredictionRow, "placed_at">[]) {
   const uniqueDateKeys = [...new Set(predictions.map((prediction) => getDailyClaimClockParts(new Date(prediction.placed_at).getTime()).claimDate))];
 
@@ -3344,10 +3377,7 @@ export function MvpDashboard({
         avatar_value: profileSettings.avatarValue
       };
 
-      const updateResponse = await supabase
-        .from("profiles")
-        .update(nextProfilePayload)
-        .eq("user_id", user.id);
+      const updateResponse = await updateProfileWithAvatarFallback(supabase, user.id, nextProfilePayload);
 
       if (updateResponse.error) {
         setError(updateResponse.error.message);
@@ -3363,7 +3393,7 @@ export function MvpDashboard({
         avatar_value: profileSettings.avatarValue
       }));
       setProfileSettingsBaseline(profileSettings);
-      setNotice("Profile updated.");
+      setNotice(updateResponse.avatarPersisted ? "Profile updated." : "Profile updated. Avatar changes require latest DB migration.");
 
       startTransition(() => {
         void load(user);

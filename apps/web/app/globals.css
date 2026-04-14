@@ -3773,7 +3773,7 @@ body {
   position: relative;
   width: 4.6rem;
   aspect-ratio: 1;
-  border-radius: 22px;
+  border-radius: 999px;
   overflow: hidden;
   background:
     radial-gradient(circle at top, rgb(255 220 115 / 22%), transparent 52%),
@@ -3785,17 +3785,17 @@ body {
 
 .profile-avatar-large {
   width: 5.3rem;
-  border-radius: 24px;
+  border-radius: 999px;
 }
 
 .profile-avatar-feature {
   width: 4.45rem;
-  border-radius: 20px;
+  border-radius: 999px;
 }
 
 .profile-avatar-option-icon {
   width: 3rem;
-  border-radius: 18px;
+  border-radius: 999px;
 }
 
 .profile-avatar-svg,
