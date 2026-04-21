@@ -91,7 +91,7 @@ def _side_of_line(point: Point, line_start: Point, line_end: Point) -> float:
 
 
 class LineCrossingCounter:
-    """Counts confirmed footpoint crossings across a line (left-to-right direction)."""
+    """Counts confirmed footpoint crossings across a line in either direction."""
 
     def __init__(
         self,
@@ -148,6 +148,8 @@ class LineCrossingCounter:
 
             if state.confirmed_inside is True and state.outside_streak >= self._exit_confirm_frames:
                 state.confirmed_inside = False
+                if count_enabled:
+                    new_crossings += 1
 
         return new_crossings
 
@@ -853,11 +855,16 @@ def run_counting_session(
     was_stopped_early = resolved_stop_event.is_set()
     status = "stopped" if was_stopped_early else "resolved"
     effective_ended_at = last_observed_at if was_stopped_early else payload.ends_at
-    window_note = (
-        "Counted confirmed footpoint crossings into the polygon during the session window."
-        if count_started
-        else "No in-window detections were processed before the session ended."
-    )
+    if count_started and len(payload.region) == 2:
+        window_note = (
+            "Counted confirmed footpoint crossings across the line during the session window."
+        )
+    elif count_started:
+        window_note = (
+            "Counted confirmed footpoint crossings into the polygon during the session window."
+        )
+    else:
+        window_note = "No in-window detections were processed before the session ended."
     if was_stopped_early:
         notes = f"{window_note} Counting stopped before settlement."
     else:

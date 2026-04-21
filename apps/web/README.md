@@ -16,10 +16,10 @@ vision service.
 ## Admin Region Editor
 
 Admin users can enable region edit mode from the admin console whenever they need to place or
-adjust the polygon on the live feed.
+adjust the crossing line on the live feed.
 
-When edit mode is enabled, draggable corner handles appear on the feed and save/reset controls stay
-available outside the admin modal. Saving persists the polygon in Supabase so the same region is
+When edit mode is enabled, draggable endpoint handles appear on the feed and save/reset controls stay
+available outside the admin modal. Saving persists the line in Supabase so the same region is
 served in local and deployed environments.
 
 This updates the web overlay region that the product displays. The vision backend still uses each

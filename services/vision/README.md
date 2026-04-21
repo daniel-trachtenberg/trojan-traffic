@@ -41,10 +41,10 @@ during round windows and tracks people across successive frames.
 - `POST /sessions/{session_id}/resolve`: write final count into Supabase via `resolve_session` RPC
 
 The run endpoint now processes a real counting session. It tracks people over time and counts
-confirmed outside-to-inside crossings of the yellow polygon using each tracked box's bottom-center
-"footpoint" so the count matches the ground region instead of box-center overlap.
-It waits until the game window opens before running the model and scans a padded crop around the
-yellow region instead of the full camera view.
+confirmed crossings of the yellow line using each tracked box's bottom-center "footpoint" so the
+count matches the ground marker instead of box-center overlap. It waits until the game window opens
+before running the model and scans a padded crop around the yellow line instead of the full camera
+view.
 
 The resolve endpoint requires `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` in `.env`.
 

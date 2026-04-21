@@ -27,10 +27,8 @@ def test_worker_avoids_duplicate_in_process_jobs() -> None:
         status="scheduled",
         camera_feed_url="https://cs9.pixelcaster.com/live/usc-tommy.stream/playlist.m3u8",
         region_polygon=[
-            SessionRegionPoint(x=0.4, y=0.4),
-            SessionRegionPoint(x=0.6, y=0.4),
-            SessionRegionPoint(x=0.6, y=0.6),
-            SessionRegionPoint(x=0.4, y=0.6),
+            SessionRegionPoint(x=0.5, y=0.3),
+            SessionRegionPoint(x=0.5, y=0.7),
         ],
     )
     count_started = Event()
@@ -87,10 +85,8 @@ def test_worker_skips_sessions_that_have_already_started() -> None:
         status="scheduled",
         camera_feed_url="https://cs9.pixelcaster.com/live/usc-tommy.stream/playlist.m3u8",
         region_polygon=[
-            SessionRegionPoint(x=0.4, y=0.4),
-            SessionRegionPoint(x=0.6, y=0.4),
-            SessionRegionPoint(x=0.6, y=0.6),
-            SessionRegionPoint(x=0.4, y=0.6),
+            SessionRegionPoint(x=0.5, y=0.3),
+            SessionRegionPoint(x=0.5, y=0.7),
         ],
     )
 

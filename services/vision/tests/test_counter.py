@@ -6,6 +6,7 @@ import pytest
 from app.counter import (
     CountSessionRequest,
     FrameObservation,
+    LineCrossingCounter,
     Point,
     PolygonCrossingCounter,
     TrackObservation,
@@ -103,6 +104,37 @@ def test_polygon_crossing_counter_does_not_count_track_that_starts_inside() -> N
     )
 
 
+def test_line_crossing_counter_counts_confirmed_crossing_in_either_direction() -> None:
+    counter = LineCrossingCounter(
+        line_start=Point(x=0.5, y=0.3),
+        line_end=Point(x=0.5, y=0.7),
+        entry_confirm_frames=1,
+        exit_confirm_frames=1,
+    )
+
+    assert (
+        counter.observe_tracks(
+            [make_track("track-1", foot_x=0.4, foot_y=0.5)],
+            count_enabled=True,
+        )
+        == 0
+    )
+    assert (
+        counter.observe_tracks(
+            [make_track("track-1", foot_x=0.6, foot_y=0.5)],
+            count_enabled=True,
+        )
+        == 1
+    )
+    assert (
+        counter.observe_tracks(
+            [make_track("track-1", foot_x=0.4, foot_y=0.5)],
+            count_enabled=True,
+        )
+        == 1
+    )
+
+
 def test_get_region_scan_bounds_adds_padding_around_polygon() -> None:
     bounds = get_region_scan_bounds(
         [
@@ -129,28 +161,26 @@ def test_run_counting_session_counts_only_in_window_crossings() -> None:
         starts_at=starts_at,
         ends_at=ends_at,
         region=[
-            Point(x=0.4, y=0.4),
-            Point(x=0.6, y=0.4),
-            Point(x=0.6, y=0.6),
-            Point(x=0.4, y=0.6),
+            Point(x=0.5, y=0.3),
+            Point(x=0.5, y=0.7),
         ],
     )
     observations = [
         FrameObservation(
             observed_at=starts_at - timedelta(seconds=2),
-            tracks=(make_track("track-1", foot_x=0.32, foot_y=0.5),),
+            tracks=(make_track("track-1", foot_x=0.4, foot_y=0.5),),
         ),
         FrameObservation(
             observed_at=starts_at + timedelta(seconds=1),
-            tracks=(make_track("track-1", foot_x=0.5, foot_y=0.5),),
+            tracks=(make_track("track-1", foot_x=0.6, foot_y=0.5),),
         ),
         FrameObservation(
             observed_at=starts_at + timedelta(seconds=3),
-            tracks=(make_track("track-1", foot_x=0.52, foot_y=0.5),),
+            tracks=(make_track("track-1", foot_x=0.62, foot_y=0.5),),
         ),
         FrameObservation(
             observed_at=ends_at + timedelta(seconds=1),
-            tracks=(make_track("track-1", foot_x=0.68, foot_y=0.5),),
+            tracks=(make_track("track-1", foot_x=0.4, foot_y=0.5),),
         ),
     ]
 
@@ -164,6 +194,7 @@ def test_run_counting_session_counts_only_in_window_crossings() -> None:
     assert result.status == "resolved"
     assert result.final_count == 1
     assert result.detections_processed == 2
+    assert "crossings across the line" in result.notes
 
 
 def test_run_counting_session_rejects_starting_after_end_for_live_mode() -> None:

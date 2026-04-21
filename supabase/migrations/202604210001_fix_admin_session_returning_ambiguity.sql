@@ -1,26 +1,7 @@
--- Replace the 4-point polygon region with a 2-point line region.
+-- Re-apply the two-point line RPCs with qualified RETURNING columns.
+-- The previous line-region migration accepted two points but returned `ends_at`
+-- without a table alias, which conflicts with the RETURNS TABLE output column.
 
--- Drop the existing check constraint that required exactly 4 points.
-alter table public.betting_regions
-  drop constraint if exists betting_regions_points_check;
-
--- Convert the stored region to 2 points (midpoints of the left and right edges
--- of the previous quadrilateral, spanning the same area).
-update public.betting_regions
-set points = jsonb_build_array(
-  jsonb_build_object('x', 0.7718, 'y', 0.5268),
-  jsonb_build_object('x', 0.8754, 'y', 0.5451)
-)
-where id = 1;
-
--- Add a new check constraint requiring exactly 2 points (line endpoints).
-alter table public.betting_regions
-  add constraint betting_regions_points_check check (
-    jsonb_typeof(points) = 'array'
-    and jsonb_array_length(points) = 2
-  );
-
--- Update admin_create_game_session: accept >= 2 points instead of >= 3.
 create or replace function public.admin_create_game_session(
   p_mode_seconds int,
   p_threshold int,
@@ -89,7 +70,6 @@ begin
 end;
 $$;
 
--- Update admin_update_game_session: accept >= 2 points instead of >= 3.
 create or replace function public.admin_update_game_session(
   p_session_id uuid,
   p_mode_seconds int,

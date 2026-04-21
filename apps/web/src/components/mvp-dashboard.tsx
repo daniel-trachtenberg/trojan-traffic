@@ -2555,7 +2555,7 @@ export function MvpDashboard({
           : "Round closed",
       copy:
         selectedSession.final_count !== null
-          ? `${finalCountLabel} people crossed into the box during the ${displayedModeSeconds}s round.`
+          ? `${finalCountLabel} people crossed the line during the ${displayedModeSeconds}s round.`
           : `The ${displayedModeSeconds}s round has ended.`,
       footer: settledAtCopy,
       secondaryLabel: "Winning side",
@@ -4029,7 +4029,7 @@ export function MvpDashboard({
   ];
   const mobileSelectedChoice =
     mobileMarketChoices.find((choice) => choice.side === selectedSide) ?? mobileMarketChoices[2];
-  const shouldFocusMobileFeed = regionPoints.length >= 3 && !canEditRegion;
+  const shouldFocusMobileFeed = regionPoints.length >= 2 && !canEditRegion;
   const mobileFeedStatusLabel = showResolvedRoundCard ? "Result posted" : "Live feed";
   const mobileFeedMetaLabel = hasSelectedSession
     ? `${sessionMetricLabel} ${sessionMetricValue}`
@@ -4607,7 +4607,7 @@ export function MvpDashboard({
         <div className="mobile-review-dock">
           <div className="mobile-review-dock-copy">
             <span className="mobile-review-dock-kicker">Resolving</span>
-            <strong>Checking the final box count</strong>
+            <strong>Checking the final line count</strong>
             <p>
               The round is closed and we are reviewing the live feed now. Your result will appear
               here automatically.
@@ -4785,7 +4785,7 @@ export function MvpDashboard({
 
       <p className="region-editor-dock-copy">
         {isRegionEditModeEnabled
-          ? "Drag the feed corner points to adjust the betting area. You can save or reset here without reopening the admin console."
+          ? "Drag the feed line endpoints to adjust the crossing line. You can save or reset here without reopening the admin console."
           : "You still have unsaved region changes. Save them, reset them, or resume edit mode to keep adjusting."}
       </p>
 
@@ -4969,7 +4969,7 @@ export function MvpDashboard({
                         <div
                           className={`mobile-live-floating-card mobile-live-floating-card-count mobile-live-floating-card-${mobileLiveMeterStateTone}`}
                         >
-                          <span className="mobile-live-floating-card-kicker">People in box</span>
+                          <span className="mobile-live-floating-card-kicker">Detected people</span>
                           <strong>{mobileLiveCountDisplay}</strong>
                           <span>{mobileLiveCountNote}</span>
                         </div>
@@ -5002,7 +5002,7 @@ export function MvpDashboard({
                       <>
                         <div className="mobile-review-floating-card">
                           <span className="mobile-review-floating-card-kicker">Resolving</span>
-                          <strong>Reviewing the final box count</strong>
+                          <strong>Reviewing the final line count</strong>
                           <span>
                             {selectedEndsAtLabel ? `Window closed at ${selectedEndsAtLabel}` : "Window closed"}
                           </span>
@@ -5101,7 +5101,7 @@ export function MvpDashboard({
               </div>
 
               <div className="live-round-overlay-count">
-                <span>People in box</span>
+                <span>Detected people</span>
                 <strong>{livePeopleCountDisplay}</strong>
                 <p>Live counter placeholder</p>
               </div>
@@ -5680,7 +5680,7 @@ export function MvpDashboard({
 
               <p className="region-editor-dock-copy">
                 {isRegionEditModeEnabled
-                  ? "Drag the feed corner points to adjust the betting area. You can save or reset here without reopening the admin console."
+                  ? "Drag the feed line endpoints to adjust the crossing line. You can save or reset here without reopening the admin console."
                   : "You still have unsaved region changes. Save them, reset them, or resume edit mode to keep adjusting."}
               </p>
 

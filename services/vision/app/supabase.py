@@ -19,7 +19,7 @@ class PendingSessionRecord(BaseModel):
     ends_at: datetime
     status: str
     camera_feed_url: HttpUrl
-    region_polygon: list[SessionRegionPoint]
+    region_polygon: list[SessionRegionPoint] = Field(min_length=2)
     final_count: int | None = None
     resolved_at: datetime | None = None
 

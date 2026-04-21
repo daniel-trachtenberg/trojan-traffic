@@ -262,8 +262,8 @@ export function AdminConsole({
       return;
     }
 
-    if (regionPoints.length < 3) {
-      onError("Region must contain at least three points.");
+    if (regionPoints.length < 2) {
+      onError("Region must contain at least two line endpoints.");
       return;
     }
 
@@ -485,7 +485,7 @@ export function AdminConsole({
                 <span> Live region editing is enabled right now.</span>
               )
             ) : (
-              <span> Enable edit mode if you want to adjust the live polygon before saving a session.</span>
+              <span> Enable edit mode if you want to adjust the live line before saving a session.</span>
             )}
           </div>
 
@@ -522,10 +522,10 @@ export function AdminConsole({
 
         <p className="admin-section-copy">
           {isRegionEditModeEnabled
-            ? "Drag the live feed corner handles to adjust the polygon. Save or reset from the floating controls beside the player."
+            ? "Drag the live feed endpoint handles to adjust the line. Save or reset from the floating controls beside the player."
             : hasUnsavedRegionChanges
               ? "Your last drag changes are still unsaved. Save, reset, or re-enable edit mode from the floating controls."
-              : "Only admins can drag and save the live feed region. Turn on edit mode when you want to adjust the polygon."}
+              : "Only admins can drag and save the live feed line. Turn on edit mode when you want to adjust it."}
         </p>
 
         <div className="admin-inline-actions">

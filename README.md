@@ -8,15 +8,15 @@
 
 ## Short Description
 
-A web platform that allows users to place token-based over or under predictions on how many people enter a defined region on the USC live camera feed within a set time window.
+A web platform that allows users to place token-based over or under predictions on how many people cross a defined line on the USC live camera feed within a set time window.
 
 ---
 
 ## High-Level Description
 
-Trojan Traffic is a web app that overlays a defined betting region on top of the USC live camera feed (Tommy Trojan and/or USC Village) and tracks foot traffic to count how many people enter that region.
+Trojan Traffic is a web app that overlays a defined crossing line on top of the USC live camera feed (Tommy Trojan and/or USC Village) and tracks foot traffic to count how many people cross that line.
 
-Users place predictions on whether the number of people entering the box during a selected time window will be over or under a specified threshold. The system automatically counts entries and resolves outcomes at the end of each timed session.
+Users place predictions on whether the number of people crossing the line during a selected time window will be over or under a specified threshold. The system automatically counts crossings and resolves outcomes at the end of each timed session.
 
 Correct predictions earn tokens. Incorrect predictions deduct tokens.
 
@@ -107,7 +107,7 @@ Each mode:
 
 #### Region Placement
 - The active betting region can be repositioned by an admin
-- Admins can use a disabled-by-default editor to drag the four region corners on top of the live feed
+- Admins can use a disabled-by-default editor to drag the two crossing-line endpoints on top of the live feed
 - The saved region is shared across all users for fairness
 
 ---
@@ -116,7 +116,7 @@ Each mode:
 
 - Real-time human detection
 - Tracking across frames
-- Count entries into the defined region
+- Count crossings over the defined line
 - Automatic result resolution
 
 ---
@@ -221,9 +221,9 @@ Optional one-off admin region editor:
 echo 'REGION_EDITOR_ENABLED=true' >> apps/web/.env.local
 ```
 
-When enabled, the web app exposes draggable region handles and a save panel. The editor should
+When enabled, the web app exposes draggable line endpoint handles and a save panel. The editor should
 normally remain disabled and only be turned on temporarily when an admin needs to reposition the
-betting region. Saved region updates are stored in Supabase so they work on both local and deployed
+crossing line. Saved region updates are stored in Supabase so they work on both local and deployed
 environments.
 
 ### 3) Run vision service
