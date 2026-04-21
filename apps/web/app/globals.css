@@ -469,6 +469,15 @@ body {
   box-shadow: 0 25px 65px rgb(0 0 0 / 48%);
 }
 
+.leaderboard-modal {
+  width: min(980px, 100%);
+  max-height: min(84vh, 920px);
+  background:
+    radial-gradient(circle at top right, rgb(255 204 0 / 7%), transparent 28%),
+    radial-gradient(circle at top left, rgb(153 0 0 / 12%), transparent 34%),
+    linear-gradient(180deg, rgb(14 16 23 / 97%) 0%, rgb(10 12 18 / 99%) 100%);
+}
+
 .center-modal::-webkit-scrollbar,
 .modal-leaderboard::-webkit-scrollbar {
   display: none;
@@ -4412,6 +4421,421 @@ body {
   font-variant-numeric: tabular-nums;
 }
 
+.leaderboard-panel {
+  display: grid;
+  gap: 0.95rem;
+}
+
+.leaderboard-hero {
+  border: 1px solid var(--line);
+  border-radius: 24px;
+  padding: 1.05rem 1.1rem;
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(260px, 0.8fr);
+  gap: 0.9rem;
+  background:
+    radial-gradient(circle at top left, rgb(255 204 0 / 12%), transparent 32%),
+    linear-gradient(135deg, rgb(153 0 0 / 20%) 0%, rgb(22 24 32 / 95%) 48%, rgb(12 14 20 / 99%) 100%);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 6%);
+}
+
+.leaderboard-hero-copy,
+.leaderboard-hero-side {
+  display: grid;
+  gap: 0.64rem;
+  align-content: start;
+}
+
+.leaderboard-kicker,
+.leaderboard-section-kicker,
+.leaderboard-empty-kicker {
+  margin: 0;
+  font-size: 0.7rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: rgb(255 243 206 / 72%);
+}
+
+.leaderboard-title {
+  margin: 0;
+  font-size: 2.2rem;
+  line-height: 0.92;
+  letter-spacing: -0.08em;
+  color: var(--text);
+}
+
+.leaderboard-subtitle,
+.leaderboard-empty-card p {
+  margin: 0;
+  font-size: 0.92rem;
+  line-height: 1.55;
+  color: var(--muted);
+}
+
+.leaderboard-hero-stat-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.5rem;
+}
+
+.leaderboard-hero-stat-card,
+.leaderboard-user-callout,
+.leaderboard-empty-card {
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: rgb(9 11 16 / 36%);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 5%);
+}
+
+.leaderboard-hero-stat-card {
+  padding: 0.74rem 0.8rem;
+  display: grid;
+  gap: 0.18rem;
+}
+
+.leaderboard-hero-stat-card span,
+.leaderboard-bankroll-block span,
+.leaderboard-rank-score span,
+.leaderboard-section-note {
+  font-size: 0.66rem;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: rgb(200 207 222 / 84%);
+}
+
+.leaderboard-hero-stat-card strong {
+  font-size: 1.35rem;
+  line-height: 1;
+  letter-spacing: -0.05em;
+  color: #fff5db;
+  font-variant-numeric: tabular-nums;
+}
+
+.leaderboard-user-callout {
+  padding: 0.82rem 0.88rem;
+  display: grid;
+  gap: 0.2rem;
+  background:
+    radial-gradient(circle at right, rgb(255 204 0 / 10%), transparent 32%),
+    rgb(9 11 16 / 46%);
+}
+
+.leaderboard-user-callout-kicker {
+  font-size: 0.68rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgb(255 239 194 / 82%);
+}
+
+.leaderboard-user-callout strong {
+  font-size: 1.02rem;
+  line-height: 1.1;
+  letter-spacing: -0.03em;
+  color: var(--text);
+}
+
+.leaderboard-user-callout span:last-child {
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+.leaderboard-spotlight-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.68rem;
+}
+
+.leaderboard-podium-card {
+  border: 1px solid var(--line);
+  border-radius: 24px;
+  padding: 0.94rem;
+  display: grid;
+  gap: 0.86rem;
+  text-align: left;
+  color: var(--text);
+  font: inherit;
+  background:
+    linear-gradient(180deg, rgb(24 27 37 / 96%) 0%, rgb(14 16 23 / 99%) 100%);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 5%),
+    0 16px 34px rgb(0 0 0 / 18%);
+  transition:
+    transform 140ms ease,
+    border-color 140ms ease,
+    box-shadow 140ms ease,
+    background 140ms ease;
+}
+
+.leaderboard-podium-card:hover,
+.leaderboard-podium-card:focus-visible,
+.leaderboard-rank-card:hover,
+.leaderboard-rank-card:focus-visible {
+  transform: translateY(-1px);
+  border-color: rgb(255 204 0 / 18%);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 6%),
+    0 18px 40px rgb(0 0 0 / 22%);
+}
+
+.leaderboard-podium-card-rank-1 {
+  grid-column: 1 / -1;
+  background:
+    radial-gradient(circle at top right, rgb(255 204 0 / 18%), transparent 34%),
+    linear-gradient(135deg, rgb(153 0 0 / 18%) 0%, rgb(22 24 34 / 96%) 56%, rgb(14 16 23 / 99%) 100%);
+  border-color: rgb(255 204 0 / 18%);
+}
+
+.leaderboard-podium-card-rank-2 {
+  background:
+    radial-gradient(circle at top left, rgb(219 230 255 / 12%), transparent 34%),
+    linear-gradient(180deg, rgb(26 28 38 / 96%), rgb(14 16 23 / 99%));
+}
+
+.leaderboard-podium-card-rank-3 {
+  background:
+    radial-gradient(circle at top left, rgb(255 204 0 / 10%), transparent 32%),
+    linear-gradient(180deg, rgb(30 24 22 / 96%), rgb(14 16 23 / 99%));
+}
+
+.leaderboard-podium-card-self,
+.leaderboard-rank-card-self {
+  border-color: rgb(255 204 0 / 28%);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 6%),
+    0 0 0 1px rgb(255 204 0 / 12%),
+    0 18px 40px rgb(0 0 0 / 22%);
+}
+
+.leaderboard-podium-topline {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 0.78rem;
+  align-items: center;
+}
+
+.leaderboard-rank-medallion,
+.leaderboard-rank-pill {
+  border: 1px solid rgb(255 204 0 / 22%);
+  background:
+    radial-gradient(circle at top, rgb(255 204 0 / 18%), transparent 60%),
+    linear-gradient(180deg, rgb(255 255 255 / 7%), rgb(255 255 255 / 2%));
+  color: #fff0ca;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 6%);
+}
+
+.leaderboard-rank-medallion {
+  min-width: 5.2rem;
+  height: 5.2rem;
+  border-radius: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.6rem;
+  letter-spacing: -0.06em;
+}
+
+.leaderboard-rank-medallion-rank-2 {
+  border-color: rgb(219 230 255 / 20%);
+  background:
+    radial-gradient(circle at top, rgb(219 230 255 / 18%), transparent 60%),
+    linear-gradient(180deg, rgb(255 255 255 / 7%), rgb(255 255 255 / 2%));
+}
+
+.leaderboard-rank-medallion-rank-3 {
+  border-color: rgb(255 204 0 / 16%);
+  background:
+    radial-gradient(circle at top, rgb(255 204 0 / 14%), transparent 60%),
+    linear-gradient(180deg, rgb(255 255 255 / 7%), rgb(255 255 255 / 2%));
+}
+
+.leaderboard-podium-copy {
+  min-width: 0;
+  display: grid;
+  gap: 0.18rem;
+}
+
+.leaderboard-podium-kicker {
+  font-size: 0.68rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgb(255 241 207 / 74%);
+}
+
+.leaderboard-podium-name {
+  font-size: 1.42rem;
+  line-height: 0.98;
+  letter-spacing: -0.04em;
+  color: var(--text);
+}
+
+.leaderboard-self-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  border: 1px solid rgb(255 204 0 / 22%);
+  padding: 0.24rem 0.54rem;
+  font-size: 0.68rem;
+  line-height: 1;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #fff2cc;
+  background: rgb(255 204 0 / 10%);
+}
+
+.leaderboard-podium-footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 0.7rem;
+}
+
+.leaderboard-podium-meta,
+.leaderboard-rank-meta-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.42rem;
+  align-items: center;
+}
+
+.leaderboard-tier-pill {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  border: 1px solid rgb(255 255 255 / 10%);
+  padding: 0.26rem 0.58rem;
+  background: rgb(255 255 255 / 6%);
+  font-size: 0.72rem;
+  line-height: 1;
+  color: #edf1fb;
+}
+
+.leaderboard-tier-pill-compact {
+  padding-inline: 0.5rem;
+}
+
+.leaderboard-correct-picks,
+.leaderboard-rank-meta-row span:last-child {
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+.leaderboard-bankroll-block,
+.leaderboard-rank-score {
+  display: grid;
+  justify-items: end;
+  gap: 0.14rem;
+}
+
+.leaderboard-bankroll-block strong,
+.leaderboard-rank-score strong {
+  font-size: 2.2rem;
+  line-height: 0.9;
+  letter-spacing: -0.08em;
+  color: var(--usc-gold);
+  font-variant-numeric: tabular-nums;
+}
+
+.leaderboard-pack-section {
+  display: grid;
+  gap: 0.68rem;
+}
+
+.leaderboard-section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 0.75rem;
+}
+
+.leaderboard-section-title {
+  margin: 0.08rem 0 0;
+  font-size: 1.08rem;
+  line-height: 1.05;
+  letter-spacing: -0.03em;
+  color: var(--text);
+}
+
+.leaderboard-rank-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 0.56rem;
+}
+
+.leaderboard-rank-card {
+  width: 100%;
+  border: 1px solid rgb(255 255 255 / 10%);
+  border-radius: 20px;
+  padding: 0.82rem 0.9rem;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 0.82rem;
+  align-items: center;
+  text-align: left;
+  color: var(--text);
+  font: inherit;
+  background:
+    linear-gradient(180deg, rgb(24 27 37 / 92%) 0%, rgb(16 18 26 / 98%) 100%);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 4%);
+  transition:
+    transform 140ms ease,
+    border-color 140ms ease,
+    box-shadow 140ms ease,
+    background 140ms ease;
+}
+
+.leaderboard-rank-pill {
+  min-width: 4rem;
+  height: 4rem;
+  border-radius: 20px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.32rem;
+  letter-spacing: -0.05em;
+}
+
+.leaderboard-rank-copy {
+  min-width: 0;
+  display: grid;
+  gap: 0.16rem;
+}
+
+.leaderboard-rank-name-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.44rem;
+}
+
+.leaderboard-rank-name-row strong {
+  font-size: 1.16rem;
+  line-height: 1.02;
+  letter-spacing: -0.03em;
+  color: var(--text);
+}
+
+.leaderboard-empty-card {
+  padding: 1rem 1.05rem;
+  display: grid;
+  gap: 0.26rem;
+  background:
+    radial-gradient(circle at top left, rgb(255 204 0 / 10%), transparent 32%),
+    rgb(10 12 18 / 74%);
+}
+
+.leaderboard-empty-card strong {
+  font-size: 1.08rem;
+  line-height: 1.1;
+  color: var(--text);
+  letter-spacing: -0.03em;
+}
+
 .toast-stack {
   position: absolute;
   top: 4.9rem;
@@ -4555,6 +4979,10 @@ body {
     width: min(680px, 100%);
   }
 
+  .leaderboard-modal {
+    width: min(860px, 100%);
+  }
+
   .account-modal,
   .admin-modal {
     width: min(760px, 100%);
@@ -4676,6 +5104,37 @@ body {
   .account-stat-grid,
   .bet-history-stat-row {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .leaderboard-hero {
+    grid-template-columns: 1fr;
+  }
+
+  .leaderboard-hero-stat-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .leaderboard-spotlight-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .leaderboard-podium-card-rank-1 {
+    grid-column: auto;
+  }
+
+  .leaderboard-podium-footer,
+  .leaderboard-section-header {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .leaderboard-rank-card {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .leaderboard-rank-score {
+    justify-items: start;
+    grid-column: 2;
   }
 
   .admin-session-head,
@@ -8809,7 +9268,11 @@ body {
   .betting-screen-mobile .account-stat-card,
   .betting-screen-mobile .bet-history-card,
   .betting-screen-mobile .public-profile-status-card,
-  .betting-screen-mobile .leaderboard-entry-button {
+  .betting-screen-mobile .leaderboard-entry-button,
+  .betting-screen-mobile .leaderboard-hero,
+  .betting-screen-mobile .leaderboard-podium-card,
+  .betting-screen-mobile .leaderboard-rank-card,
+  .betting-screen-mobile .leaderboard-empty-card {
     border-radius: 20px;
   }
 
@@ -8852,6 +9315,82 @@ body {
 
   .betting-screen-mobile .leaderboard {
     gap: 0.65rem;
+  }
+
+  .betting-screen-mobile .leaderboard-panel {
+    gap: 0.82rem;
+  }
+
+  .betting-screen-mobile .leaderboard-hero {
+    padding: 0.92rem;
+    gap: 0.72rem;
+  }
+
+  .betting-screen-mobile .leaderboard-title {
+    font-size: 1.8rem;
+  }
+
+  .betting-screen-mobile .leaderboard-subtitle {
+    font-size: 0.86rem;
+  }
+
+  .betting-screen-mobile .leaderboard-hero-stat-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .betting-screen-mobile .leaderboard-hero-stat-card,
+  .betting-screen-mobile .leaderboard-user-callout {
+    padding: 0.72rem 0.76rem;
+  }
+
+  .betting-screen-mobile .leaderboard-podium-card {
+    padding: 0.82rem;
+    gap: 0.72rem;
+  }
+
+  .betting-screen-mobile .leaderboard-podium-topline {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .betting-screen-mobile .leaderboard-self-chip {
+    grid-column: 2;
+    justify-self: start;
+  }
+
+  .betting-screen-mobile .leaderboard-rank-medallion {
+    min-width: 4.3rem;
+    height: 4.3rem;
+    font-size: 1.36rem;
+    border-radius: 24px;
+  }
+
+  .betting-screen-mobile .leaderboard-podium-name {
+    font-size: 1.22rem;
+  }
+
+  .betting-screen-mobile .leaderboard-bankroll-block strong,
+  .betting-screen-mobile .leaderboard-rank-score strong {
+    font-size: 1.78rem;
+  }
+
+  .betting-screen-mobile .leaderboard-pack-section {
+    gap: 0.58rem;
+  }
+
+  .betting-screen-mobile .leaderboard-rank-card {
+    padding: 0.78rem 0.82rem;
+    gap: 0.72rem;
+  }
+
+  .betting-screen-mobile .leaderboard-rank-pill {
+    min-width: 3.45rem;
+    height: 3.45rem;
+    border-radius: 18px;
+    font-size: 1.18rem;
+  }
+
+  .betting-screen-mobile .leaderboard-rank-name-row strong {
+    font-size: 1.04rem;
   }
 
   .betting-screen-mobile .leaderboard-entry-button {

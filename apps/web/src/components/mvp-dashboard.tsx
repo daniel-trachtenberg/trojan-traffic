@@ -3,6 +3,7 @@
 import type { User } from "@supabase/supabase-js";
 import { useEffect, useId, useRef, useState, useTransition, type FormEvent } from "react";
 import { AdminConsole } from "@/components/admin-console";
+import { LeaderboardPanel, type LeaderboardRow } from "@/components/leaderboard-panel";
 import { LiveFeed } from "@/components/live-feed";
 import {
   bettingRegionsEqual,
@@ -45,15 +46,6 @@ type PredictionRow = {
   token_delta: number | null;
   resolved_at: string | null;
   placed_at: string;
-};
-
-type LeaderboardRow = {
-  rank: number;
-  user_id: string;
-  display_name: string;
-  tier: string;
-  token_balance: number;
-  correct_predictions: number;
 };
 
 type ProfileRow = {
@@ -143,6 +135,7 @@ const SUCCESS_TOAST_DURATION_MS = 4200;
 const ERROR_TOAST_DURATION_MS = 6200;
 const MAX_VISIBLE_TOASTS = 4;
 const RESULT_SPOTLIGHT_WINDOW_MS = 10_000;
+const LEADERBOARD_FETCH_LIMIT = 15;
 const SESSION_SELECT_COLUMNS = "id,mode_seconds,threshold,starts_at,ends_at,status,final_count,resolved_at";
 const SCREEN_CONFETTI_COLORS = ["#ffcc00", "#f8fafc", "#f59e0b", "#ef4444", "#22c55e", "#60a5fa"];
 const SCREEN_CONFETTI_PIECES = Array.from({ length: 120 }, (_, index) => ({
@@ -1696,7 +1689,9 @@ export function MvpDashboard({
       throw new Error(sessionResponse.error.message);
     }
 
-    const leaderboardResponse = await supabase.rpc("get_leaderboard", { p_limit: 10 });
+    const leaderboardResponse = await supabase.rpc("get_leaderboard", {
+      p_limit: LEADERBOARD_FETCH_LIMIT
+    });
     if (leaderboardResponse.error) {
       throw new Error(leaderboardResponse.error.message);
     }
@@ -4470,7 +4465,7 @@ export function MvpDashboard({
                 ? "center-modal account-modal"
                 : openRightPanel === "admin"
                   ? "center-modal admin-modal"
-                  : "center-modal"
+                  : "center-modal leaderboard-modal"
             }
             role="dialog"
             aria-modal="true"
@@ -4612,36 +4607,13 @@ export function MvpDashboard({
                 <p className="hint">Admin access is required for this panel.</p>
               )
             ) : (
-              <>
-                <p className="leaderboard-panel-note">
-                  Tap any bettor to open their public profile and recent betting history.
-                </p>
-                <ol className="leaderboard modal-leaderboard">
-                  {leaderboard.slice(0, 15).map((entry) => (
-                    <li key={entry.user_id}>
-                      <button
-                        type="button"
-                        className="leaderboard-entry-button"
-                        onClick={() => void handleOpenPublicProfile(entry)}
-                        aria-label={`Open ${entry.display_name}'s betting profile`}
-                      >
-                        <span className="leaderboard-entry-rank">#{entry.rank}</span>
-                        <span className="leaderboard-entry-copy">
-                          <span className="leaderboard-entry-name">{entry.display_name}</span>
-                          <span className="leaderboard-entry-meta">
-                            {entry.correct_predictions} correct picks · {entry.tier}
-                          </span>
-                        </span>
-                        <span className="leaderboard-entry-score-shell">
-                          <span className="leaderboard-entry-score-label">Bankroll</span>
-                          <span className="leaderboard-entry-score">{entry.token_balance}</span>
-                        </span>
-                      </button>
-                    </li>
-                  ))}
-                </ol>
-                {leaderboard.length === 0 ? <p className="hint">No leaderboard entries yet.</p> : null}
-              </>
+              <LeaderboardPanel
+                entries={leaderboard}
+                currentUserId={user?.id ?? null}
+                onSelect={(entry) => {
+                  void handleOpenPublicProfile(entry);
+                }}
+              />
             )}
             </div>
           </section>
