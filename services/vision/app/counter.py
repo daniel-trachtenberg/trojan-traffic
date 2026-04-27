@@ -90,6 +90,16 @@ def _side_of_line(point: Point, line_start: Point, line_end: Point) -> float:
     ) * (point.x - line_start.x)
 
 
+def _segment_t(point: Point, line_start: Point, line_end: Point) -> float:
+    """Returns the projection parameter t along the segment (0 = start, 1 = end)."""
+    dx = line_end.x - line_start.x
+    dy = line_end.y - line_start.y
+    length_sq = dx * dx + dy * dy
+    if length_sq < 1e-10:
+        return 0.0
+    return ((point.x - line_start.x) * dx + (point.y - line_start.y) * dy) / length_sq
+
+
 class LineCrossingCounter:
     """Counts confirmed footpoint crossings across a line in either direction."""
 
@@ -119,6 +129,10 @@ class LineCrossingCounter:
             state = self._states.setdefault(track.id, _TrackCrossingState())
             side = _side_of_line(track.footpoint, self._line_start, self._line_end)
             is_right_side = side < 0
+            # Allow a 10% margin beyond each endpoint so people near the ends aren't missed,
+            # but exclude anyone who is clearly off to the side of the segment entirely.
+            t = _segment_t(track.footpoint, self._line_start, self._line_end)
+            within_segment = -0.1 <= t <= 1.1
 
             if is_right_side:
                 state.inside_streak += 1
@@ -134,7 +148,6 @@ class LineCrossingCounter:
                     and state.inside_streak >= self._entry_confirm_frames
                 ):
                     state.confirmed_inside = True
-                    if count_enabled:
                         new_crossings += 1
                 continue
 
@@ -148,7 +161,7 @@ class LineCrossingCounter:
 
             if state.confirmed_inside is True and state.outside_streak >= self._exit_confirm_frames:
                 state.confirmed_inside = False
-                if count_enabled:
+                if count_enabled and within_segment:
                     new_crossings += 1
 
         return new_crossings
@@ -321,11 +334,15 @@ class LiveSessionTrackSource:
         self._frame_index = 0
         self._tracks: dict[str, TrackState] = {}
         self._stream_process: Popen[bytes] | None = None
-        self._scan_bounds = get_region_scan_bounds(
-            payload.region,
-            padding_x=settings.count_region_padding_x,
-            padding_y=settings.count_region_padding_y,
-        )
+        if len(payload.region) == 2:
+            # For a line, scan the full frame so tracks can be established well before the crossing.
+            self._scan_bounds = ScanBounds(left=0.0, top=0.0, right=1.0, bottom=1.0)
+        else:
+            self._scan_bounds = get_region_scan_bounds(
+                payload.region,
+                padding_x=settings.count_region_padding_x,
+                padding_y=settings.count_region_padding_y,
+            )
 
     def iter_observations(self) -> Iterator[FrameObservation]:
         while not self._stop_event.is_set():
