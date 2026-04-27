@@ -83,39 +83,42 @@ class _TrackCrossingState:
     outside_streak: int = 0
 
 
-def _side_of_line(point: Point, line_start: Point, line_end: Point) -> float:
-    """Returns the signed cross product: positive = left side, negative = right side."""
-    return (line_end.x - line_start.x) * (point.y - line_start.y) - (
-        line_end.y - line_start.y
-    ) * (point.x - line_start.x)
+def _segments_intersect(a1: Point, a2: Point, b1: Point, b2: Point) -> bool:
+    """True if segment a1→a2 properly crosses segment b1→b2 (no collinear/endpoint cases)."""
+    def _cross(o: Point, u: Point, v: Point) -> float:
+        return (u.x - o.x) * (v.y - o.y) - (u.y - o.y) * (v.x - o.x)
+
+    d1 = _cross(b1, b2, a1)
+    d2 = _cross(b1, b2, a2)
+    d3 = _cross(a1, a2, b1)
+    d4 = _cross(a1, a2, b2)
+    return (
+        ((d1 > 0 and d2 < 0) or (d1 < 0 and d2 > 0))
+        and ((d3 > 0 and d4 < 0) or (d3 < 0 and d4 > 0))
+    )
 
 
-def _segment_t(point: Point, line_start: Point, line_end: Point) -> float:
-    """Returns the projection parameter t along the segment (0 = start, 1 = end)."""
-    dx = line_end.x - line_start.x
-    dy = line_end.y - line_start.y
-    length_sq = dx * dx + dy * dy
-    if length_sq < 1e-10:
-        return 0.0
-    return ((point.x - line_start.x) * dx + (point.y - line_start.y) * dy) / length_sq
+@dataclass
+class _LineTrackState:
+    last_footpoint: Point | None = None
+    last_crossed_frame: int = -10
 
 
 class LineCrossingCounter:
-    """Counts confirmed footpoint crossings across a line in either direction."""
+    """Counts line-segment crossings by checking whether consecutive footpoint positions straddle it."""
 
     def __init__(
         self,
         *,
         line_start: Point,
         line_end: Point,
-        entry_confirm_frames: int = 2,
-        exit_confirm_frames: int = 2,
+        cooldown_frames: int = 5,
     ) -> None:
         self._line_start = line_start
         self._line_end = line_end
-        self._entry_confirm_frames = max(entry_confirm_frames, 1)
-        self._exit_confirm_frames = max(exit_confirm_frames, 1)
-        self._states: dict[str, _TrackCrossingState] = {}
+        self._cooldown_frames = max(cooldown_frames, 1)
+        self._states: dict[str, _LineTrackState] = {}
+        self._frame_index = 0
 
     def observe_tracks(
         self,
@@ -123,47 +126,23 @@ class LineCrossingCounter:
         *,
         count_enabled: bool,
     ) -> int:
+        self._frame_index += 1
         new_crossings = 0
 
         for track in tracks:
-            state = self._states.setdefault(track.id, _TrackCrossingState())
-            side = _side_of_line(track.footpoint, self._line_start, self._line_end)
-            is_right_side = side < 0
-            # Allow a 10% margin beyond each endpoint so people near the ends aren't missed,
-            # but exclude anyone who is clearly off to the side of the segment entirely.
-            t = _segment_t(track.footpoint, self._line_start, self._line_end)
-            within_segment = -0.1 <= t <= 1.1
+            state = self._states.setdefault(track.id, _LineTrackState())
+            current_fp = track.footpoint
 
-            if is_right_side:
-                state.inside_streak += 1
-                state.outside_streak = 0
-
-                if state.confirmed_inside is None:
-                    if state.inside_streak >= self._entry_confirm_frames:
-                        state.confirmed_inside = True
-                    continue
-
-                if (
-                    state.confirmed_inside is False
-                    and state.inside_streak >= self._entry_confirm_frames
+            if state.last_footpoint is not None:
+                cooled_down = (self._frame_index - state.last_crossed_frame) >= self._cooldown_frames
+                if cooled_down and _segments_intersect(
+                    state.last_footpoint, current_fp, self._line_start, self._line_end
                 ):
-                    state.confirmed_inside = True
-                    if count_enabled and within_segment:
+                    if count_enabled:
                         new_crossings += 1
-                continue
+                    state.last_crossed_frame = self._frame_index
 
-            state.outside_streak += 1
-            state.inside_streak = 0
-
-            if state.confirmed_inside is None:
-                if state.outside_streak >= self._exit_confirm_frames:
-                    state.confirmed_inside = False
-                continue
-
-            if state.confirmed_inside is True and state.outside_streak >= self._exit_confirm_frames:
-                state.confirmed_inside = False
-                if count_enabled and within_segment:
-                    new_crossings += 1
+            state.last_footpoint = current_fp
 
         return new_crossings
 
@@ -828,18 +807,19 @@ def run_counting_session(
                 "Automatic counting must begin before the session window starts."
             )
 
-    confirm_kwargs = {
-        "entry_confirm_frames": max(resolved_settings.count_entry_confirm_frames, 1),
-        "exit_confirm_frames": max(resolved_settings.count_exit_confirm_frames, 1),
-    }
+    confirm_frames = max(resolved_settings.count_entry_confirm_frames, 1)
     if len(payload.region) == 2:
         counter: LineCrossingCounter | PolygonCrossingCounter = LineCrossingCounter(
             line_start=payload.region[0],
             line_end=payload.region[1],
-            **confirm_kwargs,
+            cooldown_frames=max(confirm_frames * 2, 3),
         )
     else:
-        counter = PolygonCrossingCounter(polygon=payload.region, **confirm_kwargs)
+        counter = PolygonCrossingCounter(
+            polygon=payload.region,
+            entry_confirm_frames=confirm_frames,
+            exit_confirm_frames=max(resolved_settings.count_exit_confirm_frames, 1),
+        )
     observations = frame_observations
     if observations is None:
         observations = LiveSessionTrackSource(
