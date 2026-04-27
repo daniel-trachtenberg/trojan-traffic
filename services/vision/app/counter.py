@@ -148,6 +148,7 @@ class LineCrossingCounter:
                     and state.inside_streak >= self._entry_confirm_frames
                 ):
                     state.confirmed_inside = True
+                    if count_enabled and within_segment:
                         new_crossings += 1
                 continue
 
