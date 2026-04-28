@@ -146,6 +146,16 @@ def healthcheck() -> dict[str, str]:
     }
 
 
+@app.get("/")
+def root() -> dict[str, str]:
+    return healthcheck()
+
+
+@app.head("/", include_in_schema=False)
+def root_head() -> Response:
+    return Response(status_code=200)
+
+
 @app.post("/sessions/{session_id}/run", response_model=CountSessionResult)
 def run_session(session_id: str, payload: CountSessionRequest) -> CountSessionResult:
     try:

@@ -34,6 +34,7 @@ during round windows and tracks people across successive frames.
 
 ## Current endpoints
 
+- `GET /`: basic health response for platform probes
 - `GET /health`: health check
 - `POST /sessions/{session_id}/run`: run a counting session with typed payload
 - `GET /detections/live`: latest detector metadata, frame ID, frame geometry, and person boxes
