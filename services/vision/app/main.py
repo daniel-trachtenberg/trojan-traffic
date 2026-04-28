@@ -18,6 +18,8 @@ logging.basicConfig(
     format="%(levelname)s:%(name)s:%(message)s",
 )
 LOGGER = logging.getLogger("app.main")
+logging.getLogger("httpx").setLevel(logging.WARNING)
+logging.getLogger("httpcore").setLevel(logging.WARNING)
 LIVE_DETECTION_PREVIEW_ENABLED = True
 
 app = FastAPI(
