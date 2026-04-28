@@ -11,7 +11,9 @@ from time import sleep
 from app.counter import CountSessionRequest, CountSessionResult, Point, run_counting_session
 from app.settings import Settings
 from app.supabase import (
+    AutoResolutionSessionRecord,
     PendingSessionRecord,
+    list_auto_resolution_sessions,
     list_countable_sessions,
     resolve_session_in_supabase_sync,
     update_session_live_count_sync,
@@ -31,12 +33,16 @@ class AutomaticCountingWorker:
         *,
         settings: Settings,
         session_fetcher: Callable[..., Sequence[PendingSessionRecord]] = list_countable_sessions,
+        auto_resolution_fetcher: Callable[
+            ..., Sequence[AutoResolutionSessionRecord]
+        ] = list_auto_resolution_sessions,
         count_runner: Callable[..., CountSessionResult] = run_counting_session,
         session_resolver: Callable[[str, int], int] = resolve_session_in_supabase_sync,
         session_live_count_updater: Callable[[str, int], None] = update_session_live_count_sync,
     ) -> None:
         self._settings = settings
         self._session_fetcher = session_fetcher
+        self._auto_resolution_fetcher = auto_resolution_fetcher
         self._count_runner = count_runner
         self._session_resolver = session_resolver
         self._session_live_count_updater = session_live_count_updater
@@ -78,6 +84,7 @@ class AutomaticCountingWorker:
                     lookahead_ms=self._settings.auto_count_session_lookahead_ms,
                 )
                 self._launch_due_sessions(due_sessions)
+                self._resolve_finished_counting_sessions(now=now)
             except Exception as exc:  # noqa: BLE001
                 self._logger.exception("automatic counting worker loop failed: %s", exc)
 
@@ -124,6 +131,40 @@ class AutomaticCountingWorker:
             launched_session_ids.append(session.id)
 
         return launched_session_ids
+
+    def _resolve_finished_counting_sessions(self, *, now: datetime) -> list[str]:
+        sessions = self._auto_resolution_fetcher(now=now)
+        resolved_session_ids: list[str] = []
+
+        with self._active_jobs_lock:
+            active_session_ids = set(self._active_jobs)
+
+        for session in sessions:
+            if session.id in active_session_ids:
+                continue
+
+            try:
+                processed_predictions = self._session_resolver(
+                    session.id,
+                    session.live_count,
+                )
+            except Exception as exc:  # noqa: BLE001
+                self._logger.exception(
+                    "automatic finalization failed for %s: %s",
+                    session.id,
+                    exc,
+                )
+                continue
+
+            resolved_session_ids.append(session.id)
+            self._logger.info(
+                "auto-finalized session %s with live_count=%s processed_predictions=%s",
+                session.id,
+                session.live_count,
+                processed_predictions,
+            )
+
+        return resolved_session_ids
 
     def _run_session_job(self, job_input: _SessionJobInput) -> None:
         try:

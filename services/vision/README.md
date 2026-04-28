@@ -58,9 +58,14 @@ it uses that session's own `camera_feed_url` and `region_polygon`, counts crossi
 session window, publishes `game_sessions.live_count` as crossings are confirmed, and then settles
 bets automatically through the existing `resolve_session` RPC.
 
-The worker intentionally only deduplicates jobs inside the current service instance. It does not
-take over manual admin controls, so unresolved sessions can still be handled manually if a count
-job stops early.
+When the first live-count update is written, the worker marks that session as `counting`. If the
+counting job exits or the service restarts before the final resolve call, the worker's next polling
+cycle automatically finalizes ended `counting` sessions with their last published `live_count`
+instead of leaving them for manual admin resolution.
+
+The worker intentionally only deduplicates active counting jobs inside the current service instance.
+It does not take over manual admin controls for sessions that never entered `counting`, so admins
+can still handle sessions that were scheduled while the worker was fully offline.
 
 Relevant settings:
 

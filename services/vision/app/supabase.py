@@ -25,6 +25,11 @@ class PendingSessionRecord(BaseModel):
     resolved_at: datetime | None = None
 
 
+class AutoResolutionSessionRecord(BaseModel):
+    id: str
+    live_count: int = Field(ge=0)
+
+
 def _build_headers() -> dict[str, str]:
     settings = get_settings()
     if not settings.supabase_url or not settings.supabase_service_role_key:
@@ -95,12 +100,52 @@ def update_session_live_count_sync(session_id: str, live_count: int) -> None:
         "Prefer": "return=minimal",
     }
     endpoint = _build_rest_endpoint("/rest/v1/game_sessions")
-    params = {"id": f"eq.{session_id}", "resolved_at": "is.null"}
-    payload = {"live_count": live_count}
+    params = {
+        "id": f"eq.{session_id}",
+        "status": "not.in.(resolved,cancelled)",
+        "final_count": "is.null",
+        "resolved_at": "is.null",
+    }
+    payload = {
+        "live_count": live_count,
+        "status": "counting",
+    }
 
     with httpx.Client(timeout=10.0) as client:
         response = client.patch(endpoint, headers=headers, params=params, json=payload)
         response.raise_for_status()
+
+
+def list_auto_resolution_sessions(
+    *,
+    now: datetime | None = None,
+    limit: int = 12,
+) -> list[AutoResolutionSessionRecord]:
+    resolved_now = now or datetime.now(UTC)
+    endpoint = _build_rest_endpoint("/rest/v1/game_sessions")
+    headers = _build_headers()
+    params = {
+        "select": "id,live_count",
+        "status": "eq.counting",
+        "resolved_at": "is.null",
+        "final_count": "is.null",
+        "ends_at": f"lte.{resolved_now.isoformat()}",
+        "order": "ends_at.asc",
+        "limit": str(max(limit, 1)),
+    }
+
+    with httpx.Client(timeout=20.0) as client:
+        response = client.get(endpoint, headers=headers, params=params)
+        response.raise_for_status()
+
+    payload = response.json()
+    if not isinstance(payload, list):
+        raise RuntimeError("Unexpected response shape from Supabase finalization query.")
+
+    sessions: list[AutoResolutionSessionRecord] = []
+    for item in payload:
+        sessions.append(AutoResolutionSessionRecord.model_validate(item))
+    return sessions
 
 
 def list_countable_sessions(
