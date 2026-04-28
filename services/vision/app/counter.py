@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Callable, Iterable, Iterator, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from subprocess import PIPE, Popen, TimeoutExpired, run
 from threading import Event, Lock
@@ -53,6 +53,10 @@ class TrackObservation:
     @property
     def footpoint(self) -> Point:
         return Point(x=self.x + (self.width / 2), y=self.y + self.height)
+
+    @property
+    def centerpoint(self) -> Point:
+        return Point(x=self.x + (self.width / 2), y=self.y + (self.height / 2))
 
 
 @dataclass(frozen=True)
@@ -124,8 +128,8 @@ def _segments_intersect(
 
 @dataclass
 class _LineTrackState:
-    last_footpoint: Point | None = None
-    last_side: int | None = None
+    last_points: dict[str, Point] = field(default_factory=dict)
+    last_sides: dict[str, int] = field(default_factory=dict)
     last_crossed_frame: int = -10
 
 
@@ -138,22 +142,51 @@ class LineCrossingCounter:
         line_start: Point,
         line_end: Point,
         cooldown_frames: int = 5,
+        endpoint_margin: float = 0.35,
     ) -> None:
         self._line_start = line_start
         self._line_end = line_end
         self._cooldown_frames = max(cooldown_frames, 1)
+        self._endpoint_margin = max(endpoint_margin, 0.0)
         self._states: dict[str, _LineTrackState] = {}
         self._frame_index = 0
 
-    def _line_side(self, point: Point) -> int:
-        cross = (
+    def _line_cross_value(self, point: Point) -> float:
+        return (
             (self._line_end.x - self._line_start.x) * (point.y - self._line_start.y)
             - (self._line_end.y - self._line_start.y) * (point.x - self._line_start.x)
         )
+
+    def _line_side(self, point: Point) -> int:
+        cross = self._line_cross_value(point)
         if abs(cross) <= 1e-9:
             return 0
 
         return 1 if cross > 0 else -1
+
+    def _crosses_line_gate(self, previous: Point, current: Point) -> bool:
+        previous_cross = self._line_cross_value(previous)
+        current_cross = self._line_cross_value(current)
+        if previous_cross == current_cross:
+            return False
+
+        interpolation = abs(previous_cross) / (abs(previous_cross) + abs(current_cross))
+        crossing_point = Point(
+            x=previous.x + ((current.x - previous.x) * interpolation),
+            y=previous.y + ((current.y - previous.y) * interpolation),
+        )
+        line_dx = self._line_end.x - self._line_start.x
+        line_dy = self._line_end.y - self._line_start.y
+        line_length_squared = (line_dx * line_dx) + (line_dy * line_dy)
+        if line_length_squared <= 1e-12:
+            return False
+
+        projection = (
+            ((crossing_point.x - self._line_start.x) * line_dx)
+            + ((crossing_point.y - self._line_start.y) * line_dy)
+        ) / line_length_squared
+
+        return -self._endpoint_margin <= projection <= 1 + self._endpoint_margin
 
     def observe_tracks(
         self,
@@ -166,29 +199,41 @@ class LineCrossingCounter:
 
         for track in tracks:
             state = self._states.setdefault(track.id, _LineTrackState())
-            current_fp = track.footpoint
-            current_side = self._line_side(current_fp)
+            current_points = {
+                "foot": track.footpoint,
+                "center": track.centerpoint,
+            }
+            crossed = False
 
-            if state.last_footpoint is not None:
-                cooled_down = (
-                    self._frame_index - state.last_crossed_frame
-                ) >= self._cooldown_frames
-                changed_sides = (
-                    state.last_side is not None
-                    and current_side != 0
-                    and state.last_side != current_side
-                )
-                crossed_line_segment = _segments_intersect(
-                    state.last_footpoint, current_fp, self._line_start, self._line_end
-                )
-                if cooled_down and changed_sides and crossed_line_segment:
-                    if count_enabled:
-                        new_crossings += 1
-                    state.last_crossed_frame = self._frame_index
+            for anchor_name, current_point in current_points.items():
+                current_side = self._line_side(current_point)
+                previous_point = state.last_points.get(anchor_name)
+                previous_side = state.last_sides.get(anchor_name)
 
-            if current_side != 0:
-                state.last_side = current_side
-            state.last_footpoint = current_fp
+                if previous_point is not None and previous_side is not None:
+                    cooled_down = (
+                        self._frame_index - state.last_crossed_frame
+                    ) >= self._cooldown_frames
+                    changed_sides = current_side != 0 and previous_side != current_side
+                    crossed_line_segment = _segments_intersect(
+                        previous_point, current_point, self._line_start, self._line_end
+                    )
+                    crossed_line_gate = self._crosses_line_gate(previous_point, current_point)
+                    if (
+                        cooled_down
+                        and changed_sides
+                        and (crossed_line_segment or crossed_line_gate)
+                    ):
+                        crossed = True
+
+                if current_side != 0:
+                    state.last_sides[anchor_name] = current_side
+                state.last_points[anchor_name] = current_point
+
+            if crossed:
+                if count_enabled:
+                    new_crossings += 1
+                state.last_crossed_frame = self._frame_index
 
         return new_crossings
 
@@ -349,10 +394,12 @@ class LiveSessionTrackSource:
     def __init__(
         self,
         *,
+        session_id: str,
         payload: CountSessionRequest,
         settings: Settings,
         stop_event: Event | None = None,
     ) -> None:
+        self._session_id = session_id
         self._payload = payload
         self._settings = settings
         self._stop_event = stop_event or Event()
@@ -371,25 +418,32 @@ class LiveSessionTrackSource:
             )
 
     def iter_observations(self) -> Iterator[FrameObservation]:
-        while not self._stop_event.is_set():
-            now = datetime.now(UTC)
-            if now >= self._payload.starts_at:
-                break
-
-            sleep(min((self._payload.starts_at - now).total_seconds(), 0.25))
-
         if self._stop_event.is_set() or datetime.now(UTC) >= self._payload.ends_at:
             return
+
+        if datetime.now(UTC) < self._payload.starts_at:
+            LOGGER.info(
+                "prewarming counting stream for %s until starts_at=%s",
+                self._session_id,
+                self._payload.starts_at.isoformat(),
+            )
 
         geometry = self._probe_stream_geometry()
         if geometry is None:
             raise RuntimeError("Could not read stream geometry for counting session.")
+        LOGGER.info(
+            "counting stream geometry for %s width=%s height=%s",
+            self._session_id,
+            geometry.width,
+            geometry.height,
+        )
 
         process = self._open_stream_process(geometry)
         if process is None:
             raise RuntimeError("Could not open ffmpeg stream for counting session.")
 
         try:
+            frame_count = 0
             while not self._stop_event.is_set():
                 now = datetime.now(UTC)
                 if now >= self._payload.ends_at:
@@ -403,6 +457,15 @@ class LiveSessionTrackSource:
 
                 observed_at = datetime.now(UTC)
                 tracks = tuple(self._detect_tracks(frame))
+                frame_count += 1
+                if frame_count == 1 or frame_count % 10 == 0:
+                    LOGGER.info(
+                        "counting stream observation session=%s frame=%s in_window=%s tracks=%s",
+                        self._session_id,
+                        frame_count,
+                        self._payload.starts_at <= observed_at < self._payload.ends_at,
+                        len(tracks),
+                    )
                 yield FrameObservation(observed_at=observed_at, tracks=tracks)
         finally:
             self._close_stream_process()
@@ -867,6 +930,7 @@ def run_counting_session(
     observations = frame_observations
     if observations is None:
         observations = LiveSessionTrackSource(
+            session_id=session_id,
             payload=payload,
             settings=resolved_settings,
             stop_event=resolved_stop_event,
@@ -885,8 +949,18 @@ def run_counting_session(
     detections_processed = 0
     last_observed_at = payload.starts_at
     count_started = False
+    observations_processed = 0
+    LOGGER.info(
+        "counting session started session=%s starts_at=%s ends_at=%s model=%s input_size=%s",
+        session_id,
+        payload.starts_at.isoformat(),
+        payload.ends_at.isoformat(),
+        resolved_settings.detection_model_name,
+        resolved_settings.detection_model_input_size,
+    )
     emit_count_update(final_count)
     for observation in observations:
+        observations_processed += 1
         last_observed_at = observation.observed_at
         if resolved_stop_event.is_set():
             break
@@ -905,6 +979,14 @@ def run_counting_session(
         )
         if new_crossings > 0:
             final_count += new_crossings
+            LOGGER.info(
+                "counting session crossing session=%s new_crossings=%s final_count=%s "
+                "observed_at=%s",
+                session_id,
+                new_crossings,
+                final_count,
+                observation.observed_at.isoformat(),
+            )
             emit_count_update(final_count)
 
     was_stopped_early = resolved_stop_event.is_set()
@@ -924,6 +1006,16 @@ def run_counting_session(
         notes = f"{window_note} Counting stopped before settlement."
     else:
         notes = window_note
+    LOGGER.info(
+        "counting session finished session=%s status=%s final_count=%s observations=%s "
+        "detections_processed=%s last_observed_at=%s",
+        session_id,
+        status,
+        final_count,
+        observations_processed,
+        detections_processed,
+        last_observed_at.isoformat(),
+    )
 
     return CountSessionResult(
         session_id=session_id,

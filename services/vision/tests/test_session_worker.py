@@ -199,6 +199,27 @@ def test_worker_does_not_auto_finalize_active_counting_job() -> None:
     assert resolved_sessions == []
 
 
+def test_worker_does_not_auto_finalize_zero_count_after_crash() -> None:
+    resolved_sessions: list[tuple[str, int]] = []
+    worker = AutomaticCountingWorker(
+        settings=make_settings(),
+        session_fetcher=lambda **_: [],
+        auto_resolution_fetcher=lambda **_: [
+            AutoResolutionSessionRecord(id="session-zero", live_count=0)
+        ],
+        count_runner=lambda *_args, **_kwargs: None,
+        session_resolver=lambda session_id, final_count: resolved_sessions.append(
+            (session_id, final_count)
+        )
+        or 1,
+    )
+
+    resolved = worker._resolve_finished_counting_sessions(now=datetime.now(UTC))
+
+    assert resolved == []
+    assert resolved_sessions == []
+
+
 def test_worker_publishes_live_count_updates_from_runner() -> None:
     starts_at = datetime.now(UTC) - timedelta(seconds=1)
     session = PendingSessionRecord(

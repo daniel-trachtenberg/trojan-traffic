@@ -59,6 +59,11 @@ class AutomaticCountingWorker:
         self._stop_event.clear()
         self._thread = Thread(target=self._run_loop, daemon=True)
         self._thread.start()
+        self._logger.info(
+            "automatic counting worker loop started poll_interval_ms=%s lookahead_ms=%s",
+            self._settings.auto_count_poll_interval_ms,
+            self._settings.auto_count_session_lookahead_ms,
+        )
 
     def stop(self) -> None:
         self._stop_event.set()
@@ -83,6 +88,8 @@ class AutomaticCountingWorker:
                     now=now,
                     lookahead_ms=self._settings.auto_count_session_lookahead_ms,
                 )
+                if due_sessions:
+                    self._logger.info("found %s countable session(s)", len(due_sessions))
                 self._launch_due_sessions(due_sessions)
                 self._resolve_finished_counting_sessions(now=now)
             except Exception as exc:  # noqa: BLE001
@@ -102,6 +109,12 @@ class AutomaticCountingWorker:
             if session.status in {"resolved", "cancelled"}:
                 continue
             if session.ends_at <= current_time:
+                self._logger.info(
+                    "skipping ended session %s starts_at=%s ends_at=%s",
+                    session.id,
+                    session.starts_at.isoformat(),
+                    session.ends_at.isoformat(),
+                )
                 continue
 
             with self._active_jobs_lock:
@@ -129,6 +142,13 @@ class AutomaticCountingWorker:
 
             thread.start()
             launched_session_ids.append(session.id)
+            self._logger.info(
+                "launched counting job session=%s starts_at=%s ends_at=%s live_count=%s",
+                session.id,
+                session.starts_at.isoformat(),
+                session.ends_at.isoformat(),
+                session.live_count,
+            )
 
         return launched_session_ids
 
@@ -141,6 +161,13 @@ class AutomaticCountingWorker:
 
         for session in sessions:
             if session.id in active_session_ids:
+                continue
+            if session.live_count <= 0:
+                self._logger.warning(
+                    "not auto-finalizing ended session %s because no positive live count was "
+                    "published before the worker stopped",
+                    session.id,
+                )
                 continue
 
             try:

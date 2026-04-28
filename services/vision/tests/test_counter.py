@@ -29,6 +29,24 @@ def make_track(track_id: str, *, foot_x: float, foot_y: float) -> TrackObservati
     )
 
 
+def make_box(
+    track_id: str,
+    *,
+    x: float,
+    y: float,
+    width: float = 0.08,
+    height: float = 0.16,
+) -> TrackObservation:
+    return TrackObservation(
+        id=track_id,
+        x=x,
+        y=y,
+        width=width,
+        height=height,
+        confidence=0.9,
+    )
+
+
 def make_settings() -> Settings:
     return Settings(
         enable_live_detections=False,
@@ -154,6 +172,52 @@ def test_line_crossing_counter_does_not_count_track_that_starts_on_line() -> Non
             count_enabled=True,
         )
         == 0
+    )
+
+
+def test_line_crossing_counter_counts_visual_body_crossing_when_feet_stay_below_line() -> None:
+    counter = LineCrossingCounter(
+        line_start=Point(x=0.4, y=0.5),
+        line_end=Point(x=0.6, y=0.5),
+        cooldown_frames=1,
+    )
+
+    assert (
+        counter.observe_tracks(
+            [make_box("track-1", x=0.46, y=0.38)],
+            count_enabled=True,
+        )
+        == 0
+    )
+    assert (
+        counter.observe_tracks(
+            [make_box("track-1", x=0.46, y=0.46)],
+            count_enabled=True,
+        )
+        == 1
+    )
+
+
+def test_line_crossing_counter_allows_small_endpoint_miss() -> None:
+    counter = LineCrossingCounter(
+        line_start=Point(x=0.5, y=0.4),
+        line_end=Point(x=0.5, y=0.6),
+        cooldown_frames=1,
+    )
+
+    assert (
+        counter.observe_tracks(
+            [make_track("track-1", foot_x=0.45, foot_y=0.63)],
+            count_enabled=True,
+        )
+        == 0
+    )
+    assert (
+        counter.observe_tracks(
+            [make_track("track-1", foot_x=0.55, foot_y=0.63)],
+            count_enabled=True,
+        )
+        == 1
     )
 
 

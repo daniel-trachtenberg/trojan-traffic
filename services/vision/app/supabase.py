@@ -127,6 +127,7 @@ def list_auto_resolution_sessions(
     params = {
         "select": "id,live_count",
         "status": "eq.counting",
+        "live_count": "gt.0",
         "resolved_at": "is.null",
         "final_count": "is.null",
         "ends_at": f"lte.{resolved_now.isoformat()}",

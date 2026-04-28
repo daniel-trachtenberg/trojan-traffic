@@ -1,3 +1,4 @@
+import logging
 from datetime import UTC, datetime
 
 import httpx
@@ -12,6 +13,11 @@ from app.settings import get_settings
 from app.supabase import resolve_session_in_supabase
 
 settings = get_settings()
+logging.basicConfig(
+    level=getattr(logging, settings.log_level.upper(), logging.INFO),
+    format="%(levelname)s:%(name)s:%(message)s",
+)
+LOGGER = logging.getLogger("app.main")
 LIVE_DETECTION_PREVIEW_ENABLED = True
 
 app = FastAPI(
@@ -74,6 +80,15 @@ class LiveDetectionsResponse(BaseModel):
 @app.on_event("startup")
 def startup_event() -> None:
     global person_detector, session_worker
+    LOGGER.info(
+        "vision service startup: live_detections=%s auto_count_worker=%s "
+        "supabase_configured=%s model=%s input_size=%s",
+        settings.enable_live_detections,
+        settings.enable_auto_count_worker,
+        bool(settings.supabase_url and settings.supabase_service_role_key),
+        settings.detection_model_name,
+        settings.detection_model_input_size,
+    )
     if LIVE_DETECTION_PREVIEW_ENABLED and settings.enable_live_detections:
         person_detector = LivePersonDetector(
             source_url=str(settings.camera_playlist_url),
@@ -104,6 +119,11 @@ def startup_event() -> None:
     ):
         session_worker = AutomaticCountingWorker(settings=settings)
         session_worker.start()
+        LOGGER.info("automatic counting worker started")
+    elif settings.enable_auto_count_worker:
+        LOGGER.warning(
+            "automatic counting worker is enabled but Supabase service credentials are missing"
+        )
 
 
 @app.on_event("shutdown")

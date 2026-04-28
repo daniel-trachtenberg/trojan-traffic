@@ -20,6 +20,10 @@ services:
         value: "false"
       - key: ENABLE_AUTO_COUNT_WORKER
         value: "true"
+      - key: DETECTION_MODEL_NAME
+        value: yolo11n.pt
+      - key: DETECTION_MODEL_INPUT_SIZE
+        value: "960"
       - key: AUTO_COUNT_POLL_INTERVAL_MS
         value: "1000"
       - key: AUTO_COUNT_SESSION_LOOKAHEAD_MS

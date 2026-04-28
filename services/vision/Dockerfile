@@ -3,6 +3,7 @@ FROM python:3.12-slim
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PIP_NO_CACHE_DIR=1 \
+    YOLO_CONFIG_DIR=/tmp/Ultralytics \
     PORT=10000
 
 WORKDIR /app
@@ -15,8 +16,9 @@ COPY pyproject.toml README.md ./
 COPY app ./app
 
 RUN python -m pip install --upgrade pip setuptools wheel \
+    && python -m pip install --index-url https://download.pytorch.org/whl/cpu torch torchvision \
     && python -m pip install . \
-    && python -c "from ultralytics import YOLO; YOLO('yolo11s.pt')"
+    && python -c "from ultralytics import YOLO; YOLO('yolo11n.pt')"
 
 EXPOSE 10000
 

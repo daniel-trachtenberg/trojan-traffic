@@ -59,9 +59,11 @@ session window, publishes `game_sessions.live_count` as crossings are confirmed,
 bets automatically through the existing `resolve_session` RPC.
 
 When the first live-count update is written, the worker marks that session as `counting`. If the
-counting job exits or the service restarts before the final resolve call, the worker's next polling
-cycle automatically finalizes ended `counting` sessions with their last published `live_count`
-instead of leaving them for manual admin resolution.
+counting job exits or the service restarts after publishing a positive count but before the final
+resolve call, the worker's next polling cycle automatically finalizes ended `counting` sessions
+with their last published `live_count` instead of leaving them for manual admin resolution. A
+crashed session with only the initial zero heartbeat is intentionally left unresolved so it does not
+settle bets to a false zero.
 
 The worker intentionally only deduplicates active counting jobs inside the current service instance.
 It does not take over manual admin controls for sessions that never entered `counting`, so admins
@@ -79,10 +81,10 @@ Relevant settings:
 
 ## Model choice
 
-For this repo's current CPU-based live service, the default is now `YOLO11s` with explicit input
-resolution and conservative NMS.
+For this repo's current CPU-based live service, the default is now `YOLO11n` with explicit input
+resolution and conservative NMS so Render can process enough frames during short rounds.
 
-- On sampled USC night frames, `YOLO11s` produced materially fewer false positives than the
+- On sampled USC night frames, the YOLO11 family produced materially fewer false positives than the
   repo's earlier `RT-DETR-L` path while running much faster on CPU.
 - The detector now passes an explicit `imgsz` into Ultralytics instead of relying on the smaller
   default inference size, which was dropping distant pedestrians.
@@ -100,11 +102,11 @@ the same image the detector used for the returned boxes, so the overlay stays sy
 For the USC traffic camera, the current defaults are tuned for small pedestrians on a static,
 nighttime full-frame view:
 
-- `DETECTION_MODEL_NAME=yolo11s.pt`
+- `DETECTION_MODEL_NAME=yolo11n.pt`
 - `DETECTION_CONFIDENCE=0.30`
 - `DETECTION_INTERVAL_MS=600`
 - `DETECTION_STREAM_MAX_WIDTH=1280`
-- `DETECTION_MODEL_INPUT_SIZE=1280`
+- `DETECTION_MODEL_INPUT_SIZE=960`
 - `DETECTION_NMS_IOU=0.45`
 - `DETECTION_REGION_LEFT=0.00`
 - `DETECTION_REGION_TOP=0.00`
