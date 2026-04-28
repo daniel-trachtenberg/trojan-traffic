@@ -42,9 +42,8 @@ during round windows and tracks people across successive frames.
 
 The run endpoint now processes a real counting session. It tracks people over time and counts
 confirmed crossings of the yellow line using each tracked box's bottom-center "footpoint" so the
-count matches the ground marker instead of box-center overlap. It waits until the game window opens
-before running the model and scans a padded crop around the yellow line instead of the full camera
-view.
+count matches the ground marker instead of box-center overlap. Two-point line regions are tracked
+full-frame so person IDs can stabilize before the crossing; polygon regions still use a padded crop.
 
 The resolve endpoint requires `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` in `.env`.
 
@@ -56,7 +55,8 @@ instead of switching to detector frames.
 When `ENABLE_AUTO_COUNT_WORKER=true`, the service also starts a background worker that polls
 Supabase for unresolved sessions that are about to start or are already live. For each due session,
 it uses that session's own `camera_feed_url` and `region_polygon`, counts crossings during the
-session window, and then settles bets automatically through the existing `resolve_session` RPC.
+session window, publishes `game_sessions.live_count` as crossings are confirmed, and then settles
+bets automatically through the existing `resolve_session` RPC.
 
 The worker intentionally only deduplicates jobs inside the current service instance. It does not
 take over manual admin controls, so unresolved sessions can still be handled manually if a count

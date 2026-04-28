@@ -4,6 +4,7 @@ import logging
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from inspect import Parameter, signature
 from threading import Event, Lock, Thread
 from time import sleep
 
@@ -13,6 +14,7 @@ from app.supabase import (
     PendingSessionRecord,
     list_countable_sessions,
     resolve_session_in_supabase_sync,
+    update_session_live_count_sync,
 )
 
 
@@ -20,6 +22,7 @@ from app.supabase import (
 class _SessionJobInput:
     session_id: str
     request: CountSessionRequest
+    initial_count: int
 
 
 class AutomaticCountingWorker:
@@ -30,11 +33,13 @@ class AutomaticCountingWorker:
         session_fetcher: Callable[..., Sequence[PendingSessionRecord]] = list_countable_sessions,
         count_runner: Callable[..., CountSessionResult] = run_counting_session,
         session_resolver: Callable[[str, int], int] = resolve_session_in_supabase_sync,
+        session_live_count_updater: Callable[[str, int], None] = update_session_live_count_sync,
     ) -> None:
         self._settings = settings
         self._session_fetcher = session_fetcher
         self._count_runner = count_runner
         self._session_resolver = session_resolver
+        self._session_live_count_updater = session_live_count_updater
         self._logger = logging.getLogger("app.session_worker")
         self._stop_event = Event()
         self._thread: Thread | None = None
@@ -98,6 +103,7 @@ class AutomaticCountingWorker:
 
                 job_input = _SessionJobInput(
                     session_id=session.id,
+                    initial_count=session.live_count,
                     request=CountSessionRequest(
                         feed_url=session.camera_feed_url,
                         starts_at=session.starts_at,
@@ -121,11 +127,12 @@ class AutomaticCountingWorker:
 
     def _run_session_job(self, job_input: _SessionJobInput) -> None:
         try:
-            result = self._count_runner(
-                job_input.session_id,
-                job_input.request,
-                settings=self._settings,
-                stop_event=self._stop_event,
+            result = self._run_count_runner(
+                job_input,
+                count_update_handler=lambda live_count: self._publish_live_count(
+                    job_input.session_id,
+                    live_count,
+                ),
             )
             if result.status != "resolved" or self._stop_event.is_set():
                 self._logger.info(
@@ -134,6 +141,7 @@ class AutomaticCountingWorker:
                 )
                 return
 
+            self._publish_live_count(job_input.session_id, result.final_count)
             processed_predictions = self._session_resolver(
                 job_input.session_id,
                 result.final_count,
@@ -153,3 +161,57 @@ class AutomaticCountingWorker:
         finally:
             with self._active_jobs_lock:
                 self._active_jobs.pop(job_input.session_id, None)
+
+    def _run_count_runner(
+        self,
+        job_input: _SessionJobInput,
+        *,
+        count_update_handler: Callable[[int], None],
+    ) -> CountSessionResult:
+        kwargs = {
+            "settings": self._settings,
+            "stop_event": self._stop_event,
+        }
+        if self._count_runner_supports_live_updates():
+            kwargs["count_update_handler"] = count_update_handler
+        if self._count_runner_supports_initial_count():
+            kwargs["initial_count"] = job_input.initial_count
+
+        return self._count_runner(
+            job_input.session_id,
+            job_input.request,
+            **kwargs,
+        )
+
+    def _count_runner_supports_live_updates(self) -> bool:
+        try:
+            parameters = signature(self._count_runner).parameters
+        except (TypeError, ValueError):
+            return True
+
+        return "count_update_handler" in parameters or any(
+            parameter.kind == Parameter.VAR_KEYWORD for parameter in parameters.values()
+        )
+
+    def _count_runner_supports_initial_count(self) -> bool:
+        try:
+            parameters = signature(self._count_runner).parameters
+        except (TypeError, ValueError):
+            return True
+
+        return "initial_count" in parameters or any(
+            parameter.kind == Parameter.VAR_KEYWORD for parameter in parameters.values()
+        )
+
+    def _publish_live_count(self, session_id: str, live_count: int) -> None:
+        if not self._settings.supabase_url or not self._settings.supabase_service_role_key:
+            return
+
+        try:
+            self._session_live_count_updater(session_id, live_count)
+        except Exception as exc:  # noqa: BLE001
+            self._logger.warning(
+                "could not publish live count for session %s: %s",
+                session_id,
+                exc,
+            )

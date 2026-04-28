@@ -11,6 +11,7 @@ type AdminSessionRow = {
   starts_at: string;
   ends_at: string;
   status: string;
+  live_count: number;
   final_count: number | null;
   resolved_at: string | null;
   camera_feed_url: string;
@@ -589,6 +590,7 @@ export function AdminConsole({
                   <span>{Number(session.prediction_count ?? 0)} total predictions</span>
                   <span>{Number(session.open_prediction_count ?? 0)} unresolved</span>
                   <span>{Number(session.wager_total ?? 0)} wagered</span>
+                  <span>Live count {Number(session.live_count ?? 0)}</span>
                   <span>{session.final_count === null ? "Final count pending" : `Final count ${session.final_count}`}</span>
                 </div>
 

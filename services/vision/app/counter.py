@@ -83,15 +83,39 @@ class _TrackCrossingState:
     outside_streak: int = 0
 
 
-def _segments_intersect(a1: Point, a2: Point, b1: Point, b2: Point) -> bool:
-    """True if segment a1→a2 properly crosses segment b1→b2 (no collinear/endpoint cases)."""
+def _segments_intersect(
+    a1: Point,
+    a2: Point,
+    b1: Point,
+    b2: Point,
+    *,
+    epsilon: float = 1e-9,
+) -> bool:
+    """True when two finite segments cross or touch."""
+
     def _cross(o: Point, u: Point, v: Point) -> float:
         return (u.x - o.x) * (v.y - o.y) - (u.y - o.y) * (v.x - o.x)
+
+    def _on_segment(o: Point, u: Point, v: Point) -> bool:
+        return (
+            min(o.x, v.x) - epsilon <= u.x <= max(o.x, v.x) + epsilon
+            and min(o.y, v.y) - epsilon <= u.y <= max(o.y, v.y) + epsilon
+        )
 
     d1 = _cross(b1, b2, a1)
     d2 = _cross(b1, b2, a2)
     d3 = _cross(a1, a2, b1)
     d4 = _cross(a1, a2, b2)
+
+    if abs(d1) <= epsilon and _on_segment(b1, a1, b2):
+        return True
+    if abs(d2) <= epsilon and _on_segment(b1, a2, b2):
+        return True
+    if abs(d3) <= epsilon and _on_segment(a1, b1, a2):
+        return True
+    if abs(d4) <= epsilon and _on_segment(a1, b2, a2):
+        return True
+
     return (
         ((d1 > 0 and d2 < 0) or (d1 < 0 and d2 > 0))
         and ((d3 > 0 and d4 < 0) or (d3 < 0 and d4 > 0))
@@ -101,11 +125,12 @@ def _segments_intersect(a1: Point, a2: Point, b1: Point, b2: Point) -> bool:
 @dataclass
 class _LineTrackState:
     last_footpoint: Point | None = None
+    last_side: int | None = None
     last_crossed_frame: int = -10
 
 
 class LineCrossingCounter:
-    """Counts line-segment crossings by checking whether consecutive footpoint positions straddle it."""
+    """Counts line crossings from consecutive tracked footpoint positions."""
 
     def __init__(
         self,
@@ -120,6 +145,16 @@ class LineCrossingCounter:
         self._states: dict[str, _LineTrackState] = {}
         self._frame_index = 0
 
+    def _line_side(self, point: Point) -> int:
+        cross = (
+            (self._line_end.x - self._line_start.x) * (point.y - self._line_start.y)
+            - (self._line_end.y - self._line_start.y) * (point.x - self._line_start.x)
+        )
+        if abs(cross) <= 1e-9:
+            return 0
+
+        return 1 if cross > 0 else -1
+
     def observe_tracks(
         self,
         tracks: Sequence[TrackObservation],
@@ -132,16 +167,27 @@ class LineCrossingCounter:
         for track in tracks:
             state = self._states.setdefault(track.id, _LineTrackState())
             current_fp = track.footpoint
+            current_side = self._line_side(current_fp)
 
             if state.last_footpoint is not None:
-                cooled_down = (self._frame_index - state.last_crossed_frame) >= self._cooldown_frames
-                if cooled_down and _segments_intersect(
+                cooled_down = (
+                    self._frame_index - state.last_crossed_frame
+                ) >= self._cooldown_frames
+                changed_sides = (
+                    state.last_side is not None
+                    and current_side != 0
+                    and state.last_side != current_side
+                )
+                crossed_line_segment = _segments_intersect(
                     state.last_footpoint, current_fp, self._line_start, self._line_end
-                ):
+                )
+                if cooled_down and changed_sides and crossed_line_segment:
                     if count_enabled:
                         new_crossings += 1
                     state.last_crossed_frame = self._frame_index
 
+            if current_side != 0:
+                state.last_side = current_side
             state.last_footpoint = current_fp
 
         return new_crossings
@@ -790,6 +836,8 @@ def run_counting_session(
     settings: Settings | None = None,
     now_provider: Callable[[], datetime] | None = None,
     stop_event: Event | None = None,
+    initial_count: int = 0,
+    count_update_handler: Callable[[int], None] | None = None,
 ) -> CountSessionResult:
     resolved_settings = settings or get_settings()
     resolved_now_provider = now_provider or (lambda: datetime.now(UTC))
@@ -824,10 +872,20 @@ def run_counting_session(
             stop_event=resolved_stop_event,
         ).iter_observations()
 
-    final_count = 0
+    def emit_count_update(next_count: int) -> None:
+        if count_update_handler is None:
+            return
+
+        try:
+            count_update_handler(next_count)
+        except Exception as exc:  # noqa: BLE001
+            LOGGER.warning("live count update failed for %s: %s", session_id, exc)
+
+    final_count = max(initial_count, 0)
     detections_processed = 0
     last_observed_at = payload.starts_at
     count_started = False
+    emit_count_update(final_count)
     for observation in observations:
         last_observed_at = observation.observed_at
         if resolved_stop_event.is_set():
@@ -841,10 +899,13 @@ def run_counting_session(
             count_started = True
             detections_processed += len(observation.tracks)
 
-        final_count += counter.observe_tracks(
+        new_crossings = counter.observe_tracks(
             observation.tracks,
             count_enabled=count_enabled,
         )
+        if new_crossings > 0:
+            final_count += new_crossings
+            emit_count_update(final_count)
 
     was_stopped_early = resolved_stop_event.is_set()
     status = "stopped" if was_stopped_early else "resolved"

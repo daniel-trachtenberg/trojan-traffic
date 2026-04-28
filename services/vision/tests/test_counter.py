@@ -108,8 +108,7 @@ def test_line_crossing_counter_counts_confirmed_crossing_in_either_direction() -
     counter = LineCrossingCounter(
         line_start=Point(x=0.5, y=0.3),
         line_end=Point(x=0.5, y=0.7),
-        entry_confirm_frames=1,
-        exit_confirm_frames=1,
+        cooldown_frames=1,
     )
 
     assert (
@@ -132,6 +131,29 @@ def test_line_crossing_counter_counts_confirmed_crossing_in_either_direction() -
             count_enabled=True,
         )
         == 1
+    )
+
+
+def test_line_crossing_counter_does_not_count_track_that_starts_on_line() -> None:
+    counter = LineCrossingCounter(
+        line_start=Point(x=0.5, y=0.3),
+        line_end=Point(x=0.5, y=0.7),
+        cooldown_frames=1,
+    )
+
+    assert (
+        counter.observe_tracks(
+            [make_track("track-1", foot_x=0.5, foot_y=0.5)],
+            count_enabled=True,
+        )
+        == 0
+    )
+    assert (
+        counter.observe_tracks(
+            [make_track("track-1", foot_x=0.6, foot_y=0.5)],
+            count_enabled=True,
+        )
+        == 0
     )
 
 
@@ -195,6 +217,77 @@ def test_run_counting_session_counts_only_in_window_crossings() -> None:
     assert result.final_count == 1
     assert result.detections_processed == 2
     assert "crossings across the line" in result.notes
+
+
+def test_run_counting_session_emits_live_count_updates() -> None:
+    starts_at = datetime(2026, 3, 21, 12, 0, tzinfo=UTC)
+    ends_at = starts_at + timedelta(seconds=30)
+    payload = CountSessionRequest(
+        feed_url="https://cs9.pixelcaster.com/live/usc-tommy.stream/playlist.m3u8",
+        starts_at=starts_at,
+        ends_at=ends_at,
+        region=[
+            Point(x=0.5, y=0.3),
+            Point(x=0.5, y=0.7),
+        ],
+    )
+    updates: list[int] = []
+
+    result = run_counting_session(
+        "session-123",
+        payload,
+        frame_observations=[
+            FrameObservation(
+                observed_at=starts_at + timedelta(seconds=1),
+                tracks=(make_track("track-1", foot_x=0.4, foot_y=0.5),),
+            ),
+            FrameObservation(
+                observed_at=starts_at + timedelta(seconds=2),
+                tracks=(make_track("track-1", foot_x=0.6, foot_y=0.5),),
+            ),
+        ],
+        settings=make_settings(),
+        count_update_handler=updates.append,
+    )
+
+    assert result.final_count == 1
+    assert updates == [0, 1]
+
+
+def test_run_counting_session_resumes_from_initial_count() -> None:
+    starts_at = datetime(2026, 3, 21, 12, 0, tzinfo=UTC)
+    ends_at = starts_at + timedelta(seconds=30)
+    payload = CountSessionRequest(
+        feed_url="https://cs9.pixelcaster.com/live/usc-tommy.stream/playlist.m3u8",
+        starts_at=starts_at,
+        ends_at=ends_at,
+        region=[
+            Point(x=0.5, y=0.3),
+            Point(x=0.5, y=0.7),
+        ],
+    )
+    updates: list[int] = []
+
+    result = run_counting_session(
+        "session-resume",
+        payload,
+        frame_observations=[
+            FrameObservation(
+                observed_at=starts_at + timedelta(seconds=1),
+                tracks=(make_track("track-1", foot_x=0.4, foot_y=0.5),),
+            ),
+            FrameObservation(
+                observed_at=starts_at + timedelta(seconds=2),
+                tracks=(make_track("track-1", foot_x=0.6, foot_y=0.5),),
+            ),
+        ],
+        settings=make_settings(),
+        initial_count=4,
+        count_update_handler=updates.append,
+    )
+
+    assert result.final_count == 5
+    assert updates == [4, 5]
 
 
 def test_run_counting_session_rejects_starting_after_end_for_live_mode() -> None:

@@ -20,6 +20,7 @@ class PendingSessionRecord(BaseModel):
     status: str
     camera_feed_url: HttpUrl
     region_polygon: list[SessionRegionPoint] = Field(min_length=2)
+    live_count: int = Field(default=0, ge=0)
     final_count: int | None = None
     resolved_at: datetime | None = None
 
@@ -85,6 +86,23 @@ def resolve_session_in_supabase_sync(session_id: str, final_count: int) -> int:
     return _parse_processed_predictions(response.json())
 
 
+def update_session_live_count_sync(session_id: str, live_count: int) -> None:
+    if live_count < 0:
+        raise ValueError("Live count cannot be negative.")
+
+    headers = {
+        **_build_headers(),
+        "Prefer": "return=minimal",
+    }
+    endpoint = _build_rest_endpoint("/rest/v1/game_sessions")
+    params = {"id": f"eq.{session_id}", "resolved_at": "is.null"}
+    payload = {"live_count": live_count}
+
+    with httpx.Client(timeout=10.0) as client:
+        response = client.patch(endpoint, headers=headers, params=params, json=payload)
+        response.raise_for_status()
+
+
 def list_countable_sessions(
     *,
     now: datetime | None = None,
@@ -98,7 +116,7 @@ def list_countable_sessions(
     params = {
         "select": (
             "id,starts_at,ends_at,status,camera_feed_url,"
-            "region_polygon,final_count,resolved_at"
+            "region_polygon,live_count,final_count,resolved_at"
         ),
         "status": "not.in.(resolved,cancelled)",
         "resolved_at": "is.null",

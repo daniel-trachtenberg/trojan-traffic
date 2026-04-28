@@ -29,6 +29,7 @@ type SessionRow = {
   starts_at: string;
   ends_at: string;
   status: string;
+  live_count: number;
   final_count: number | null;
   resolved_at: string | null;
 };
@@ -191,7 +192,7 @@ const SUCCESS_TOAST_DURATION_MS = 4200;
 const ERROR_TOAST_DURATION_MS = 6200;
 const MAX_VISIBLE_TOASTS = 4;
 const RESULT_SPOTLIGHT_WINDOW_MS = 10_000;
-const SESSION_SELECT_COLUMNS = "id,mode_seconds,threshold,starts_at,ends_at,status,final_count,resolved_at";
+const SESSION_SELECT_COLUMNS = "id,mode_seconds,threshold,starts_at,ends_at,status,live_count,final_count,resolved_at";
 const DEFAULT_PROFILE_AVATAR_ID: BuiltInProfileAvatarId = "signal";
 const DEFAULT_PREFERRED_MODE_SECONDS: PreferredModeSeconds = 30;
 const MAX_PROFILE_AVATAR_FILE_SIZE_BYTES = 8 * 1024 * 1024;
@@ -267,6 +268,7 @@ const PROFILE_PREVIEW_HISTORY_SESSIONS: SessionRow[] = [
     starts_at: "2026-04-10T18:00:00.000Z",
     ends_at: "2026-04-10T18:00:30.000Z",
     status: "resolved",
+    live_count: 7,
     final_count: 7,
     resolved_at: "2026-04-10T18:00:40.000Z"
   },
@@ -277,6 +279,7 @@ const PROFILE_PREVIEW_HISTORY_SESSIONS: SessionRow[] = [
     starts_at: "2026-04-11T19:15:00.000Z",
     ends_at: "2026-04-11T19:16:00.000Z",
     status: "resolved",
+    live_count: 8,
     final_count: 8,
     resolved_at: "2026-04-11T19:16:12.000Z"
   },
@@ -287,6 +290,7 @@ const PROFILE_PREVIEW_HISTORY_SESSIONS: SessionRow[] = [
     starts_at: "2026-04-13T23:30:00.000Z",
     ends_at: "2026-04-13T23:30:30.000Z",
     status: "scheduled",
+    live_count: 0,
     final_count: null,
     resolved_at: null
   }
@@ -1259,6 +1263,7 @@ function createFallbackSessions(): SessionRow[] {
       starts_at: startsAt.toISOString(),
       ends_at: endsAt.toISOString(),
       status: "scheduled",
+      live_count: 0,
       final_count: null,
       resolved_at: null
     };
@@ -1956,6 +1961,7 @@ export function MvpDashboard({
       const state = getSessionState(session, nowMs);
       return state === "live" || state === "resolving";
     }) ?? null;
+  const hasActiveRoundForRefresh = Boolean(inFlightSession);
   const resolvedSessions = sessions.filter((session) => getSessionState(session, nowMs) === "resolved");
   const spotlightResolvedSession =
     [...resolvedSessions].reverse().find((session) => {
@@ -2232,6 +2238,7 @@ export function MvpDashboard({
       starts_at: prediction.starts_at,
       ends_at: prediction.ends_at,
       status: prediction.status,
+      live_count: prediction.final_count ?? 0,
       final_count: prediction.final_count,
       resolved_at: prediction.session_resolved_at
     }))
@@ -2258,14 +2265,18 @@ export function MvpDashboard({
           note: "Land a couple of sharp rounds and this panel starts moving fast."
         }
     : null;
-  const livePeopleCount = liveDetections?.boxes.length ?? null;
-  const livePeopleCountDisplay = `${livePeopleCount ?? 0}`.padStart(2, "0");
+  const liveCrossingCount =
+    selectedSession && (selectedState === "live" || selectedState === "resolving")
+      ? Math.max(selectedSession.live_count ?? 0, 0)
+      : null;
+  const liveCrossingCountDisplay = `${liveCrossingCount ?? 0}`.padStart(2, "0");
   const selectedRoundCountdown =
     selectedEndsAtMs !== null ? formatCountdown(selectedEndsAtMs - nowMs) : "00:00";
   const liveSceneId = useId().replace(/:/g, "");
-  const liveCountValue = livePeopleCount ?? 0;
+  const liveCountValue = liveCrossingCount ?? 0;
   const liveCountRatio = displayedThreshold > 0 ? liveCountValue / displayedThreshold : 0;
-  const liveTrackHasCrossedLine = livePeopleCount !== null && livePeopleCount >= displayedThreshold;
+  const liveCountReachedThreshold =
+    liveCrossingCount !== null && liveCrossingCount >= displayedThreshold;
   const liveRoundDurationMs = Math.max(displayedModeSeconds * 1000, 1);
   const liveRoundRemainingMs = selectedEndsAtMs !== null ? Math.max(selectedEndsAtMs - nowMs, 0) : liveRoundDurationMs;
   const liveElapsedRatio = clamp(1 - liveRoundRemainingMs / liveRoundDurationMs, 0, 1);
@@ -2369,11 +2380,11 @@ export function MvpDashboard({
   const liveSmokeGradientId = `${liveSceneId}-smoke-gradient`;
   const liveHeadlightGradientId = `${liveSceneId}-headlight-gradient`;
   const liveTrackStateLabel =
-    livePeopleCount === null
+    liveCrossingCount === null
       ? "Counter ready"
       : liveTrainHasHardStopped
         ? "Emergency stop"
-        : liveTrackHasCrossedLine
+        : liveCountReachedThreshold
           ? "Safe stop"
           : "Runaway";
 
@@ -2389,7 +2400,7 @@ export function MvpDashboard({
       liveTrainStopXRef.current = null;
     }
 
-    if (livePeopleCount === null || displayedThreshold <= 0) {
+    if (liveCrossingCount === null || displayedThreshold <= 0) {
       liveTrainStopXRef.current = null;
       return;
     }
@@ -2407,7 +2418,7 @@ export function MvpDashboard({
     liveComputedTrainFrontX,
     liveCountRatio,
     liveHardStopTriggerRatio,
-    livePeopleCount,
+    liveCrossingCount,
     selectedSessionId,
     showLiveRoundCard
   ]);
@@ -3129,13 +3140,13 @@ export function MvpDashboard({
       startTransition(() => {
         void load(user);
       });
-    }, 20_000);
+    }, hasActiveRoundForRefresh ? 1_000 : 20_000);
 
     return () => {
       clearInterval(refreshInterval);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [supabase, user]);
+  }, [supabase, user, hasActiveRoundForRefresh]);
 
   useEffect(() => {
     if (!activeVisionApiUrl) {
@@ -4054,44 +4065,44 @@ export function MvpDashboard({
     .filter(Boolean)
     .join(" • ");
   const showMobileOpenBetWidget = showBettingControls && selectedSessionPredictionCount > 0;
-  const mobileLiveCountDisplay = livePeopleCount === null ? "--" : livePeopleCountDisplay;
+  const mobileLiveCountDisplay = liveCrossingCount === null ? "--" : liveCrossingCountDisplay;
   const mobileLiveCountNote =
-    livePeopleCount === null
+    liveCrossingCount === null
       ? selectedState === "resolving"
         ? "Final count syncing from the live feed."
         : "Counter syncing to the live feed."
-      : livePeopleCount === displayedThreshold
+      : liveCrossingCount === displayedThreshold
         ? "Exactly on the betting line."
-        : livePeopleCount > displayedThreshold
-          ? `${livePeopleCount - displayedThreshold} above the betting line.`
-          : `${displayedThreshold - livePeopleCount} below the betting line.`;
+        : liveCrossingCount > displayedThreshold
+          ? `${liveCrossingCount - displayedThreshold} above the betting line.`
+          : `${displayedThreshold - liveCrossingCount} below the betting line.`;
   const mobileLiveMeterStateTone =
-    livePeopleCount === null
+    liveCrossingCount === null
       ? "syncing"
-      : livePeopleCount === displayedThreshold
+      : liveCrossingCount === displayedThreshold
         ? "exact"
-        : livePeopleCount > displayedThreshold
+        : liveCrossingCount > displayedThreshold
           ? "over"
           : "under";
   const mobileLiveMeterStateLabel =
-    livePeopleCount === null
+    liveCrossingCount === null
       ? "Counter syncing"
-      : livePeopleCount === displayedThreshold
+      : liveCrossingCount === displayedThreshold
         ? "On the line"
-        : livePeopleCount > displayedThreshold
-          ? `${livePeopleCount - displayedThreshold} above line`
-          : `${displayedThreshold - livePeopleCount} below line`;
+        : liveCrossingCount > displayedThreshold
+          ? `${liveCrossingCount - displayedThreshold} above line`
+          : `${displayedThreshold - liveCrossingCount} below line`;
   const mobileLiveMeterSummary =
-    livePeopleCount === null
+    liveCrossingCount === null
       ? "Tracking live movement"
-      : livePeopleCount === displayedThreshold
+      : liveCrossingCount === displayedThreshold
         ? "Exact line live right now"
-        : livePeopleCount > displayedThreshold
+        : liveCrossingCount > displayedThreshold
           ? "Over is ahead right now"
           : "Under is ahead right now";
   const mobileLiveThresholdMarkerPercent = 72;
   const mobileLiveMeterFillPercent =
-    livePeopleCount === null
+    liveCrossingCount === null
       ? 24 + liveElapsedRatio * 20
       : displayedThreshold > 0
         ? clamp((liveCountValue / displayedThreshold) * mobileLiveThresholdMarkerPercent, 0, 100)
@@ -4969,7 +4980,7 @@ export function MvpDashboard({
                         <div
                           className={`mobile-live-floating-card mobile-live-floating-card-count mobile-live-floating-card-${mobileLiveMeterStateTone}`}
                         >
-                          <span className="mobile-live-floating-card-kicker">Detected people</span>
+                          <span className="mobile-live-floating-card-kicker">Line crossings</span>
                           <strong>{mobileLiveCountDisplay}</strong>
                           <span>{mobileLiveCountNote}</span>
                         </div>
@@ -5101,9 +5112,9 @@ export function MvpDashboard({
               </div>
 
               <div className="live-round-overlay-count">
-                <span>Detected people</span>
-                <strong>{livePeopleCountDisplay}</strong>
-                <p>People in frame now</p>
+                <span>Live count</span>
+                <strong>{liveCrossingCountDisplay}</strong>
+                <p>Crossed the line this round</p>
               </div>
             </div>
 
@@ -5113,7 +5124,7 @@ export function MvpDashboard({
                   <span>Betting line</span>
                   <strong>{displayedThreshold} people</strong>
                 </div>
-                {livePeopleCount === null ? null : (
+                {liveCrossingCount === null ? null : (
                   <div className="live-round-overlay-track-state">{liveTrackStateLabel}</div>
                 )}
               </div>
