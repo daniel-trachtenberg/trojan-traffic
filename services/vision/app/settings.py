@@ -10,7 +10,7 @@ class Settings(BaseSettings):
     camera_playlist_url: HttpUrl = HttpUrl(
         "https://cs9.pixelcaster.com/live/usc-tommy.stream/playlist.m3u8"
     )
-    enable_live_detections: bool = False
+    enable_live_detections: bool = True
     detection_model_name: str = "yolo11s.pt"
     detection_confidence: float = 0.3
     detection_interval_ms: int = 600

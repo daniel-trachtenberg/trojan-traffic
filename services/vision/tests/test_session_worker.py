@@ -77,11 +77,39 @@ def test_worker_avoids_duplicate_in_process_jobs() -> None:
     assert resolved_sessions == [("session-123", 3)]
 
 
-def test_worker_skips_sessions_that_have_already_started() -> None:
+def test_worker_launches_sessions_that_have_already_started() -> None:
     session = PendingSessionRecord(
         id="session-live",
         starts_at=datetime.now(UTC) - timedelta(seconds=5),
         ends_at=datetime.now(UTC) + timedelta(seconds=25),
+        status="scheduled",
+        camera_feed_url="https://cs9.pixelcaster.com/live/usc-tommy.stream/playlist.m3u8",
+        region_polygon=[
+            SessionRegionPoint(x=0.5, y=0.3),
+            SessionRegionPoint(x=0.5, y=0.7),
+        ],
+    )
+
+    counted_sessions: list[str] = []
+    worker = AutomaticCountingWorker(
+        settings=make_settings(),
+        session_fetcher=lambda **_: [session],
+        count_runner=lambda session_id, request, *, settings, stop_event: (
+            counted_sessions.append(session_id)
+        ),
+        session_resolver=lambda *_: 0,
+    )
+
+    launched = worker._launch_due_sessions([session])
+
+    assert launched == ["session-live"]
+
+
+def test_worker_skips_sessions_that_have_already_ended() -> None:
+    session = PendingSessionRecord(
+        id="session-ended",
+        starts_at=datetime.now(UTC) - timedelta(seconds=35),
+        ends_at=datetime.now(UTC) - timedelta(seconds=5),
         status="scheduled",
         camera_feed_url="https://cs9.pixelcaster.com/live/usc-tommy.stream/playlist.m3u8",
         region_polygon=[

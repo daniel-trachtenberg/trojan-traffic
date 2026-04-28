@@ -182,7 +182,7 @@ type SpotlightCardRecord = {
 const DEFAULT_WAGER = "10";
 const DEFAULT_EXACT_VALUE = "5";
 const DEFAULT_STANDBY_THRESHOLD = 5;
-const HUMAN_OVERLAY_PREVIEW_ENABLED = false;
+const HUMAN_OVERLAY_PREVIEW_ENABLED = true;
 const BETTING_OPEN_WINDOW_MS = 5 * 60 * 1000;
 const DAILY_CLAIM_TIMEZONE = "America/Los_Angeles";
 const DAILY_CLAIM_START_HOUR = 8;
@@ -5103,7 +5103,7 @@ export function MvpDashboard({
               <div className="live-round-overlay-count">
                 <span>Detected people</span>
                 <strong>{livePeopleCountDisplay}</strong>
-                <p>Live counter placeholder</p>
+                <p>People in frame now</p>
               </div>
             </div>
 

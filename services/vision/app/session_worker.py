@@ -89,7 +89,7 @@ class AutomaticCountingWorker:
                 continue
             if session.status in {"resolved", "cancelled"}:
                 continue
-            if session.starts_at < current_time:
+            if session.ends_at <= current_time:
                 continue
 
             with self._active_jobs_lock:

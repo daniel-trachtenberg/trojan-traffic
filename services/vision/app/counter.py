@@ -802,10 +802,6 @@ def run_counting_session(
         current_time = resolved_now_provider()
         if payload.ends_at <= current_time:
             raise ValueError("Session must be counted before its end time.")
-        if current_time > payload.starts_at:
-            raise ValueError(
-                "Automatic counting must begin before the session window starts."
-            )
 
     confirm_frames = max(resolved_settings.count_entry_confirm_frames, 1)
     if len(payload.region) == 2:

@@ -12,7 +12,7 @@ from app.settings import get_settings
 from app.supabase import resolve_session_in_supabase
 
 settings = get_settings()
-LIVE_DETECTION_PREVIEW_ENABLED = False
+LIVE_DETECTION_PREVIEW_ENABLED = True
 
 app = FastAPI(
     title=settings.app_name,
