@@ -13,10 +13,10 @@ RUN apt-get update \
 
 COPY pyproject.toml README.md ./
 COPY app ./app
-COPY yolo11s.pt ./yolo11s.pt
 
 RUN python -m pip install --upgrade pip setuptools wheel \
-    && python -m pip install .
+    && python -m pip install . \
+    && python -c "from ultralytics import YOLO; YOLO('yolo11s.pt')"
 
 EXPOSE 10000
 
