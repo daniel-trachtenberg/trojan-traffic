@@ -1796,6 +1796,11 @@ export function MvpDashboard({
   const liveTrainStopXRef = useRef<number | null>(null);
   const liveTrainStopSessionIdRef = useRef<string | null>(null);
   const publicProfileLoadIdRef = useRef(0);
+  const desktopOpenBetListRef = useRef<HTMLDivElement | null>(null);
+  const previousDesktopOpenBetStateRef = useRef<{ sessionId: string | null; count: number }>({
+    sessionId: null,
+    count: 0
+  });
   const [profileSettings, setProfileSettings] = useState<ProfileSettingsFormState>(() =>
     createProfileSettingsFormState(null, PROFILE_PREVIEW_EMAIL)
   );
@@ -1974,6 +1979,16 @@ export function MvpDashboard({
   const selectedSessionPredictions = selectedSession
     ? predictions.filter((prediction) => prediction.session_id === selectedSession.id)
     : [];
+  const selectedSessionSlipPredictions = [...selectedSessionPredictions].sort((leftPrediction, rightPrediction) => {
+    const placedAtDelta =
+      new Date(leftPrediction.placed_at).getTime() - new Date(rightPrediction.placed_at).getTime();
+
+    if (placedAtDelta !== 0) {
+      return placedAtDelta;
+    }
+
+    return leftPrediction.id.localeCompare(rightPrediction.id);
+  });
   const selectedPrediction = selectedSessionPredictions[0] ?? null;
   const selectedSessionPredictionCount = selectedSessionPredictions.length;
   const hasSelectedSessionPredictions = selectedSessionPredictionCount > 0;
@@ -4155,6 +4170,39 @@ export function MvpDashboard({
     ? "mobile-open-control-grid mobile-open-control-grid-split"
     : "mobile-open-control-grid mobile-open-control-grid-stake-only";
   const showDesktopBettingScreen = showBettingControls || showMobileDisabledDock;
+
+  useEffect(() => {
+    const sessionId = selectedSession?.id ?? null;
+    const previousState = previousDesktopOpenBetStateRef.current;
+    const didAddBet =
+      showDesktopBettingScreen &&
+      sessionId !== null &&
+      previousState.sessionId === sessionId &&
+      selectedSessionPredictionCount > previousState.count;
+
+    previousDesktopOpenBetStateRef.current = {
+      sessionId,
+      count: selectedSessionPredictionCount
+    };
+
+    if (!didAddBet) {
+      return;
+    }
+
+    requestAnimationFrame(() => {
+      const betList = desktopOpenBetListRef.current;
+
+      if (!betList) {
+        return;
+      }
+
+      betList.scrollTo({
+        top: betList.scrollHeight,
+        behavior: "smooth"
+      });
+    });
+  }, [selectedSession?.id, selectedSessionPredictionCount, showDesktopBettingScreen]);
+
   const desktopOpenTimerLabel = showMobileIdleDock
     ? "Betting window"
     : showMobileUpcomingDock
@@ -4486,64 +4534,77 @@ export function MvpDashboard({
   );
   const desktopOpenFloatingTickets =
     showDesktopBettingScreen && selectedSession && selectedSessionPredictionCount > 0 ? (
-      <div className="desktop-open-floating-bets" aria-label="Placed bets">
-        {selectedSessionPredictions.map((prediction, index) => {
-          const predictionPayout = getPredictionGrossPayoutTokens(
-            prediction.wager_tokens,
-            getStoredPredictionPayoutMultiplierBps(prediction)
-          );
+      <aside className="desktop-open-slip-panel" aria-label="Placed bets">
+        <div className="desktop-open-slip-panel-header">
+          <div className="desktop-open-slip-panel-copy">
+            <span className="desktop-open-slip-panel-kicker">Live slip</span>
+            <strong className="desktop-open-slip-panel-title">
+              {selectedSessionPredictionCount > 1
+                ? `${selectedSessionPredictionCount} active bets`
+                : "1 active bet"}
+            </strong>
+          </div>
+          <span className="desktop-open-slip-panel-total">{selectedSessionStakedTokens} staked</span>
+        </div>
 
-          return (
-            <div
-              className={`desktop-open-ticket-card desktop-open-ticket-card-${prediction.side}`}
-              key={prediction.id}
-            >
-              <div className="desktop-open-ticket-card-topline">
-                <span className="desktop-open-ticket-card-kicker">
-                  {selectedSessionPredictionCount > 1 ? `Bet ${index + 1}` : "Your bet"}
-                </span>
-                <span
-                  className={`desktop-open-ticket-card-market desktop-open-ticket-card-market-${prediction.side}`}
-                >
-                  {formatPredictionSideTag(prediction.side)}
-                </span>
+        <div className="desktop-open-floating-bets" ref={desktopOpenBetListRef}>
+          {selectedSessionSlipPredictions.map((prediction, index) => {
+            const predictionPayout = getPredictionGrossPayoutTokens(
+              prediction.wager_tokens,
+              getStoredPredictionPayoutMultiplierBps(prediction)
+            );
+
+            return (
+              <div
+                className={`desktop-open-ticket-card desktop-open-ticket-card-${prediction.side}`}
+                key={prediction.id}
+              >
+                <div className="desktop-open-ticket-card-topline">
+                  <span className="desktop-open-ticket-card-kicker">
+                    {selectedSessionPredictionCount > 1 ? `Bet ${index + 1}` : "Your bet"}
+                  </span>
+                  <span
+                    className={`desktop-open-ticket-card-market desktop-open-ticket-card-market-${prediction.side}`}
+                  >
+                    {formatPredictionSideTag(prediction.side)}
+                  </span>
+                </div>
+
+                {isPredictionCancelable(prediction, selectedSession, nowMs) ? (
+                  <button
+                    type="button"
+                    className="desktop-open-ticket-card-remove"
+                    onClick={() => void handleCancelPrediction(prediction)}
+                    disabled={cancelingPredictionIdSet.has(prediction.id)}
+                    aria-label={`Remove ${formatPredictionLabel(prediction, selectedSession)}`}
+                  >
+                    {cancelingPredictionIdSet.has(prediction.id) ? "..." : "×"}
+                  </button>
+                ) : null}
+
+                <strong className="desktop-open-ticket-card-title">
+                  {formatPredictionLabel(prediction, selectedSession)}
+                </strong>
+
+                <div className="desktop-open-ticket-card-stats">
+                  <div className="desktop-open-ticket-card-stat">
+                    <span>Stake</span>
+                    <strong>{prediction.wager_tokens}</strong>
+                  </div>
+                  <div className="desktop-open-ticket-card-stat">
+                    <span>Win</span>
+                    <strong>{predictionPayout}</strong>
+                  </div>
+                  <div className="desktop-open-ticket-card-stat desktop-open-ticket-card-stat-odds">
+                    <span>Odds</span>
+                    <strong>{formatPayoutMultiplier(getStoredPredictionPayoutMultiplierBps(prediction))}</strong>
+                  </div>
+                </div>
               </div>
-
-              {isPredictionCancelable(prediction, selectedSession, nowMs) ? (
-                <button
-                  type="button"
-                  className="desktop-open-ticket-card-remove"
-                  onClick={() => void handleCancelPrediction(prediction)}
-                  disabled={cancelingPredictionIdSet.has(prediction.id)}
-                  aria-label={`Remove ${formatPredictionLabel(prediction, selectedSession)}`}
-                >
-                  {cancelingPredictionIdSet.has(prediction.id) ? "..." : "×"}
-                </button>
-              ) : null}
-
-              <strong className="desktop-open-ticket-card-title">
-                {formatPredictionLabel(prediction, selectedSession)}
-              </strong>
-
-              <div className="desktop-open-ticket-card-stats">
-                <div className="desktop-open-ticket-card-stat">
-                  <span>Stake</span>
-                  <strong>{prediction.wager_tokens}</strong>
-                </div>
-                <div className="desktop-open-ticket-card-stat">
-                  <span>Win</span>
-                  <strong>{predictionPayout}</strong>
-                </div>
-                <div className="desktop-open-ticket-card-stat desktop-open-ticket-card-stat-odds">
-                  <span>Odds</span>
-                  <strong>{formatPayoutMultiplier(getStoredPredictionPayoutMultiplierBps(prediction))}</strong>
-                </div>
-              </div>
-            </div>
-          );
-        })}
-        
-      </div>
+            );
+          })}
+        </div>
+      </aside>
     ) : null;
   const bettingWidgetContent = (
     <div
@@ -4849,6 +4910,11 @@ export function MvpDashboard({
         .filter(Boolean)
         .join(" ")
     : "betting-screen";
+  const mobileFeedOverlayClassName = showBettingControls
+    ? "mobile-feed-overlay mobile-feed-overlay-open"
+    : showMobileUpcomingDock || showMobileLiveDock || showMobileResolvingDock
+      ? "mobile-feed-overlay mobile-feed-overlay-scroll"
+      : "mobile-feed-overlay";
 
   return (
     <main
@@ -4906,11 +4972,7 @@ export function MvpDashboard({
                   </div>
 
                   <div
-                    className={
-                      showBettingControls || showMobileUpcomingDock || showMobileLiveDock || showMobileResolvingDock
-                        ? "mobile-feed-overlay mobile-feed-overlay-scroll"
-                        : "mobile-feed-overlay"
-                    }
+                    className={mobileFeedOverlayClassName}
                   >
                     {showMobileIdleDock ? (
                       <div className="mobile-review-floating-card mobile-review-floating-card-idle">
@@ -4926,48 +4988,63 @@ export function MvpDashboard({
                       </div>
                     ) : showBettingControls ? (
                       <>
-                        <div className="mobile-open-market-widget">
-                          <span className="mobile-open-market-widget-kicker">Bets open</span>
-                          <strong>{sessionMetricLabel} {sessionMetricValue}</strong>
-                          {mobileOpenOverlayCopy ? <span>{mobileOpenOverlayCopy}</span> : null}
-                        </div>
+                        <div className="mobile-open-market-cluster">
+                          <div className="mobile-open-market-widget">
+                            <span className="mobile-open-market-widget-kicker">Bets open</span>
+                            <strong>{sessionMetricLabel} {sessionMetricValue}</strong>
+                            {mobileOpenOverlayCopy ? <span>{mobileOpenOverlayCopy}</span> : null}
+                          </div>
 
-                        {showMobileOpenBetWidget ? (
-                          selectedSessionPredictions.map((prediction, index) => (
-                            <div
-                              className={`mobile-open-bet-card mobile-open-bet-card-${prediction.side}`}
-                              key={prediction.id}
-                            >
-                              <div className="mobile-open-bet-card-header">
-                                <span className="mobile-open-bet-card-kicker">
-                                  {selectedSessionPredictionCount > 1 ? `Bet ${index + 1}` : "Your bet"}
-                                </span>
-                                {isPredictionCancelable(prediction, selectedSession, nowMs) ? (
-                                  <button
-                                    type="button"
-                                    className="mobile-open-bet-card-remove"
-                                    onClick={() => void handleCancelPrediction(prediction)}
-                                    disabled={cancelingPredictionIdSet.has(prediction.id)}
-                                    aria-label={`Remove ${formatPredictionLabel(prediction, selectedSession)}`}
-                                  >
-                                    {cancelingPredictionIdSet.has(prediction.id) ? "..." : "×"}
-                                  </button>
-                                ) : null}
+                          {showMobileOpenBetWidget ? (
+                            <div className="mobile-open-bet-panel">
+                              <div className="mobile-open-bet-panel-header">
+                                <span className="mobile-open-bet-panel-kicker">Live slip</span>
+                                <strong>
+                                  {selectedSessionPredictionCount > 1
+                                    ? `${selectedSessionPredictionCount} bets ready`
+                                    : "1 bet ready"}
+                                </strong>
                               </div>
 
-                              <strong className="mobile-open-bet-card-title">
-                                {formatPredictionLabel(prediction, selectedSession)}
-                              </strong>
+                              <div className="mobile-open-bet-grid">
+                                {selectedSessionPredictions.map((prediction, index) => (
+                                  <div
+                                    className={`mobile-open-bet-card mobile-open-bet-card-${prediction.side}`}
+                                    key={prediction.id}
+                                  >
+                                    <div className="mobile-open-bet-card-header">
+                                      <span className="mobile-open-bet-card-kicker">
+                                        {selectedSessionPredictionCount > 1 ? `Bet ${index + 1}` : "Your bet"}
+                                      </span>
+                                      {isPredictionCancelable(prediction, selectedSession, nowMs) ? (
+                                        <button
+                                          type="button"
+                                          className="mobile-open-bet-card-remove"
+                                          onClick={() => void handleCancelPrediction(prediction)}
+                                          disabled={cancelingPredictionIdSet.has(prediction.id)}
+                                          aria-label={`Remove ${formatPredictionLabel(prediction, selectedSession)}`}
+                                        >
+                                          {cancelingPredictionIdSet.has(prediction.id) ? "..." : "×"}
+                                        </button>
+                                      ) : null}
+                                    </div>
 
-                              <div className="mobile-open-bet-card-meta">
-                                <span>{prediction.wager_tokens} tokens</span>
-                                <span>
-                                  {formatPayoutMultiplier(getStoredPredictionPayoutMultiplierBps(prediction))}
-                                </span>
+                                    <strong className="mobile-open-bet-card-title">
+                                      {formatPredictionLabel(prediction, selectedSession)}
+                                    </strong>
+
+                                    <div className="mobile-open-bet-card-meta">
+                                      <span>{prediction.wager_tokens} tokens</span>
+                                      <span>
+                                        {formatPayoutMultiplier(getStoredPredictionPayoutMultiplierBps(prediction))}
+                                      </span>
+                                    </div>
+                                  </div>
+                                ))}
                               </div>
                             </div>
-                          ))
-                        ) : null}
+                          ) : null}
+                        </div>
                       </>
                     ) : showMobileLiveDock && selectedSession ? (
                       <>
