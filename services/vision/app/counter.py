@@ -3,18 +3,19 @@ from __future__ import annotations
 import logging
 from collections.abc import Callable, Iterable, Iterator, Sequence
 from dataclasses import dataclass, field
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from subprocess import PIPE, Popen, TimeoutExpired, run
-from threading import Event, Lock
-from time import sleep
-from typing import BinaryIO
+from threading import Event, Lock, Thread
+from time import perf_counter
+from typing import Any, BinaryIO
 from uuid import uuid4
 
+import cv2
 import numpy as np
 from pydantic import BaseModel, Field, HttpUrl
-from ultralytics import YOLO
 
 from app.settings import Settings, get_settings
+from app.ultralytics_env import load_yolo_class
 
 LOGGER = logging.getLogger("app.counter")
 
@@ -63,6 +64,22 @@ class TrackObservation:
 class FrameObservation:
     observed_at: datetime
     tracks: tuple[TrackObservation, ...]
+
+
+@dataclass(frozen=True)
+class RawFrameObservation:
+    observed_at: datetime
+    frame: np.ndarray | None = None
+    encoded_jpeg: bytes | None = None
+
+    def decode_frame(self) -> np.ndarray | None:
+        if self.frame is not None:
+            return self.frame
+        if self.encoded_jpeg is None:
+            return None
+
+        encoded = np.frombuffer(self.encoded_jpeg, dtype=np.uint8)
+        return cv2.imdecode(encoded, cv2.IMREAD_COLOR)
 
 
 @dataclass(frozen=True)
@@ -373,7 +390,7 @@ class TrackState:
 
 @dataclass
 class _CachedModel:
-    model: YOLO
+    model: Any
     lock: Lock
 
 
@@ -385,9 +402,69 @@ def _get_cached_model(model_name: str) -> _CachedModel:
     with _MODEL_CACHE_LOCK:
         cached = _MODEL_CACHE.get(model_name)
         if cached is None:
-            cached = _CachedModel(model=YOLO(model_name), lock=Lock())
+            yolo_class = load_yolo_class()
+            cached = _CachedModel(model=yolo_class(model_name), lock=Lock())
             _MODEL_CACHE[model_name] = cached
         return cached
+
+
+class _LatestFrameCapture:
+    def __init__(self, source_url: str, stop_event: Event) -> None:
+        self._source_url = source_url
+        self._stop_event = stop_event
+        self._capture = cv2.VideoCapture(source_url)
+        self._capture.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+        if not self._capture.isOpened():
+            self._capture.release()
+            raise RuntimeError("Could not open counting stream with ffmpeg/ffprobe or OpenCV.")
+
+        self._lock = Lock()
+        self._frame_ready = Event()
+        self._thread = Thread(target=self._run, daemon=True)
+        self._frame: np.ndarray | None = None
+        self._error: str | None = None
+
+    @property
+    def error(self) -> str | None:
+        with self._lock:
+            return self._error
+
+    def start(self) -> None:
+        self._thread.start()
+
+    def stop(self) -> None:
+        self._capture.release()
+        if self._thread.is_alive():
+            self._thread.join(timeout=1.5)
+
+    def latest_frame(self, *, timeout_seconds: float) -> np.ndarray | None:
+        self._frame_ready.wait(timeout=max(timeout_seconds, 0.0))
+        with self._lock:
+            if self._frame is None:
+                return None
+
+            return self._frame.copy()
+
+    def _run(self) -> None:
+        while not self._stop_event.is_set():
+            try:
+                success, frame = self._capture.read()
+            except cv2.error as exc:
+                if not self._stop_event.is_set():
+                    with self._lock:
+                        self._error = f"Counting stream reader failed for {self._source_url}: {exc}"
+                    self._frame_ready.set()
+                return
+
+            if not success or frame is None:
+                with self._lock:
+                    self._error = f"Counting stream ended unexpectedly for {self._source_url}."
+                self._frame_ready.set()
+                return
+
+            with self._lock:
+                self._frame = frame
+            self._frame_ready.set()
 
 
 class LiveSessionTrackSource:
@@ -418,7 +495,71 @@ class LiveSessionTrackSource:
             )
 
     def iter_observations(self) -> Iterator[FrameObservation]:
-        if self._stop_event.is_set() or datetime.now(UTC) >= self._payload.ends_at:
+        frame_count = 0
+        for frame_observation in self.iter_frames():
+            frame = frame_observation.decode_frame()
+            if frame is None:
+                LOGGER.warning("skipping unreadable counting frame for %s", self._session_id)
+                continue
+
+            tracks = tuple(self._detect_tracks(frame))
+            frame_count += 1
+            if frame_count == 1 or frame_count % 10 == 0:
+                LOGGER.info(
+                    "counting stream observation session=%s frame=%s in_window=%s tracks=%s",
+                    self._session_id,
+                    frame_count,
+                    self._payload.starts_at
+                    <= frame_observation.observed_at
+                    < self._payload.ends_at,
+                    len(tracks),
+                )
+            yield FrameObservation(observed_at=frame_observation.observed_at, tracks=tracks)
+
+    def detect_recorded_frames(
+        self, frame_observations: Sequence[RawFrameObservation]
+    ) -> Iterator[FrameObservation]:
+        frame_count = 0
+        for frame_observation in frame_observations:
+            if self._stop_event.is_set():
+                break
+
+            frame = frame_observation.decode_frame()
+            if frame is None:
+                LOGGER.warning("skipping unreadable recorded frame for %s", self._session_id)
+                continue
+
+            tracks = tuple(self._detect_tracks(frame))
+            frame_count += 1
+            if frame_count == 1 or frame_count % 10 == 0:
+                LOGGER.info(
+                    "recorded stream observation session=%s frame=%s in_window=%s tracks=%s",
+                    self._session_id,
+                    frame_count,
+                    self._payload.starts_at
+                    <= frame_observation.observed_at
+                    < self._payload.ends_at,
+                    len(tracks),
+                )
+            yield FrameObservation(observed_at=frame_observation.observed_at, tracks=tracks)
+
+    def iter_frames(self) -> Iterator[RawFrameObservation]:
+        if self._stop_event.is_set():
+            return
+
+        capture_start_at = self._capture_start_at()
+        now = datetime.now(UTC)
+        if now < capture_start_at:
+            wait_seconds = (capture_start_at - now).total_seconds()
+            LOGGER.info(
+                "waiting to prewarm counting stream for %s capture_start_at=%s",
+                self._session_id,
+                capture_start_at.isoformat(),
+            )
+            if self._stop_event.wait(max(wait_seconds, 0.0)):
+                return
+
+        if datetime.now(UTC) >= self._payload.ends_at:
             return
 
         if datetime.now(UTC) < self._payload.starts_at:
@@ -430,7 +571,8 @@ class LiveSessionTrackSource:
 
         geometry = self._probe_stream_geometry()
         if geometry is None:
-            raise RuntimeError("Could not read stream geometry for counting session.")
+            yield from self._iter_opencv_frames()
+            return
         LOGGER.info(
             "counting stream geometry for %s width=%s height=%s",
             self._session_id,
@@ -440,7 +582,8 @@ class LiveSessionTrackSource:
 
         process = self._open_stream_process(geometry)
         if process is None:
-            raise RuntimeError("Could not open ffmpeg stream for counting session.")
+            yield from self._iter_opencv_frames()
+            return
 
         try:
             frame_count = 0
@@ -456,19 +599,24 @@ class LiveSessionTrackSource:
                     raise RuntimeError(f"Counting stream ended unexpectedly{detail}")
 
                 observed_at = datetime.now(UTC)
-                tracks = tuple(self._detect_tracks(frame))
+                if self._reached_recorded_frame_limit(frame_count):
+                    break
+
                 frame_count += 1
                 if frame_count == 1 or frame_count % 10 == 0:
                     LOGGER.info(
-                        "counting stream observation session=%s frame=%s in_window=%s tracks=%s",
+                        "counting stream capture session=%s frame=%s in_window=%s",
                         self._session_id,
                         frame_count,
                         self._payload.starts_at <= observed_at < self._payload.ends_at,
-                        len(tracks),
                     )
-                yield FrameObservation(observed_at=observed_at, tracks=tracks)
+                yield self._make_frame_observation(observed_at=observed_at, frame=frame)
         finally:
             self._close_stream_process()
+
+    def _capture_start_at(self) -> datetime:
+        prewarm_seconds = max(self._settings.count_prewarm_seconds, 0)
+        return self._payload.starts_at - timedelta(seconds=prewarm_seconds)
 
     def _probe_stream_geometry(self) -> StreamGeometry | None:
         command = [
@@ -486,10 +634,12 @@ class LiveSessionTrackSource:
 
         try:
             result = run(command, check=False, capture_output=True, text=True, timeout=12)
-        except FileNotFoundError as exc:
-            raise RuntimeError(
-                "ffprobe is not installed; automatic counting requires ffmpeg."
-            ) from exc
+        except FileNotFoundError:
+            LOGGER.warning(
+                "ffprobe is not installed; falling back to OpenCV stream reader for %s",
+                self._payload.feed_url,
+            )
+            return None
         except TimeoutExpired:
             LOGGER.warning("ffprobe timed out while probing %s", self._payload.feed_url)
             return None
@@ -530,11 +680,116 @@ class LiveSessionTrackSource:
             height=scaled_height - (scaled_height % 2),
         )
 
-    def _open_stream_process(self, geometry: StreamGeometry) -> Popen[bytes] | None:
-        frames_per_second = min(
-            max(1000 / max(self._settings.detection_interval_ms, 1), 0.2),
-            5.0,
+    def _frame_sample_interval_ms(self) -> int:
+        if self._settings.count_process_after_session:
+            return max(self._settings.count_frame_sample_interval_ms, 1)
+
+        return max(self._settings.detection_interval_ms, 1)
+
+    def _frame_sample_fps(self) -> float:
+        return min(max(1000 / self._frame_sample_interval_ms(), 0.2), 10.0)
+
+    def _reached_recorded_frame_limit(self, frame_count: int) -> bool:
+        if not self._settings.count_process_after_session:
+            return False
+
+        max_recorded_frames = max(self._settings.count_max_recorded_frames, 0)
+        if max_recorded_frames <= 0 or frame_count < max_recorded_frames:
+            return False
+
+        LOGGER.warning(
+            "recorded frame limit reached for %s frames=%s",
+            self._session_id,
+            max_recorded_frames,
         )
+        return True
+
+    def _make_frame_observation(
+        self,
+        *,
+        observed_at: datetime,
+        frame: np.ndarray,
+    ) -> RawFrameObservation:
+        if not self._settings.count_process_after_session:
+            return RawFrameObservation(observed_at=observed_at, frame=frame)
+
+        jpeg_quality = max(min(self._settings.count_recorded_frame_jpeg_quality, 100), 40)
+        success, encoded = cv2.imencode(
+            ".jpg",
+            frame,
+            [int(cv2.IMWRITE_JPEG_QUALITY), jpeg_quality],
+        )
+        if not success:
+            LOGGER.warning(
+                "could not encode recorded frame for %s; keeping raw frame",
+                self._session_id,
+            )
+            return RawFrameObservation(observed_at=observed_at, frame=frame)
+
+        return RawFrameObservation(observed_at=observed_at, encoded_jpeg=encoded.tobytes())
+
+    def _iter_opencv_frames(self) -> Iterator[RawFrameObservation]:
+        reader = _LatestFrameCapture(str(self._payload.feed_url), self._stop_event)
+        reader.start()
+        LOGGER.info("counting stream using OpenCV fallback for %s", self._session_id)
+        frame_interval_seconds = 1 / self._frame_sample_fps()
+        next_detection_at = perf_counter()
+
+        try:
+            frame_count = 0
+            while not self._stop_event.is_set():
+                now = datetime.now(UTC)
+                if now >= self._payload.ends_at:
+                    break
+
+                current_time = perf_counter()
+                if current_time < next_detection_at:
+                    self._stop_event.wait(next_detection_at - current_time)
+                    continue
+
+                frame = reader.latest_frame(timeout_seconds=2.0)
+                stream_error = reader.error
+                if stream_error is not None:
+                    raise RuntimeError(stream_error)
+                if frame is None:
+                    continue
+
+                if datetime.now(UTC) >= self._payload.ends_at:
+                    break
+
+                next_detection_at = current_time + frame_interval_seconds
+                frame = self._resize_frame_to_max_width(frame)
+                observed_at = datetime.now(UTC)
+                if self._reached_recorded_frame_limit(frame_count):
+                    break
+
+                frame_count += 1
+                if frame_count == 1 or frame_count % 10 == 0:
+                    LOGGER.info(
+                        "counting stream capture session=%s frame=%s in_window=%s",
+                        self._session_id,
+                        frame_count,
+                        self._payload.starts_at <= observed_at < self._payload.ends_at,
+                    )
+                yield self._make_frame_observation(observed_at=observed_at, frame=frame)
+        finally:
+            reader.stop()
+
+    def _resize_frame_to_max_width(self, frame: np.ndarray) -> np.ndarray:
+        frame_height, frame_width = frame.shape[:2]
+        max_width = max(self._settings.detection_stream_max_width, 0)
+        if max_width <= 0 or frame_width <= max_width:
+            return frame
+
+        scale = max_width / frame_width
+        scaled_width = max(2, int(frame_width * scale))
+        scaled_height = max(2, int(frame_height * scale))
+        resized_width = scaled_width - (scaled_width % 2)
+        resized_height = scaled_height - (scaled_height % 2)
+        return cv2.resize(frame, (resized_width, resized_height), interpolation=cv2.INTER_AREA)
+
+    def _open_stream_process(self, geometry: StreamGeometry) -> Popen[bytes] | None:
+        frames_per_second = self._frame_sample_fps()
         command = [
             "ffmpeg",
             "-hide_banner",
@@ -569,10 +824,12 @@ class LiveSessionTrackSource:
 
         try:
             process = Popen(command, stdout=PIPE, stderr=PIPE)
-        except FileNotFoundError as exc:
-            raise RuntimeError(
-                "ffmpeg is not installed; automatic counting requires ffmpeg."
-            ) from exc
+        except FileNotFoundError:
+            LOGGER.warning(
+                "ffmpeg is not installed; falling back to OpenCV stream reader for %s",
+                self._payload.feed_url,
+            )
+            return None
         except OSError as exc:
             LOGGER.warning("ffmpeg could not start for %s: %s", self._payload.feed_url, exc)
             return None
@@ -734,7 +991,7 @@ class LiveSessionTrackSource:
         active_tracks = [
             track
             for track in self._tracks.values()
-            if self._frame_index - track.last_seen_frame <= 8
+            if self._frame_index - track.last_seen_frame <= 12
         ]
 
         detection_by_index = {index: detection for index, detection in enumerate(detections)}
@@ -796,14 +1053,15 @@ class LiveSessionTrackSource:
         detection_box = (detection.x1, detection.y1, detection.x2, detection.y2)
         iou = self._box_iou(predicted_box, detection_box)
         center_distance_ratio = self._box_center_distance_ratio(predicted_box, detection_box)
-        if iou < 0.12 and center_distance_ratio > 0.35:
-            return None
-
         diag_track = float(np.hypot(track.x2 - track.x1, track.y2 - track.y1))
         diag_det = float(np.hypot(detection.x2 - detection.x1, detection.y2 - detection.y1))
         size_similarity = 1.0 - abs(diag_track - diag_det) / max(diag_track, diag_det, 1.0)
+        if iou < 0.05 and center_distance_ratio > 0.72:
+            return None
+        if iou < 0.2 and size_similarity < 0.45:
+            return None
 
-        return iou + max(0.0, 0.35 - center_distance_ratio) + 0.15 * size_similarity
+        return (1.4 * iou) + max(0.0, 0.72 - center_distance_ratio) + 0.2 * size_similarity
 
     def _update_track(self, track: TrackState, detection: RawDetection) -> None:
         if track.hits > 1:
@@ -825,7 +1083,7 @@ class LiveSessionTrackSource:
         track.last_seen_frame = self._frame_index
 
     def _prune_tracks(self) -> None:
-        stale_before = self._frame_index - 10
+        stale_before = self._frame_index - 16
         stale_ids = [
             track_id
             for track_id, track in self._tracks.items()
@@ -919,7 +1177,7 @@ def run_counting_session(
         counter: LineCrossingCounter | PolygonCrossingCounter = LineCrossingCounter(
             line_start=payload.region[0],
             line_end=payload.region[1],
-            cooldown_frames=max(confirm_frames * 2, 3),
+            cooldown_frames=max(resolved_settings.count_line_cooldown_frames, 1),
         )
     else:
         counter = PolygonCrossingCounter(
@@ -929,12 +1187,28 @@ def run_counting_session(
         )
     observations = frame_observations
     if observations is None:
-        observations = LiveSessionTrackSource(
+        source = LiveSessionTrackSource(
             session_id=session_id,
             payload=payload,
             settings=resolved_settings,
             stop_event=resolved_stop_event,
-        ).iter_observations()
+        )
+        if resolved_settings.count_process_after_session:
+            LOGGER.info(
+                "recording session frames before post-session counting session=%s "
+                "sample_interval_ms=%s",
+                session_id,
+                resolved_settings.count_frame_sample_interval_ms,
+            )
+            raw_frame_observations = tuple(source.iter_frames())
+            LOGGER.info(
+                "recorded session frames session=%s frames=%s; starting post-session counting",
+                session_id,
+                len(raw_frame_observations),
+            )
+            observations = source.detect_recorded_frames(raw_frame_observations)
+        else:
+            observations = source.iter_observations()
 
     def emit_count_update(next_count: int) -> None:
         if count_update_handler is None:

@@ -12,7 +12,8 @@ from uuid import uuid4
 
 import cv2
 import numpy as np
-from ultralytics import YOLO
+
+from app.ultralytics_env import load_yolo_class
 
 
 @dataclass(frozen=True)
@@ -98,7 +99,8 @@ class LivePersonDetector:
         max_boxes: int,
     ) -> None:
         self._source_url = source_url
-        self._model = YOLO(model_name)
+        yolo_class = load_yolo_class()
+        self._model = yolo_class(model_name)
         self._confidence = confidence
         self._target_fps = min(max(1000 / max(interval_ms, 1), 0.2), 5.0)
         self._stream_max_width = max(stream_max_width, 0)

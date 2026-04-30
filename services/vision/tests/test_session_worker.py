@@ -24,6 +24,7 @@ def make_configured_settings() -> Settings:
         enable_auto_count_worker=True,
         auto_count_poll_interval_ms=50,
         auto_count_session_lookahead_ms=5000,
+        count_publish_live_updates=True,
         supabase_url="https://example.supabase.co",
         supabase_service_role_key="service-role-key",
     )
@@ -268,6 +269,7 @@ def test_worker_publishes_live_count_updates_from_runner() -> None:
         session_live_count_updater=lambda session_id, count: live_updates.append(
             (session_id, count)
         ),
+        session_counting_marker=lambda *_: None,
     )
 
     launched = worker._launch_due_sessions([session])
@@ -284,3 +286,163 @@ def test_worker_publishes_live_count_updates_from_runner() -> None:
         ("session-live-count", 5),
         ("session-live-count", 5),
     ]
+
+
+def test_worker_can_settle_without_live_count_updates() -> None:
+    starts_at = datetime.now(UTC) - timedelta(seconds=1)
+    session = PendingSessionRecord(
+        id="session-background-final",
+        starts_at=starts_at,
+        ends_at=starts_at + timedelta(seconds=30),
+        status="scheduled",
+        camera_feed_url="https://cs9.pixelcaster.com/live/usc-tommy.stream/playlist.m3u8",
+        region_polygon=[
+            SessionRegionPoint(x=0.5, y=0.3),
+            SessionRegionPoint(x=0.5, y=0.7),
+        ],
+        live_count=4,
+    )
+    live_updates: list[tuple[str, int]] = []
+    resolved_sessions: list[tuple[str, int]] = []
+    settled = Event()
+
+    def count_runner(
+        session_id,
+        request,
+        *,
+        settings,
+        stop_event,
+        initial_count,
+        count_update_handler,
+    ):
+        assert count_update_handler is None
+        assert initial_count == 0
+        return CountSessionResult(
+            session_id=session_id,
+            status="resolved",
+            final_count=6,
+            detections_processed=12,
+            started_at=request.starts_at,
+            ended_at=request.ends_at,
+            notes="ok",
+        )
+
+    def resolve_runner(session_id: str, final_count: int) -> int:
+        resolved_sessions.append((session_id, final_count))
+        settled.set()
+        return 1
+
+    worker = AutomaticCountingWorker(
+        settings=Settings(
+            enable_live_detections=False,
+            enable_auto_count_worker=True,
+            auto_count_poll_interval_ms=50,
+            auto_count_session_lookahead_ms=5000,
+            count_publish_live_updates=False,
+            supabase_url="https://example.supabase.co",
+            supabase_service_role_key="service-role-key",
+        ),
+        session_fetcher=lambda **_: [session],
+        count_runner=count_runner,
+        session_resolver=resolve_runner,
+        session_live_count_updater=lambda session_id, count: live_updates.append(
+            (session_id, count)
+        ),
+        session_counting_marker=lambda *_: None,
+    )
+
+    launched = worker._launch_due_sessions([session])
+    assert launched == ["session-background-final"]
+    assert settled.wait(timeout=1)
+
+    assert live_updates == []
+    assert resolved_sessions == [("session-background-final", 6)]
+
+
+def test_worker_marks_session_counting_when_background_job_starts() -> None:
+    starts_at = datetime.now(UTC) - timedelta(seconds=1)
+    session = PendingSessionRecord(
+        id="session-counting-marker",
+        starts_at=starts_at,
+        ends_at=starts_at + timedelta(seconds=30),
+        status="scheduled",
+        camera_feed_url="https://cs9.pixelcaster.com/live/usc-tommy.stream/playlist.m3u8",
+        region_polygon=[
+            SessionRegionPoint(x=0.5, y=0.3),
+            SessionRegionPoint(x=0.5, y=0.7),
+        ],
+    )
+    marked_sessions: list[str] = []
+    count_started = Event()
+
+    def count_runner(session_id, request, *, settings, stop_event, initial_count):
+        count_started.set()
+        return CountSessionResult(
+            session_id=session_id,
+            status="resolved",
+            final_count=2,
+            detections_processed=4,
+            started_at=request.starts_at,
+            ended_at=request.ends_at,
+            notes="ok",
+        )
+
+    worker = AutomaticCountingWorker(
+        settings=make_configured_settings(),
+        session_fetcher=lambda **_: [session],
+        count_runner=count_runner,
+        session_resolver=lambda *_: 0,
+        session_live_count_updater=lambda *_: None,
+        session_counting_marker=marked_sessions.append,
+    )
+
+    launched = worker._launch_due_sessions([session])
+    assert launched == ["session-counting-marker"]
+    assert count_started.wait(timeout=1)
+
+    assert marked_sessions == ["session-counting-marker"]
+
+
+def test_worker_marks_session_counting_before_runner_starts() -> None:
+    starts_at = datetime.now(UTC) + timedelta(seconds=1)
+    session = PendingSessionRecord(
+        id="session-claim-first",
+        starts_at=starts_at,
+        ends_at=starts_at + timedelta(seconds=30),
+        status="scheduled",
+        camera_feed_url="https://cs9.pixelcaster.com/live/usc-tommy.stream/playlist.m3u8",
+        region_polygon=[
+            SessionRegionPoint(x=0.5, y=0.3),
+            SessionRegionPoint(x=0.5, y=0.7),
+        ],
+    )
+    marked_sessions: list[str] = []
+    count_started = Event()
+
+    def count_runner(session_id, request, *, settings, stop_event, initial_count):
+        assert marked_sessions == ["session-claim-first"]
+        count_started.set()
+        return CountSessionResult(
+            session_id=session_id,
+            status="resolved",
+            final_count=2,
+            detections_processed=4,
+            started_at=request.starts_at,
+            ended_at=request.ends_at,
+            notes="ok",
+        )
+
+    worker = AutomaticCountingWorker(
+        settings=make_configured_settings(),
+        session_fetcher=lambda **_: [session],
+        count_runner=count_runner,
+        session_resolver=lambda *_: 0,
+        session_live_count_updater=lambda *_: None,
+        session_counting_marker=marked_sessions.append,
+    )
+
+    launched = worker._launch_due_sessions([session])
+    assert launched == ["session-claim-first"]
+    assert count_started.wait(timeout=1)
+
+    assert marked_sessions == ["session-claim-first"]

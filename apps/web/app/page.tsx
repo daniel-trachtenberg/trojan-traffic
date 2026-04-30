@@ -11,6 +11,7 @@ export default async function HomePage() {
       hlsUrl={env.NEXT_PUBLIC_HLS_URL}
       initialRegion={bettingRegion}
       visionApiUrl={env.NEXT_PUBLIC_VISION_API_URL}
+      liveCountEnabled={env.NEXT_PUBLIC_LIVE_COUNT_ENABLED}
     />
   );
 }

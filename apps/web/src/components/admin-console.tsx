@@ -104,6 +104,10 @@ function getSessionPhase(session: AdminSessionRow) {
     return "live";
   }
 
+  if (session.status === "counting") {
+    return "counting";
+  }
+
   return "awaiting-resolution";
 }
 
@@ -120,6 +124,10 @@ function getSessionPhaseLabel(phase: ReturnType<typeof getSessionPhase>) {
     return "Awaiting Result";
   }
 
+  if (phase === "counting") {
+    return "Background Counting";
+  }
+
   if (phase === "resolved") {
     return "Resolved";
   }
@@ -131,9 +139,18 @@ function sortAdminSessions(left: AdminSessionRow, right: AdminSessionRow) {
   const leftPhase = getSessionPhase(left);
   const rightPhase = getSessionPhase(right);
 
-  const leftBucket = leftPhase === "scheduled" ? 0 : leftPhase === "live" || leftPhase === "awaiting-resolution" ? 1 : 2;
+  const leftBucket =
+    leftPhase === "scheduled"
+      ? 0
+      : leftPhase === "live" || leftPhase === "counting" || leftPhase === "awaiting-resolution"
+        ? 1
+        : 2;
   const rightBucket =
-    rightPhase === "scheduled" ? 0 : rightPhase === "live" || rightPhase === "awaiting-resolution" ? 1 : 2;
+    rightPhase === "scheduled"
+      ? 0
+      : rightPhase === "live" || rightPhase === "counting" || rightPhase === "awaiting-resolution"
+        ? 1
+        : 2;
 
   if (leftBucket !== rightBucket) {
     return leftBucket - rightBucket;
@@ -177,7 +194,7 @@ export function AdminConsole({
   const scheduledCount = orderedSessions.filter((session) => getSessionPhase(session) === "scheduled").length;
   const unresolvedCount = orderedSessions.filter((session) => {
     const phase = getSessionPhase(session);
-    return phase === "live" || phase === "awaiting-resolution";
+    return phase === "live" || phase === "counting" || phase === "awaiting-resolution";
   }).length;
   const pendingPredictions = orderedSessions.reduce(
     (sum, session) => sum + Number(session.open_prediction_count ?? 0),
@@ -230,6 +247,31 @@ export function AdminConsole({
 
     return () => {
       isMounted = false;
+    };
+  }, [supabase]);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const intervalId = window.setInterval(() => {
+      void listAdminSessions(supabase)
+        .then((nextSessions) => {
+          if (isMounted) {
+            setSessions(nextSessions);
+          }
+        })
+        .catch((error) => {
+          if (isMounted) {
+            onErrorRef.current(
+              error instanceof Error ? error.message : "Failed to refresh admin sessions."
+            );
+          }
+        });
+    }, 2_000);
+
+    return () => {
+      isMounted = false;
+      window.clearInterval(intervalId);
     };
   }, [supabase]);
 
@@ -566,7 +608,7 @@ export function AdminConsole({
                 ? "status status-open"
                 : phase === "live"
                   ? "status status-live"
-                  : phase === "awaiting-resolution"
+                  : phase === "counting" || phase === "awaiting-resolution"
                     ? "status status-resolving"
                     : phase === "resolved"
                       ? "status status-resolved"

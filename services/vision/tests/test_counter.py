@@ -1,14 +1,17 @@
 from datetime import UTC, datetime, timedelta
 from threading import Event
 
+import numpy as np
 import pytest
 
 from app.counter import (
     CountSessionRequest,
     FrameObservation,
     LineCrossingCounter,
+    LiveSessionTrackSource,
     Point,
     PolygonCrossingCounter,
+    RawDetection,
     TrackObservation,
     get_region_scan_bounds,
     run_counting_session,
@@ -221,6 +224,76 @@ def test_line_crossing_counter_allows_small_endpoint_miss() -> None:
     )
 
 
+def test_live_track_source_keeps_ids_for_sparse_crossing_frames() -> None:
+    source = object.__new__(LiveSessionTrackSource)
+    source._tracks = {}
+    source._frame_index = 0
+
+    source._frame_index += 1
+    first_tracks = source._assign_tracks(
+        [RawDetection(x1=100, y1=100, x2=116, y2=150, confidence=0.82)]
+    )
+    source._frame_index += 1
+    second_tracks = source._assign_tracks(
+        [RawDetection(x1=126, y1=100, x2=142, y2=150, confidence=0.84)]
+    )
+
+    assert len(first_tracks) == 1
+    assert len(second_tracks) == 1
+    assert second_tracks[0].id == first_tracks[0].id
+    assert second_tracks[0].hits == 2
+
+
+def test_recorded_counting_uses_denser_sampling_interval() -> None:
+    source = object.__new__(LiveSessionTrackSource)
+    source._settings = Settings(
+        count_process_after_session=True,
+        count_frame_sample_interval_ms=200,
+    )
+
+    assert source._frame_sample_interval_ms() == 200
+    assert source._frame_sample_fps() == pytest.approx(5.0)
+
+
+def test_counting_stream_capture_uses_short_prewarm_window() -> None:
+    starts_at = datetime(2026, 3, 21, 12, 0, tzinfo=UTC)
+    source = object.__new__(LiveSessionTrackSource)
+    source._settings = Settings(count_prewarm_seconds=8)
+    source._payload = CountSessionRequest(
+        feed_url="https://cs9.pixelcaster.com/live/usc-tommy.stream/playlist.m3u8",
+        starts_at=starts_at,
+        ends_at=starts_at + timedelta(seconds=30),
+        region=[
+            Point(x=0.5, y=0.3),
+            Point(x=0.5, y=0.7),
+        ],
+    )
+
+    assert source._capture_start_at() == starts_at - timedelta(seconds=8)
+
+
+def test_recorded_frames_are_jpeg_encoded_to_limit_memory() -> None:
+    source = object.__new__(LiveSessionTrackSource)
+    source._session_id = "session-record"
+    source._settings = Settings(
+        count_process_after_session=True,
+        count_recorded_frame_jpeg_quality=92,
+    )
+    frame = np.zeros((24, 32, 3), dtype=np.uint8)
+    frame[:, :, 1] = 180
+
+    observation = source._make_frame_observation(
+        observed_at=datetime(2026, 3, 21, 12, 0, tzinfo=UTC),
+        frame=frame,
+    )
+    decoded = observation.decode_frame()
+
+    assert observation.frame is None
+    assert observation.encoded_jpeg
+    assert decoded is not None
+    assert decoded.shape == frame.shape
+
+
 def test_get_region_scan_bounds_adds_padding_around_polygon() -> None:
     bounds = get_region_scan_bounds(
         [
@@ -281,6 +354,49 @@ def test_run_counting_session_counts_only_in_window_crossings() -> None:
     assert result.final_count == 1
     assert result.detections_processed == 2
     assert "crossings across the line" in result.notes
+
+
+def test_run_counting_session_uses_configured_line_cooldown() -> None:
+    starts_at = datetime(2026, 3, 21, 12, 0, tzinfo=UTC)
+    ends_at = starts_at + timedelta(seconds=30)
+    payload = CountSessionRequest(
+        feed_url="https://cs9.pixelcaster.com/live/usc-tommy.stream/playlist.m3u8",
+        starts_at=starts_at,
+        ends_at=ends_at,
+        region=[
+            Point(x=0.5, y=0.3),
+            Point(x=0.5, y=0.7),
+        ],
+    )
+
+    result = run_counting_session(
+        "session-cooldown",
+        payload,
+        frame_observations=[
+            FrameObservation(
+                observed_at=starts_at + timedelta(seconds=1),
+                tracks=(make_track("track-1", foot_x=0.4, foot_y=0.5),),
+            ),
+            FrameObservation(
+                observed_at=starts_at + timedelta(seconds=2),
+                tracks=(make_track("track-1", foot_x=0.6, foot_y=0.5),),
+            ),
+            FrameObservation(
+                observed_at=starts_at + timedelta(seconds=3),
+                tracks=(make_track("track-1", foot_x=0.4, foot_y=0.5),),
+            ),
+        ],
+        settings=Settings(
+            enable_live_detections=False,
+            enable_auto_count_worker=False,
+            count_entry_confirm_frames=1,
+            count_line_cooldown_frames=10,
+            supabase_url=None,
+            supabase_service_role_key=None,
+        ),
+    )
+
+    assert result.final_count == 1
 
 
 def test_run_counting_session_emits_live_count_updates() -> None:

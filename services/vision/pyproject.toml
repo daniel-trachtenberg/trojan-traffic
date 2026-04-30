@@ -31,6 +31,10 @@ target-version = "py312"
 [tool.ruff.lint]
 select = ["E", "F", "I", "B", "UP"]
 
+[tool.pytest.ini_options]
+addopts = "-p no:cacheprovider"
+testpaths = ["tests"]
+
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["app*"]

@@ -19,10 +19,12 @@ coverage
 __pycache__/
 *.py[cod]
 .pytest_cache/
+pytest-cache-files-*/
 .ruff_cache/
 .venv/
 .venv-fixed/
 *.egg-info/
+services/vision/.ultralytics-config/
 yolo*.pt
 rtdetr*.pt
 yolov*.pt

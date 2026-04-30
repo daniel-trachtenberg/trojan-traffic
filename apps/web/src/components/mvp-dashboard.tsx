@@ -143,6 +143,7 @@ type MvpDashboardProps = {
   hlsUrl: string;
   initialRegion: RegionPoint[];
   visionApiUrl?: string;
+  liveCountEnabled?: boolean;
 };
 
 type ToastTone = "success" | "error" | "warning";
@@ -184,7 +185,7 @@ type SpotlightCardRecord = {
 const DEFAULT_WAGER = "10";
 const DEFAULT_EXACT_VALUE = "5";
 const DEFAULT_STANDBY_THRESHOLD = 5;
-const HUMAN_OVERLAY_PREVIEW_ENABLED = true;
+const HUMAN_OVERLAY_PREVIEW_ENABLED = false;
 const BETTING_OPEN_WINDOW_MS = 5 * 60 * 1000;
 const DAILY_CLAIM_TIMEZONE = "America/Los_Angeles";
 const DAILY_CLAIM_START_HOUR = 8;
@@ -192,7 +193,7 @@ const DEFAULT_TOAST_DURATION_MS = 5000;
 const SUCCESS_TOAST_DURATION_MS = 4200;
 const ERROR_TOAST_DURATION_MS = 6200;
 const MAX_VISIBLE_TOASTS = 4;
-const RESULT_SPOTLIGHT_WINDOW_MS = 10_000;
+const RESULT_SPOTLIGHT_WINDOW_MS = 15_000;
 const SESSION_SELECT_COLUMNS = "id,mode_seconds,threshold,starts_at,ends_at,status,live_count,final_count,resolved_at";
 const DEFAULT_PROFILE_AVATAR_ID: BuiltInProfileAvatarId = "signal";
 const DEFAULT_PREFERRED_MODE_SECONDS: PreferredModeSeconds = 30;
@@ -1764,7 +1765,8 @@ function isPredictionCancelable(prediction: PredictionRow, session: SessionRow |
 export function MvpDashboard({
   hlsUrl,
   initialRegion,
-  visionApiUrl
+  visionApiUrl,
+  liveCountEnabled = false
 }: MvpDashboardProps) {
   const supabase = getBrowserSupabaseClient();
   const [user, setUser] = useState<User | null>(null);
@@ -1782,6 +1784,7 @@ export function MvpDashboard({
   const [isSavingProfileSettings, setIsSavingProfileSettings] = useState(false);
   const [nowMs, setNowMs] = useState(() => Date.now());
   const [toasts, setToasts] = useState<ToastRecord[]>([]);
+  const [dismissedResultSessionIds, setDismissedResultSessionIds] = useState<string[]>([]);
   const [isRefreshing, startTransition] = useTransition();
   const [authMode, setAuthMode] = useState<AuthMode>("sign-in");
   const [email, setEmail] = useState("");
@@ -2004,8 +2007,13 @@ export function MvpDashboard({
     }) ?? null;
   const hasActiveRoundForRefresh = Boolean(inFlightSession);
   const resolvedSessions = sessions.filter((session) => getSessionState(session, nowMs) === "resolved");
+  const dismissedResultSessionIdSet = new Set(dismissedResultSessionIds);
   const spotlightResolvedSession =
     [...resolvedSessions].reverse().find((session) => {
+      if (dismissedResultSessionIdSet.has(session.id)) {
+        return false;
+      }
+
       const resolvedAtMs = getSessionReferenceTime(session);
       return nowMs - resolvedAtMs <= RESULT_SPOTLIGHT_WINDOW_MS;
     }) ?? null;
@@ -2195,7 +2203,10 @@ export function MvpDashboard({
   const selectedSessionId = selectedSession?.id ?? null;
   const publicProfileDisplayName =
     publicProfileSummary?.display_name ?? publicProfileContext?.display_name ?? "Public Profile";
-  const publicProfileTier = publicProfileSummary?.tier ?? publicProfileContext?.tier ?? "Trader";
+  const publicProfileTier =
+    publicProfileSummary?.token_balance !== null && publicProfileSummary?.token_balance !== undefined
+      ? getLeaderboardTierForCredits(publicProfileSummary.token_balance).label
+      : publicProfileContext?.tier ?? "Trader";
   const publicProfileRank = publicProfileSummary?.rank ?? publicProfileContext?.rank ?? null;
   const allVisiblePublicProfilePredictions = publicProfilePredictions.filter(
     (prediction) => !shouldHidePredictionFromProfile(prediction, prediction.status === "cancelled")
@@ -2319,7 +2330,7 @@ export function MvpDashboard({
         }
     : null;
   const liveCrossingCount =
-    selectedSession && (selectedState === "live" || selectedState === "resolving")
+    liveCountEnabled && selectedSession && (selectedState === "live" || selectedState === "resolving")
       ? Math.max(selectedSession.live_count ?? 0, 0)
       : null;
   const liveCrossingCountDisplay = `${liveCrossingCount ?? 0}`.padStart(2, "0");
@@ -2667,8 +2678,8 @@ export function MvpDashboard({
       ? `Betting opens at ${selectedOpensAtLabel ?? "soon"}. Round starts at ${selectedStartsAtLabel ?? "shortly after"}.`
     : selectedState === "live"
       ? `Started at ${selectedStartsAtLabel}. Check back here when the next window opens.`
-      : selectedState === "resolving"
-        ? `Window closed at ${selectedEndsAtLabel}. Final results should appear here shortly.`
+    : selectedState === "resolving"
+        ? `Window closed at ${selectedEndsAtLabel}. Final results will appear here shortly.`
         : selectedState === "resolved"
           ? `Last window ended at ${selectedEndsAtLabel}. We will post the next one here when it is ready.`
           : "We will surface the next playable window here as soon as it is available.";
@@ -2744,6 +2755,12 @@ export function MvpDashboard({
       : authMode === "sign-up"
         ? "Create Account"
         : "Send Reset Link";
+
+  function dismissResultSession(sessionId: string) {
+    setDismissedResultSessionIds((current) =>
+      current.includes(sessionId) ? current : [...current, sessionId]
+    );
+  }
 
   function dismissToast(toastId: number) {
     const activeTimeout = toastTimeoutsRef.current.get(toastId);
@@ -3733,7 +3750,7 @@ export function MvpDashboard({
     setPublicProfileContext({
       user_id: entry.user_id,
       display_name: entry.display_name,
-      tier: entry.tier,
+      tier: getLeaderboardTierForEntry(entry).label,
       rank: entry.rank
     });
     setPublicProfileSummary(null);
@@ -4663,8 +4680,8 @@ export function MvpDashboard({
               <span className="mobile-round-dock-kicker">Round live</span>
               <strong>Line {displayedThreshold} is in play</strong>
               <p>
-                Bets are locked while the live counter runs. We will settle every ticket as soon as
-                the official count posts.
+                Bets are locked while the round runs. We will settle every ticket after the
+                official count posts.
               </p>
             </div>
             <span className="status status-live-badge mobile-round-dock-status">
@@ -4673,28 +4690,30 @@ export function MvpDashboard({
             </span>
           </div>
 
-          <div className={`mobile-live-dock-meter-card mobile-live-dock-meter-card-${mobileLiveMeterStateTone}`}>
-            <div className="mobile-live-dock-meter-header">
-              <div>
-                <span>Betting line</span>
-                <strong>{displayedThreshold} people</strong>
+          {liveCountEnabled ? (
+            <div className={`mobile-live-dock-meter-card mobile-live-dock-meter-card-${mobileLiveMeterStateTone}`}>
+              <div className="mobile-live-dock-meter-header">
+                <div>
+                  <span>Betting line</span>
+                  <strong>{displayedThreshold} people</strong>
+                </div>
+                <span className={`mobile-live-dock-meter-state mobile-live-dock-meter-state-${mobileLiveMeterStateTone}`}>
+                  {mobileLiveMeterStateLabel}
+                </span>
               </div>
-              <span className={`mobile-live-dock-meter-state mobile-live-dock-meter-state-${mobileLiveMeterStateTone}`}>
-                {mobileLiveMeterStateLabel}
-              </span>
-            </div>
 
-            <div className="mobile-live-dock-meter-track" aria-hidden="true">
-              <span style={{ width: `${mobileLiveMeterFillPercent}%` }} />
-              <i style={{ left: `${mobileLiveThresholdMarkerPercent}%` }} />
-            </div>
+              <div className="mobile-live-dock-meter-track" aria-hidden="true">
+                <span style={{ width: `${mobileLiveMeterFillPercent}%` }} />
+                <i style={{ left: `${mobileLiveThresholdMarkerPercent}%` }} />
+              </div>
 
-            <div className="mobile-live-dock-meter-scale">
-              <span>0</span>
-              <span>Line {displayedThreshold}</span>
-              <span>{mobileLiveMeterSummary}</span>
+              <div className="mobile-live-dock-meter-scale">
+                <span>0</span>
+                <span>Line {displayedThreshold}</span>
+                <span>{mobileLiveMeterSummary}</span>
+              </div>
             </div>
-          </div>
+          ) : null}
 
           <div className="mobile-round-dock-footer-grid">
             <div className="mobile-round-dock-footer-card">
@@ -4753,6 +4772,14 @@ export function MvpDashboard({
         </div>
       ) : showResolvedRoundCard && selectedSession ? (
         <div className={`mobile-result-dock mobile-result-dock-${selectedResultTone}`}>
+          <button
+            type="button"
+            className="mobile-result-close-button"
+            onClick={() => dismissResultSession(selectedSession.id)}
+            aria-label="Dismiss round result"
+          >
+            ×
+          </button>
           <div className="mobile-result-dock-topline">
             <span className="mobile-result-dock-kicker">{selectedResultPresentation.eyebrow}</span>
             <strong>{selectedResultPresentation.headline}</strong>
@@ -5092,13 +5119,15 @@ export function MvpDashboard({
                           <span>{mobileLiveOverlayTimeNote}</span>
                         </div>
 
-                        <div
-                          className={`mobile-live-floating-card mobile-live-floating-card-count mobile-live-floating-card-${mobileLiveMeterStateTone}`}
-                        >
-                          <span className="mobile-live-floating-card-kicker">Line crossings</span>
-                          <strong>{mobileLiveCountDisplay}</strong>
-                          <span>{mobileLiveCountNote}</span>
-                        </div>
+                        {liveCountEnabled ? (
+                          <div
+                            className={`mobile-live-floating-card mobile-live-floating-card-count mobile-live-floating-card-${mobileLiveMeterStateTone}`}
+                          >
+                            <span className="mobile-live-floating-card-kicker">Line crossings</span>
+                            <strong>{mobileLiveCountDisplay}</strong>
+                            <span>{mobileLiveCountNote}</span>
+                          </div>
+                        ) : null}
 
                         {selectedSessionPredictionCount > 0 ? (
                           selectedSessionPredictions.map((prediction, index) => (
@@ -5120,7 +5149,7 @@ export function MvpDashboard({
                           <div className="mobile-live-ticket-card mobile-live-ticket-card-watch">
                             <span className="mobile-live-ticket-card-kicker">Watch mode</span>
                             <strong>{mobileLiveOverlayTicketSummary}</strong>
-                            <span>Track the live counter above the dock while this round runs.</span>
+                            <span>The final count resolves automatically after the round.</span>
                           </div>
                         )}
                       </>
@@ -5219,18 +5248,26 @@ export function MvpDashboard({
           {showLiveRoundCard && selectedSession ? (
         <section className="live-round-overlay" aria-label="Live round status">
           <div className="live-round-overlay-panel">
-            <div className="live-round-overlay-header">
+            <div
+              className={
+                liveCountEnabled
+                  ? "live-round-overlay-header"
+                  : "live-round-overlay-header live-round-overlay-header-timer-only"
+              }
+            >
               <div className="live-round-overlay-clock">
                 <span>Time left</span>
                 <strong>{selectedRoundCountdown}</strong>
                 <p>{displayedModeSeconds}s round live now</p>
               </div>
 
-              <div className="live-round-overlay-count">
-                <span>Live count</span>
-                <strong>{liveCrossingCountDisplay}</strong>
-                <p>Crossed the line this round</p>
-              </div>
+              {liveCountEnabled ? (
+                <div className="live-round-overlay-count">
+                  <span>Live count</span>
+                  <strong>{liveCrossingCountDisplay}</strong>
+                  <p>Crossed the line this round</p>
+                </div>
+              ) : null}
             </div>
 
             <div className="live-round-overlay-track-card">
@@ -5535,7 +5572,7 @@ export function MvpDashboard({
               </div>
               <span className="status status-live-badge">
                 <span className="status-live-dot" aria-hidden="true" />
-                {isRefreshing ? "Refreshing" : "Live"}
+                Live
               </span>
             </header>
 
@@ -5591,6 +5628,14 @@ export function MvpDashboard({
                 </div>
               ) : showResolvedRoundCard && selectedSession ? (
                 <div className={`market-result-card market-result-card-${selectedResultTone}`}>
+                  <button
+                    type="button"
+                    className="market-result-close-button"
+                    onClick={() => dismissResultSession(selectedSession.id)}
+                    aria-label="Dismiss round result"
+                  >
+                    ×
+                  </button>
                   <div className="market-result-topline">
                     <span className="market-result-kicker">{selectedResultPresentation.eyebrow}</span>
                     <strong className="market-result-headline">{selectedResultPresentation.headline}</strong>

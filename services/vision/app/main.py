@@ -20,7 +20,7 @@ logging.basicConfig(
 LOGGER = logging.getLogger("app.main")
 logging.getLogger("httpx").setLevel(logging.WARNING)
 logging.getLogger("httpcore").setLevel(logging.WARNING)
-LIVE_DETECTION_PREVIEW_ENABLED = True
+LIVE_DETECTION_PREVIEW_ENABLED = False
 
 app = FastAPI(
     title=settings.app_name,
@@ -84,12 +84,15 @@ def startup_event() -> None:
     global person_detector, session_worker
     LOGGER.info(
         "vision service startup: live_detections=%s auto_count_worker=%s "
-        "supabase_configured=%s model=%s input_size=%s",
-        settings.enable_live_detections,
+        "supabase_configured=%s model=%s input_size=%s process_after_session=%s "
+        "publish_live_updates=%s",
+        LIVE_DETECTION_PREVIEW_ENABLED and settings.enable_live_detections,
         settings.enable_auto_count_worker,
         bool(settings.supabase_url and settings.supabase_service_role_key),
         settings.detection_model_name,
         settings.detection_model_input_size,
+        settings.count_process_after_session,
+        settings.count_publish_live_updates,
     )
     if LIVE_DETECTION_PREVIEW_ENABLED and settings.enable_live_detections:
         person_detector = LivePersonDetector(

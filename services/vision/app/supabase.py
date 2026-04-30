@@ -116,6 +116,25 @@ def update_session_live_count_sync(session_id: str, live_count: int) -> None:
         response.raise_for_status()
 
 
+def mark_session_counting_sync(session_id: str) -> None:
+    headers = {
+        **_build_headers(),
+        "Prefer": "return=minimal",
+    }
+    endpoint = _build_rest_endpoint("/rest/v1/game_sessions")
+    params = {
+        "id": f"eq.{session_id}",
+        "status": "not.in.(resolved,cancelled)",
+        "final_count": "is.null",
+        "resolved_at": "is.null",
+    }
+    payload = {"status": "counting"}
+
+    with httpx.Client(timeout=10.0) as client:
+        response = client.patch(endpoint, headers=headers, params=params, json=payload)
+        response.raise_for_status()
+
+
 def list_auto_resolution_sessions(
     *,
     now: datetime | None = None,

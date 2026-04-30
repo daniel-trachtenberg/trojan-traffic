@@ -15,6 +15,7 @@ from app.supabase import (
     PendingSessionRecord,
     list_auto_resolution_sessions,
     list_countable_sessions,
+    mark_session_counting_sync,
     resolve_session_in_supabase_sync,
     update_session_live_count_sync,
 )
@@ -39,6 +40,7 @@ class AutomaticCountingWorker:
         count_runner: Callable[..., CountSessionResult] = run_counting_session,
         session_resolver: Callable[[str, int], int] = resolve_session_in_supabase_sync,
         session_live_count_updater: Callable[[str, int], None] = update_session_live_count_sync,
+        session_counting_marker: Callable[[str], None] = mark_session_counting_sync,
     ) -> None:
         self._settings = settings
         self._session_fetcher = session_fetcher
@@ -46,6 +48,7 @@ class AutomaticCountingWorker:
         self._count_runner = count_runner
         self._session_resolver = session_resolver
         self._session_live_count_updater = session_live_count_updater
+        self._session_counting_marker = session_counting_marker
         self._logger = logging.getLogger("app.session_worker")
         self._stop_event = Event()
         self._thread: Thread | None = None
@@ -123,7 +126,9 @@ class AutomaticCountingWorker:
 
                 job_input = _SessionJobInput(
                     session_id=session.id,
-                    initial_count=session.live_count,
+                    initial_count=(
+                        session.live_count if self._settings.count_publish_live_updates else 0
+                    ),
                     request=CountSessionRequest(
                         feed_url=session.camera_feed_url,
                         starts_at=session.starts_at,
@@ -140,10 +145,12 @@ class AutomaticCountingWorker:
                 )
                 self._active_jobs[session.id] = thread
 
+            self._mark_session_counting(session.id)
             thread.start()
             launched_session_ids.append(session.id)
             self._logger.info(
-                "launched counting job session=%s starts_at=%s ends_at=%s live_count=%s",
+                "claimed and launched counting job session=%s starts_at=%s ends_at=%s "
+                "live_count=%s",
                 session.id,
                 session.starts_at.isoformat(),
                 session.ends_at.isoformat(),
@@ -209,7 +216,8 @@ class AutomaticCountingWorker:
                 )
                 return
 
-            self._publish_live_count(job_input.session_id, result.final_count)
+            if self._settings.count_publish_live_updates:
+                self._publish_live_count(job_input.session_id, result.final_count)
             processed_predictions = self._session_resolver(
                 job_input.session_id,
                 result.final_count,
@@ -230,6 +238,19 @@ class AutomaticCountingWorker:
             with self._active_jobs_lock:
                 self._active_jobs.pop(job_input.session_id, None)
 
+    def _mark_session_counting(self, session_id: str) -> None:
+        if not self._settings.supabase_url or not self._settings.supabase_service_role_key:
+            return
+
+        try:
+            self._session_counting_marker(session_id)
+        except Exception as exc:  # noqa: BLE001
+            self._logger.warning(
+                "could not mark session %s as counting: %s",
+                session_id,
+                exc,
+            )
+
     def _run_count_runner(
         self,
         job_input: _SessionJobInput,
@@ -241,7 +262,9 @@ class AutomaticCountingWorker:
             "stop_event": self._stop_event,
         }
         if self._count_runner_supports_live_updates():
-            kwargs["count_update_handler"] = count_update_handler
+            kwargs["count_update_handler"] = (
+                count_update_handler if self._settings.count_publish_live_updates else None
+            )
         if self._count_runner_supports_initial_count():
             kwargs["initial_count"] = job_input.initial_count
 
