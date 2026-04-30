@@ -171,7 +171,8 @@ type AccountProfileStat = AccountOverviewStat & {
 
 type PredictionHistoryTone = "win" | "loss" | "pending" | "cancelled";
 type PredictionHistoryFilter = "all" | "live" | "settled";
-type SpotlightCardTone = "gold" | "sky" | "emerald" | "rose";
+type SpotlightCardTone = "gold" | "sky" | "emerald" | "bronze" | "rose";
+type TierTone = "bronze" | "silver" | "gold" | "platinum" | "default";
 
 type SpotlightCardRecord = {
   label: string;
@@ -199,6 +200,12 @@ const MAX_PROFILE_AVATAR_FILE_SIZE_BYTES = 8 * 1024 * 1024;
 const MAX_PROFILE_AVATAR_DATA_URL_LENGTH = 180_000;
 const PROFILE_PREVIEW_EMAIL = "traffic.trojan@usc.edu";
 const PROFILE_PREVIEW_TOKEN_BALANCE = 480;
+const LEADERBOARD_TIER_THRESHOLDS = [
+  { label: "Bronze", minCredits: 0, tone: "bronze" },
+  { label: "Silver", minCredits: 1000, tone: "silver" },
+  { label: "Gold", minCredits: 3000, tone: "gold" },
+  { label: "Platinum", minCredits: 5000, tone: "platinum" }
+] satisfies Array<{ label: string; minCredits: number; tone: TierTone }>;
 const BUILT_IN_PROFILE_AVATARS = [
   {
     id: "signal",
@@ -1342,10 +1349,31 @@ function getLeaderboardSpotlightTone(rank: number): SpotlightCardTone {
   }
 
   if (rank === 3) {
-    return "emerald";
+    return "bronze";
   }
 
   return "rose";
+}
+
+function getLeaderboardTierForCredits(credits: number) {
+  const safeCredits = Number.isFinite(credits) ? credits : 0;
+  return (
+    [...LEADERBOARD_TIER_THRESHOLDS]
+      .reverse()
+      .find((tier) => safeCredits >= tier.minCredits) ?? LEADERBOARD_TIER_THRESHOLDS[0]
+  );
+}
+
+function getLeaderboardTierForEntry(entry: LeaderboardRow) {
+  return getLeaderboardTierForCredits(entry.token_balance);
+}
+
+function formatCreditThreshold(minCredits: number, nextMinCredits?: number) {
+  if (nextMinCredits === undefined) {
+    return `${minCredits.toLocaleString("en-US")}+ credits`;
+  }
+
+  return `${minCredits.toLocaleString("en-US")}-${(nextMinCredits - 1).toLocaleString("en-US")} credits`;
 }
 
 function getAccountPulseCard({
@@ -1694,20 +1722,28 @@ function LeaderboardSpotlightCard({
   onOpen: (entry: LeaderboardRow) => void;
 }) {
   const tone = getLeaderboardSpotlightTone(entry.rank);
+  const tier = getLeaderboardTierForEntry(entry);
 
   return (
     <button
       type="button"
       className={`leaderboard-spotlight-card leaderboard-spotlight-card-${tone}`}
       onClick={() => onOpen(entry)}
-      aria-label={`Open ${entry.display_name}'s betting profile`}
+      aria-label={`Open rank ${entry.rank}, ${entry.display_name}'s betting profile`}
     >
-      <span className="leaderboard-spotlight-rank">{formatRankLabel(entry.rank)}</span>
+      <span className="leaderboard-spotlight-rank" aria-label={formatRankLabel(entry.rank)}>
+        <span className="leaderboard-spotlight-medal-number" aria-hidden="true">
+          {entry.rank}
+        </span>
+      </span>
       <span className="leaderboard-spotlight-copy">
         <span className="leaderboard-spotlight-kicker">{getLeaderboardSpotlightLabel(entry.rank)}</span>
         <strong className="leaderboard-spotlight-name">{entry.display_name}</strong>
         <span className="leaderboard-spotlight-meta">
-          {entry.tier} tier · {entry.correct_predictions} correct picks
+          <span className={`leaderboard-tier-pill leaderboard-tier-pill-${tier.tone}`}>
+            {tier.label} tier
+          </span>
+          <span>{entry.correct_predictions} correct picks</span>
         </span>
       </span>
       <span className="leaderboard-spotlight-score-shell">
@@ -2269,6 +2305,8 @@ export function MvpDashboard({
   );
   const leaderboardSpotlightEntries = leaderboard.slice(0, 3);
   const leaderboardListEntries = leaderboard.slice(3, 15);
+  const leaderboardTierGuideCopy =
+    "Credit milestones. Rank still sorts by bankroll, then correct picks.";
   const leaderboardUserSummary = user
     ? currentUserLeaderboardEntry
       ? {
@@ -6237,6 +6275,28 @@ export function MvpDashboard({
                     </div>
                   ) : null}
                 </div>
+                <section className="leaderboard-tier-guide" aria-label="Tier system guide">
+                  <div className="leaderboard-tier-guide-copy-block">
+                    <p className="leaderboard-tier-guide-kicker">Tier guide</p>
+                    <p className="leaderboard-tier-guide-copy">{leaderboardTierGuideCopy}</p>
+                  </div>
+                  <div className="leaderboard-tier-guide-track" aria-label="Tier ladder">
+                    {LEADERBOARD_TIER_THRESHOLDS.map((tier, tierIndex) => (
+                      <span
+                        className={`leaderboard-tier-chip leaderboard-tier-chip-${tier.tone}`}
+                        key={tier.label}
+                      >
+                        <strong>{tier.label}</strong>
+                        <span>
+                          {formatCreditThreshold(
+                            tier.minCredits,
+                            LEADERBOARD_TIER_THRESHOLDS[tierIndex + 1]?.minCredits
+                          )}
+                        </span>
+                      </span>
+                    ))}
+                  </div>
+                </section>
                 {leaderboardSpotlightEntries.length > 0 ? (
                   <section className="leaderboard-spotlight-grid">
                     {leaderboardSpotlightEntries.map((entry) => (
@@ -6259,32 +6319,38 @@ export function MvpDashboard({
                       </div>
                     </div>
                     <ol className="leaderboard modal-leaderboard">
-                      {leaderboardListEntries.map((entry) => (
-                        <li key={entry.user_id}>
-                          <button
-                            type="button"
-                            className="leaderboard-entry-button"
-                            onClick={() => void handleOpenPublicProfile(entry)}
-                            aria-label={`Open ${entry.display_name}'s betting profile`}
-                          >
-                            <span className="leaderboard-entry-rank">{formatRankLabel(entry.rank)}</span>
-                            <span className="leaderboard-entry-copy">
-                              <span className="leaderboard-entry-name-row">
-                                <span className="leaderboard-entry-name">{entry.display_name}</span>
-                                <span className="leaderboard-entry-tier">{entry.tier}</span>
+                      {leaderboardListEntries.map((entry) => {
+                        const entryTier = getLeaderboardTierForEntry(entry);
+
+                        return (
+                          <li key={entry.user_id}>
+                            <button
+                              type="button"
+                              className="leaderboard-entry-button"
+                              onClick={() => void handleOpenPublicProfile(entry)}
+                              aria-label={`Open ${entry.display_name}'s betting profile`}
+                            >
+                              <span className="leaderboard-entry-rank">{formatRankLabel(entry.rank)}</span>
+                              <span className="leaderboard-entry-copy">
+                                <span className="leaderboard-entry-name-row">
+                                  <span className="leaderboard-entry-name">{entry.display_name}</span>
+                                  <span className={`leaderboard-entry-tier leaderboard-tier-pill-${entryTier.tone}`}>
+                                    {entryTier.label}
+                                  </span>
+                                </span>
+                                <span className="leaderboard-entry-meta">
+                                  {entry.correct_predictions} correct picks
+                                </span>
                               </span>
-                              <span className="leaderboard-entry-meta">
-                                {entry.correct_predictions} correct picks
+                              <span className="leaderboard-entry-score-shell">
+                                <span className="leaderboard-entry-score-label">Bankroll</span>
+                                <span className="leaderboard-entry-score">{entry.token_balance}</span>
+                                <span className="leaderboard-entry-action">View profile</span>
                               </span>
-                            </span>
-                            <span className="leaderboard-entry-score-shell">
-                              <span className="leaderboard-entry-score-label">Bankroll</span>
-                              <span className="leaderboard-entry-score">{entry.token_balance}</span>
-                              <span className="leaderboard-entry-action">View profile</span>
-                            </span>
-                          </button>
-                        </li>
-                      ))}
+                            </button>
+                          </li>
+                        );
+                      })}
                     </ol>
                   </section>
                 ) : null}
