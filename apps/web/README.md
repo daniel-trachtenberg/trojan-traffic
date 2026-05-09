@@ -10,8 +10,9 @@ cp apps/web/.env.example apps/web/.env.local
 npm run dev:web
 ```
 
-Set `NEXT_PUBLIC_VISION_API_URL` in `.env.local` to enable live person box overlays from the
-vision service.
+Leave `NEXT_PUBLIC_VISION_API_URL` unset for normal play. Browser-visible detector overlays are
+currently disabled so the product stays on the smoother HLS feed while the backend worker handles
+settlement.
 
 ## Admin Region Editor
 
@@ -52,6 +53,6 @@ where email = '<admin-email>';
 
 ## Next implementation steps
 
-1. Hook vision worker output to automatic session resolution.
-2. Add achievement awarding jobs and badge display.
-3. Add admin audit logs for session and region changes.
+1. Add admin audit logs for session and region changes.
+2. Add a rolling session generator so production rounds do not depend on seed data.
+3. Add optional OAuth providers if the product needs login methods beyond email/password.

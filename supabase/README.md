@@ -16,7 +16,9 @@ supabase db push
 Current migration set includes:
 - core schema and RLS
 - MVP RPC functions (`claim_daily_login`, `place_prediction`, `get_leaderboard`)
-- seed data for achievements and scheduled sessions
+- achievement definitions plus automatic user achievement awards
+- computed credit tiers for leaderboard and public profiles
+- early local demo session seed data for quick MVP testing
 
 ## Local database (optional)
 

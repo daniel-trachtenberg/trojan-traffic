@@ -39,7 +39,7 @@ https://cs9.pixelcaster.com/live/usc-tommy.stream/playlist.m3u8
 
 #### Authentication
 - Email and password login
-- Optional Google authentication
+- Password reset flow
 - Secure session management
 
 #### Profile Page
@@ -61,22 +61,22 @@ https://cs9.pixelcaster.com/live/usc-tommy.stream/playlist.m3u8
 - Tokens are awarded or deducted based on results
 
 #### Daily Login Reward
-- Daily token bonus for logging in
-- Bonus increases with login streak length
+- Daily token claim for returning users
+- Login streak tracking for profile progress and achievements
 
 #### Streak System
 - Consecutive days logged in
 - Consecutive correct predictions
 
-Streaks unlock:
-- Ranking upgrades
-- Special badges
-- Bonus tokens
+Progress unlocks:
+- Credit-based ranking tiers
+- Special achievement badges
+- Public profile milestones
 
 Examples:
 - 7-day streak
-- 20-day streak
-- 50-day streak
+- 5-win streak
+- First prediction
 
 ---
 
@@ -153,10 +153,10 @@ Each mode:
 
 ### `services/vision`
 
-- Python 3.12 FastAPI service scaffold
+- Python 3.12+ FastAPI service
 - Typed request/response contracts for counting sessions
 - Session resolution endpoint that calls Supabase `resolve_session` RPC
-- Stub counting pipeline entrypoint with tests
+- Automatic counting worker with tested session tracking
 
 ### `supabase`
 
@@ -170,7 +170,7 @@ Each mode:
   - automatic profile bootstrap trigger from `auth.users`
   - `claim_daily_login`, `place_prediction`, and `get_leaderboard` RPCs
   - `resolve_session` function for server-authoritative settlement
-  - seeded achievements and scheduled demo sessions
+  - seeded achievement definitions and local demo sessions
   - row-level security policies
 
 ---

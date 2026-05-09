@@ -360,32 +360,50 @@ const PROFILE_PREVIEW_PREDICTIONS: PredictionRow[] = [
     placed_at: "2026-04-10T17:58:00.000Z"
   }
 ];
-const PROFILE_PREVIEW_ACHIEVEMENTS: AchievementRow[] = [
+const DEFAULT_ACHIEVEMENTS: AchievementRow[] = [
   {
-    id: "preview-achievement-first",
+    id: "default-achievement-first",
     slug: "first-prediction",
     name: "First Prediction",
-    description: "Place your first over/under prediction.",
+    description: "Place your first prediction.",
     criteria: { type: "prediction_count", minimum: 1 }
   },
   {
-    id: "preview-achievement-streak",
+    id: "default-achievement-sharp-eye",
+    slug: "sharp-eye-10",
+    name: "Sharp Eye",
+    description: "Get ten predictions right.",
+    criteria: { type: "correct_prediction_count", minimum: 10 }
+  },
+  {
+    id: "default-achievement-bank-builder",
+    slug: "bank-builder-1000",
+    name: "Bank Builder",
+    description: "Reach one thousand credits.",
+    criteria: { type: "token_balance", minimum: 1000 }
+  },
+  {
+    id: "default-achievement-streak",
     slug: "streak-7",
     name: "Seven Day Streak",
     description: "Claim daily login rewards for seven consecutive days.",
     criteria: { type: "login_streak", minimum: 7 }
   },
   {
-    id: "preview-achievement-hot-hand",
+    id: "default-achievement-hot-hand",
     slug: "hot-hand-5",
     name: "Hot Hand",
     description: "Win five predictions in a row.",
     criteria: { type: "prediction_streak", minimum: 5 }
   }
 ];
+const PROFILE_PREVIEW_ACHIEVEMENTS: AchievementRow[] = DEFAULT_ACHIEVEMENTS.map((achievement) => ({
+  ...achievement,
+  id: `preview-${achievement.id}`
+}));
 const PROFILE_PREVIEW_USER_ACHIEVEMENTS: UserAchievementRow[] = [
   {
-    achievement_id: "preview-achievement-first",
+    achievement_id: "preview-default-achievement-first",
     awarded_at: "2026-03-04T17:18:00.000Z"
   }
 ];
@@ -680,6 +698,10 @@ function getPreferredModeLabel(modeSeconds: number | null | undefined) {
   return `${normalizePreferredModeSeconds(modeSeconds)}s rounds`;
 }
 
+function formatAchievementSummary(count: number) {
+  return `${count} ${count === 1 ? "Achievement" : "Achievements"} Earned`;
+}
+
 function isMissingProfileSettingsColumnsError(error: { code?: string; message?: string } | null | undefined) {
   if (!error) {
     return false;
@@ -838,7 +860,7 @@ function getParticipationStreak(predictions: Pick<PredictionRow, "placed_at">[])
 function getAchievementCategory(achievement: AchievementRow): AchievementCategory {
   const criteriaType = achievement.criteria?.type;
 
-  if (criteriaType === "prediction_streak") {
+  if (criteriaType === "prediction_streak" || criteriaType === "correct_prediction_count") {
     return "skill";
   }
 
@@ -851,6 +873,13 @@ function getAchievementCategory(achievement: AchievementRow): AchievementCategor
   }
 
   return "accomplishment";
+}
+
+function mergeAchievementDefinitions(achievements: AchievementRow[]) {
+  const seenSlugs = new Set(achievements.map((achievement) => achievement.slug));
+  const fallbackAchievements = DEFAULT_ACHIEVEMENTS.filter((achievement) => !seenSlugs.has(achievement.slug));
+
+  return [...achievements, ...fallbackAchievements];
 }
 
 function getAchievementCategoryLabel(category: AchievementCategory) {
@@ -869,9 +898,11 @@ function getAchievementMetricProgress(
   achievement: AchievementRow,
   metrics: {
     predictionCount: number;
+    correctPredictionCount: number;
     loginStreak: number;
     winStreak: number;
     participationStreak: number;
+    tokenBalance: number;
   }
 ) {
   const minimum = Math.max(achievement.criteria?.minimum ?? 1, 1);
@@ -881,6 +912,10 @@ function getAchievementMetricProgress(
       ? metrics.loginStreak
       : criteriaType === "prediction_streak"
         ? metrics.winStreak
+        : criteriaType === "correct_prediction_count"
+          ? metrics.correctPredictionCount
+          : criteriaType === "token_balance"
+            ? metrics.tokenBalance
         : criteriaType === "participation_streak"
           ? metrics.participationStreak
           : metrics.predictionCount;
@@ -890,6 +925,112 @@ function getAchievementMetricProgress(
     minimum,
     ratio: clamp(current / minimum, 0, 1)
   };
+}
+
+function getAchievementUnit(achievement: AchievementRow, amount: number) {
+  const criteriaType = achievement.criteria?.type;
+
+  if (criteriaType === "login_streak") {
+    return amount === 1 ? "day" : "days";
+  }
+
+  if (criteriaType === "correct_prediction_count") {
+    return amount === 1 ? "correct pick" : "correct picks";
+  }
+
+  if (criteriaType === "prediction_streak") {
+    return amount === 1 ? "win" : "wins";
+  }
+
+  if (criteriaType === "token_balance") {
+    return amount === 1 ? "credit" : "credits";
+  }
+
+  return amount === 1 ? "bet" : "bets";
+}
+
+function formatAchievementNumber(value: number) {
+  return value.toLocaleString("en-US");
+}
+
+function getAchievementDescription(achievement: AchievementRow) {
+  if (achievement.slug === "first-prediction") {
+    return "Place your first prediction.";
+  }
+
+  if (achievement.slug === "streak-7") {
+    return "Claim daily rewards for seven days in a row.";
+  }
+
+  if (achievement.slug === "sharp-eye-10") {
+    return "Get ten predictions right.";
+  }
+
+  if (achievement.slug === "bank-builder-1000") {
+    return "Reach one thousand credits.";
+  }
+
+  return achievement.description;
+}
+
+function getAchievementFootnote(achievement: {
+  isEarned: boolean;
+  awardedAt: string | null;
+  current: number;
+  minimum: number;
+} & AchievementRow) {
+  if (achievement.isEarned && achievement.awardedAt) {
+    return `Earned ${formatShortDateTime(achievement.awardedAt)}`;
+  }
+
+  if (achievement.isEarned) {
+    return "Nice, this badge is yours.";
+  }
+
+  const remaining = Math.max(achievement.minimum - achievement.current, 0);
+  return `Need ${formatAchievementNumber(remaining)} more ${getAchievementUnit(achievement, remaining)}`;
+}
+
+function getAchievementDetailCopy(achievement: {
+  isEarned: boolean;
+  current: number;
+  minimum: number;
+} & AchievementRow) {
+  const remaining = Math.max(achievement.minimum - achievement.current, 0);
+
+  if (achievement.slug === "first-prediction") {
+    return achievement.isEarned
+      ? "You unlocked this by entering your first round."
+      : "Place any prediction to earn this badge.";
+  }
+
+  if (achievement.criteria?.type === "login_streak") {
+    return achievement.isEarned
+      ? `You kept your daily claim streak alive for ${achievement.minimum} ${getAchievementUnit(achievement, achievement.minimum)}.`
+      : `Claim daily rewards for ${remaining} more consecutive ${getAchievementUnit(achievement, remaining)}.`;
+  }
+
+  if (achievement.criteria?.type === "prediction_streak") {
+    return achievement.isEarned
+      ? `You put together a ${achievement.minimum}-win streak.`
+      : `Win ${remaining} more settled ${getAchievementUnit(achievement, remaining)} in a row.`;
+  }
+
+  if (achievement.criteria?.type === "correct_prediction_count") {
+    return achievement.isEarned
+      ? `You have ${achievement.minimum} correct picks on your profile.`
+      : `Get ${remaining} more settled ${getAchievementUnit(achievement, remaining)}.`;
+  }
+
+  if (achievement.criteria?.type === "token_balance") {
+    return achievement.isEarned
+      ? `Your bankroll reached ${formatAchievementNumber(achievement.minimum)} credits.`
+      : `Earn ${formatAchievementNumber(remaining)} more credits to complete this badge.`;
+  }
+
+  return achievement.isEarned
+    ? "This milestone is complete."
+    : "Keep playing rounds to move this badge forward.";
 }
 
 function ProfileAvatar({
@@ -1825,6 +1966,7 @@ export function MvpDashboard({
   const [isMobileViewport, setIsMobileViewport] = useState(false);
   const [isPhoneViewport, setIsPhoneViewport] = useState(false);
   const [accountHistoryFilter, setAccountHistoryFilter] = useState<PredictionHistoryFilter>("all");
+  const [showAchievementGuide, setShowAchievementGuide] = useState(false);
   const [publicProfileHistoryFilter, setPublicProfileHistoryFilter] =
     useState<PredictionHistoryFilter>("all");
   const anonDisplayNameRequestRef = useRef(0);
@@ -1852,12 +1994,15 @@ export function MvpDashboard({
   const isProfilePreviewMode = !supabase && process.env.NODE_ENV !== "production";
   const accountProfile = isProfilePreviewMode ? PROFILE_PREVIEW_PROFILE : profile;
   const accountStreaks = isProfilePreviewMode ? PROFILE_PREVIEW_STREAKS : streaks;
-  const accountAchievements = isProfilePreviewMode ? PROFILE_PREVIEW_ACHIEVEMENTS : achievements;
+  const accountAchievements = mergeAchievementDefinitions(
+    isProfilePreviewMode ? PROFILE_PREVIEW_ACHIEVEMENTS : achievements
+  );
   const accountUserAchievements = isProfilePreviewMode
     ? PROFILE_PREVIEW_USER_ACHIEVEMENTS
     : userAchievements;
   const accountPredictions = isProfilePreviewMode ? PROFILE_PREVIEW_PREDICTIONS : predictions;
   const accountTokenBalance = isProfilePreviewMode ? PROFILE_PREVIEW_TOKEN_BALANCE : tokenBalance;
+  const accountTier = getLeaderboardTierForCredits(accountTokenBalance).label;
   const accountEmail = user?.email ?? (isProfilePreviewMode ? PROFILE_PREVIEW_EMAIL : "");
   const accountSessionLookup = new Map(
     mergeSessionRows(sessions, isProfilePreviewMode ? PROFILE_PREVIEW_HISTORY_SESSIONS : []).map((session) => [
@@ -1970,11 +2115,14 @@ export function MvpDashboard({
   const achievementCards = accountAchievements.map((achievement) => {
     const progress = getAchievementMetricProgress(achievement, {
       predictionCount: visibleAccountPredictions.length,
+      correctPredictionCount: visibleAccountPredictions.filter((prediction) => prediction.was_correct === true).length,
       loginStreak: accountStreaks?.login_streak ?? 0,
       winStreak: accountStreaks?.prediction_streak ?? 0,
-      participationStreak
+      participationStreak,
+      tokenBalance: accountTokenBalance
     });
     const awardedAt = earnedAchievementIds.get(achievement.id) ?? null;
+    const isComplete = progress.current >= progress.minimum;
 
     return {
       ...achievement,
@@ -1982,7 +2130,8 @@ export function MvpDashboard({
       current: progress.current,
       minimum: progress.minimum,
       ratio: progress.ratio,
-      isEarned: Boolean(awardedAt),
+      isEarned: Boolean(awardedAt) || isComplete,
+      isSynced: Boolean(awardedAt),
       awardedAt
     };
   });
@@ -1992,6 +2141,21 @@ export function MvpDashboard({
     participation: achievementCards.filter((achievement) => achievement.category === "participation")
   } satisfies Record<AchievementCategory, typeof achievementCards>;
   const totalEarnedAchievements = achievementCards.filter((achievement) => achievement.isEarned).length;
+  const nextAchievement =
+    [...achievementCards]
+      .filter((achievement) => !achievement.isEarned)
+      .sort((left, right) => right.ratio - left.ratio || left.name.localeCompare(right.name))[0] ?? null;
+  const achievementGuideCards = [...achievementCards].sort((left, right) => {
+    if (left.isEarned !== right.isEarned) {
+      return left.isEarned ? 1 : -1;
+    }
+
+    if (!left.isEarned) {
+      return right.ratio - left.ratio || left.name.localeCompare(right.name);
+    }
+
+    return left.name.localeCompare(right.name);
+  });
   const profileJoinDateLabel = formatJoinDateLabel(accountProfile?.created_at);
   const accountDisplayName = accountProfile?.display_name ?? accountEmail;
   const profileSettingsDirty = !profileSettingsFormEqual(profileSettings, profileSettingsBaseline);
@@ -4005,6 +4169,7 @@ export function MvpDashboard({
   }
 
   function toggleRightPanel(panel: "account" | "leaderboard" | "admin") {
+    setShowAchievementGuide(false);
     setOpenRightPanel((current) => (current === panel ? null : panel));
   }
 
@@ -5891,7 +6056,14 @@ export function MvpDashboard({
       )}
 
       {openRightPanel ? (
-        <div className="center-modal-backdrop" onClick={() => setOpenRightPanel(null)} role="presentation">
+        <div
+          className="center-modal-backdrop"
+          onClick={() => {
+            setShowAchievementGuide(false);
+            setOpenRightPanel(null);
+          }}
+          role="presentation"
+        >
           <section
             className={
               openRightPanel === "account"
@@ -5922,7 +6094,10 @@ export function MvpDashboard({
               <button
                 type="button"
                 className="panel-close-button"
-                onClick={() => setOpenRightPanel(null)}
+                onClick={() => {
+                  setShowAchievementGuide(false);
+                  setOpenRightPanel(null);
+                }}
                 aria-label="Close panel"
               >
                 ×
@@ -5947,12 +6122,12 @@ export function MvpDashboard({
                           <p className="account-name">{accountDisplayName}</p>
                           <p className="account-subtitle">{accountEmail}</p>
                           <div className="account-badge-row">
-                            <span className="account-badge">{accountProfile?.tier ?? "Bronze"} Tier</span>
+                            <span className="account-badge">{accountTier} Tier</span>
                             <span className="account-badge">Joined {profileJoinDateLabel}</span>
                             <span className="account-badge">
-                              Preferred {getPreferredModeLabel(accountProfile?.preferred_mode_seconds)}
+                              Preferred Mode: {getPreferredModeLabel(accountProfile?.preferred_mode_seconds)}
                             </span>
-                            <span className="account-badge">{totalEarnedAchievements} badges earned</span>
+                            <span className="account-badge">{formatAchievementSummary(totalEarnedAchievements)}</span>
                             <span
                               className={
                                 latestResolvedPrediction?.was_correct === true
@@ -6023,70 +6198,44 @@ export function MvpDashboard({
                         <p className="account-section-kicker">Achievements</p>
                         <h3 className="account-section-title">Badges & progress</h3>
                         <p className="account-section-copy">
-                          Skill, accomplishment, and participation badges track automatically as your profile grows.
+                          See every badge you can unlock and track what is already complete.
                         </p>
                       </div>
                       <span className="account-history-count">
                         {achievementCards.length > 0
-                          ? `${totalEarnedAchievements}/${achievementCards.length} earned`
+                          ? `${totalEarnedAchievements}/${achievementCards.length} completed`
                           : "No badges yet"}
                       </span>
                     </div>
                     {achievementCards.length > 0 ? (
-                      <div className="achievement-category-grid">
-                        {(["skill", "accomplishment", "participation"] as const).map((category) => (
-                          <article className="achievement-category-card" key={category}>
-                            <div className="achievement-category-header">
-                              <div>
-                                <p className="account-section-kicker">{getAchievementCategoryLabel(category)}</p>
-                                <h4 className="achievement-category-title">
-                                  {achievementCardsByCategory[category].filter((achievement) => achievement.isEarned).length} earned
-                                </h4>
-                              </div>
-                              <span className="account-history-count">
+                      <div className="achievement-overview-panel">
+                        <div className="achievement-overview-main">
+                          <p className="account-section-kicker">Badge case</p>
+                          <strong>{totalEarnedAchievements}/{achievementCards.length} completed</strong>
+                          <p>
+                            {nextAchievement
+                              ? `${nextAchievement.name} is your closest badge right now.`
+                              : "Every available badge is complete."}
+                          </p>
+                        </div>
+                        <div className="achievement-overview-stats">
+                          {(["skill", "accomplishment", "participation"] as const).map((category) => (
+                            <span className="achievement-overview-stat" key={category}>
+                              <strong>
+                                {achievementCardsByCategory[category].filter((achievement) => achievement.isEarned).length}/
                                 {achievementCardsByCategory[category].length}
-                              </span>
-                            </div>
-                            <div className="achievement-card-list">
-                              {achievementCardsByCategory[category].map((achievement) => (
-                                <article
-                                  className={
-                                    achievement.isEarned
-                                      ? "achievement-progress-card achievement-progress-card-earned"
-                                      : "achievement-progress-card"
-                                  }
-                                  key={achievement.id}
-                                >
-                                  <div className="achievement-progress-head">
-                                    <div>
-                                      <strong>{achievement.name}</strong>
-                                      <p>{achievement.description}</p>
-                                    </div>
-                                    <span
-                                      className={
-                                        achievement.isEarned
-                                          ? "account-badge account-badge-win"
-                                          : "account-badge"
-                                      }
-                                    >
-                                      {achievement.isEarned ? "Earned" : `${achievement.current}/${achievement.minimum}`}
-                                    </span>
-                                  </div>
-                                  <div className="achievement-progress-track" aria-hidden="true">
-                                    <span style={{ width: `${Math.max(achievement.ratio * 100, achievement.isEarned ? 100 : 0)}%` }} />
-                                  </div>
-                                  <div className="achievement-progress-foot">
-                                    <span>
-                                      {achievement.isEarned && achievement.awardedAt
-                                        ? `Awarded ${formatShortDateTime(achievement.awardedAt)}`
-                                        : `Need ${achievement.minimum - achievement.current > 0 ? achievement.minimum - achievement.current : 0} more`}
-                                    </span>
-                                  </div>
-                                </article>
-                              ))}
-                            </div>
-                          </article>
-                        ))}
+                              </strong>
+                              <span>{getAchievementCategoryLabel(category)}</span>
+                            </span>
+                          ))}
+                        </div>
+                        <button
+                          type="button"
+                          className="secondary-button achievement-guide-button"
+                          onClick={() => setShowAchievementGuide(true)}
+                        >
+                          View achievement list
+                        </button>
                       </div>
                     ) : (
                       <div className="account-empty-state">
@@ -6098,6 +6247,79 @@ export function MvpDashboard({
                       </div>
                     )}
                   </section>
+
+                  {showAchievementGuide && achievementCards.length > 0 ? (
+                    <div
+                      className="achievement-guide-backdrop"
+                      role="presentation"
+                      onClick={() => setShowAchievementGuide(false)}
+                    >
+                      <section
+                        className="achievement-guide-modal"
+                        role="dialog"
+                        aria-modal="true"
+                        aria-labelledby="achievement-guide-title"
+                        onClick={(event) => event.stopPropagation()}
+                      >
+                        <header className="achievement-guide-header">
+                          <div>
+                            <p className="account-section-kicker">Achievement list</p>
+                            <h3 id="achievement-guide-title">Badges to unlock</h3>
+                            <p>
+                              In progress badges stay at the top. Completed badges move below.
+                            </p>
+                          </div>
+                          <button
+                            type="button"
+                            className="panel-close-button"
+                            onClick={() => setShowAchievementGuide(false)}
+                            aria-label="Close achievement list"
+                          >
+                            ×
+                          </button>
+                        </header>
+                        <div className="achievement-guide-list">
+                          {achievementGuideCards.map((achievement) => {
+                            const displayedCurrent = Math.min(achievement.current, achievement.minimum);
+                            const displayedRatio = achievement.isEarned
+                              ? 1
+                              : clamp(displayedCurrent / achievement.minimum, 0, 1);
+                            const statusLabel = achievement.isEarned ? "Completed" : "In progress";
+                            const guideCardClassName = [
+                              "achievement-guide-card",
+                              achievement.isEarned ? "achievement-guide-card-complete" : null
+                            ]
+                              .filter(Boolean)
+                              .join(" ");
+
+                            return (
+                              <article className={guideCardClassName} key={achievement.id}>
+                                <div className="achievement-guide-card-head">
+                                  <span>{getAchievementCategoryLabel(achievement.category)}</span>
+                                  <strong>{statusLabel}</strong>
+                                </div>
+                                <h4>{achievement.name}</h4>
+                                <p>{getAchievementDescription(achievement)}</p>
+                                <div className="achievement-guide-progress-row">
+                                  <span>
+                                    {formatAchievementNumber(displayedCurrent)}/{formatAchievementNumber(achievement.minimum)}{" "}
+                                    {getAchievementUnit(achievement, achievement.minimum)}
+                                  </span>
+                                  <strong>{getAchievementFootnote(achievement)}</strong>
+                                </div>
+                                <div className="achievement-progress-track" aria-hidden="true">
+                                  <span style={{ width: `${Math.max(displayedRatio * 100, 0)}%` }} />
+                                </div>
+                                <p className="achievement-guide-detail-copy">
+                                  {getAchievementDetailCopy(achievement)}
+                                </p>
+                              </article>
+                            );
+                          })}
+                        </div>
+                      </section>
+                    </div>
+                  ) : null}
 
                   <section className="account-history-section">
                     <div className="account-history-header">
@@ -6189,7 +6411,7 @@ export function MvpDashboard({
                           />
                           <div className="profile-avatar-picker-copy">
                             <p className="account-section-kicker">Profile picture</p>
-                            <h4 className="achievement-category-title">
+                            <h4 className="profile-avatar-picker-title">
                               {profileSettings.avatarType === "upload"
                                 ? "Uploaded photo"
                                 : `${getBuiltInProfileAvatar(profileSettings.avatarValue).label} icon`}
